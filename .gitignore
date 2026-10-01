@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+.env*
+!.env.example
+.atl/
+.vercel/
+*.log
+.DS_Store
+supabase/.temp/

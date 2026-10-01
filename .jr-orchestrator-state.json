@@ -1,0 +1,292 @@
+{
+  "version": 3,
+  "step": "done",
+  "owner": "jr-orchestrator",
+  "kb": {
+    "created_by": "kb-creator",
+    "source": "interactive",
+    "discovery": {
+      "system_type": "SaaS multi-tenant web app (responsive PWA for phone and PC)",
+      "domain": "independent retail stores (kiosks/almacenes): sales register, split payments, cash register per shift, stock, expiration dates, statistics",
+      "scale": "small tenants now (1-3 independent kiosk pilot), multi-tenant SaaS target (5-20 locations in Stage 1)",
+      "stack": [
+        "Next.js (App Router)",
+        "TypeScript",
+        "Supabase (PostgreSQL + Auth + RLS)",
+        "Vercel"
+      ],
+      "needs_infra": false,
+      "problem": "Independent kiosks and almacenes have no simple system to control their sales, money (cash and split payments), stock and losses (mainly expired products)."
+    },
+    "files": [
+      "knowledge-base/01_vision_y_objetivos.md",
+      "knowledge-base/02_descripcion_general.md",
+      "knowledge-base/03_actores_y_roles.md",
+      "knowledge-base/04_modelo_de_datos.md",
+      "knowledge-base/05_reglas_de_negocio.md",
+      "knowledge-base/06_funcionalidades.md",
+      "knowledge-base/07_flujos_principales.md",
+      "knowledge-base/08_arquitectura_propuesta.md",
+      "knowledge-base/09_decisiones_y_supuestos.md",
+      "knowledge-base/10_preguntas_abiertas.md",
+      "knowledge-base/11_importacion_de_catalogo.md",
+      "knowledge-base/12_piloto_y_etapas.md",
+      "knowledge-base/13_ventas_pagos_y_caja.md",
+      "knowledge-base/README.md"
+    ]
+  },
+  "roadmap": {
+    "created_by": "roadmap-generator",
+    "source": "CHANGES.md",
+    "changes": [
+      "C-01",
+      "C-02",
+      "C-03",
+      "C-04",
+      "C-05",
+      "C-06",
+      "C-07",
+      "C-08",
+      "C-09",
+      "C-10",
+      "C-11",
+      "C-12",
+      "C-13",
+      "C-14",
+      "C-15",
+      "C-16",
+      "C-17",
+      "C-18",
+      "C-19",
+      "C-20",
+      "C-21",
+      "C-22",
+      "C-23",
+      "C-24",
+      "C-25",
+      "C-26",
+      "C-27",
+      "C-28",
+      "C-29",
+      "C-30",
+      "C-31",
+      "C-32",
+      "C-33",
+      "C-34",
+      "C-35",
+      "C-36",
+      "C-37",
+      "C-38",
+      "C-39",
+      "C-40",
+      "C-41",
+      "C-42",
+      "C-43",
+      "C-44",
+      "C-45",
+      "C-46",
+      "C-47",
+      "C-48",
+      "C-49",
+      "C-50",
+      "C-51",
+      "C-52",
+      "C-53",
+      "C-54",
+      "C-55",
+      "C-56",
+      "C-57",
+      "C-58",
+      "C-59",
+      "C-60",
+      "C-61",
+      "C-62",
+      "C-63"
+    ]
+  },
+  "skills": {
+    "mode": "recommend-only",
+    "recommended": [
+      {
+        "rank": 1,
+        "name": "supabase",
+        "source": "supabase/agent-skills",
+        "installs": "299K",
+        "trust": "official (Supabase, 2.7K stars)",
+        "covers": "Supabase Auth/SSR (getUser/getClaims vs getSession), RLS security checklist, migrations, CLI, storage, Data API grants, secret-key exposure",
+        "helps": [
+          "C-01",
+          "C-04",
+          "C-05",
+          "C-06",
+          "C-07",
+          "C-24",
+          "C-28"
+        ],
+        "install": "npx skills add supabase/agent-skills@supabase -g -y",
+        "url": "https://skills.sh/supabase/agent-skills/supabase"
+      },
+      {
+        "rank": 2,
+        "name": "supabase-postgres-best-practices",
+        "source": "supabase/agent-skills",
+        "installs": "422K",
+        "trust": "official (Supabase)",
+        "covers": "Postgres schema design, indexes, RLS policies and their performance/tests, upsert/batch inserts, locking (SKIP LOCKED), EXPLAIN",
+        "helps": [
+          "C-04",
+          "C-08",
+          "C-13",
+          "C-14",
+          "C-17",
+          "C-19",
+          "C-24",
+          "C-30",
+          "C-31"
+        ],
+        "install": "npx skills add supabase/agent-skills@supabase-postgres-best-practices -g -y",
+        "url": "https://skills.sh/supabase/agent-skills/supabase-postgres-best-practices"
+      },
+      {
+        "rank": 3,
+        "name": "shadcn",
+        "source": "shadcn-ui/ui",
+        "installs": "352K",
+        "trust": "official (shadcn/ui, 125K stars)",
+        "covers": "shadcn/ui project setup, component add/compose/style rules, Tailwind conventions",
+        "helps": [
+          "C-01",
+          "C-06",
+          "C-09",
+          "C-10",
+          "C-15",
+          "C-16",
+          "C-18",
+          "C-44",
+          "C-47"
+        ],
+        "install": "npx skills add shadcn-ui/ui@shadcn -g -y",
+        "url": "https://skills.sh/shadcn-ui/ui/shadcn"
+      },
+      {
+        "rank": 4,
+        "name": "playwright-best-practices",
+        "source": "currents-dev/playwright-best-practices-skill",
+        "installs": "88K",
+        "trust": "community/vendor (Currents.dev, MIT, 386 stars)",
+        "covers": "Playwright test architecture, fixtures, auth flows, multi-user, mobile testing, service workers, clock mocking, CI config",
+        "helps": [
+          "C-01",
+          "C-02",
+          "C-05",
+          "C-21",
+          "C-27",
+          "C-29"
+        ],
+        "install": "npx skills add currents-dev/playwright-best-practices-skill@playwright-best-practices -g -y",
+        "url": "https://skills.sh/currents-dev/playwright-best-practices-skill/playwright-best-practices"
+      },
+      {
+        "rank": 5,
+        "name": "vitest",
+        "source": "antfu/skills",
+        "installs": "38K",
+        "trust": "community (Anthony Fu, Vite/Vitest core team, 5.9K stars, MIT)",
+        "covers": "Vitest config, mocking, fake timers, table tests, coverage",
+        "helps": [
+          "C-01",
+          "C-03",
+          "C-13",
+          "C-22",
+          "C-23",
+          "C-33"
+        ],
+        "install": "npx skills add antfu/skills@vitest -g -y",
+        "url": "https://skills.sh/antfu/skills/vitest"
+      },
+      {
+        "rank": 6,
+        "name": "xlsx",
+        "source": "anthropics/skills",
+        "installs": "175K",
+        "trust": "official (Anthropic)",
+        "covers": "Reading/inspecting/creating .xlsx files (Python/openpyxl oriented), useful for building tests/fixtures/imports and inspecting the Debo exports",
+        "caveat": "Partial fit: app-side parsing is TypeScript. Already available in this environment as anthropic-skills:xlsx (plugin), so install only if a persistent copy is wanted.",
+        "helps": [
+          "C-22",
+          "C-23",
+          "C-25",
+          "C-26",
+          "C-30",
+          "C-34"
+        ],
+        "install": "npx skills add anthropics/skills@xlsx -g -y",
+        "url": "https://skills.sh/anthropics/skills/xlsx"
+      },
+      {
+        "rank": 7,
+        "name": "tdd",
+        "source": "mattpocock/skills",
+        "installs": "985K",
+        "trust": "community (Matt Pocock, 272K stars)",
+        "covers": "Red-green-refactor reference: what a good test is, test seams, anti-patterns, mocking guidelines",
+        "caveat": "Asks to confirm test seams with the user before writing tests; may add friction for autonomous apply sub-agents. Project already enforces Strict TDD via the apply module.",
+        "helps": [
+          "C-03",
+          "C-13",
+          "C-17",
+          "C-22",
+          "C-42",
+          "C-43"
+        ],
+        "install": "npx skills add mattpocock/skills@tdd -g -y",
+        "url": "https://skills.sh/mattpocock/skills/tdd"
+      }
+    ],
+    "installed": [
+      "supabase",
+      "supabase-postgres-best-practices",
+      "shadcn",
+      "playwright-best-practices",
+      "vitest"
+    ],
+    "gaps": [
+      "C-46 PDF generation (no reputable React-PDF/PDF-lib skill found; anthropic-skills:pdf plugin is available but covers PDF manipulation)",
+      "C-27 PWA/offline (only unverified community skill alinaqi/maggy@pwa-development, 3.7K installs; installed nextjs-seo covers manifest)"
+    ],
+    "install_scope": "project (.agents/skills, symlinked to .claude/skills)",
+    "rejected": [
+      "xlsx",
+      "tdd"
+    ]
+  },
+  "registry": {
+    "created_by": "skill-registry",
+    "file": ".atl/skill-registry.md"
+  },
+  "agents": {
+    "created_by": "agent-instruction",
+    "files": [
+      "AGENTS.md",
+      "CLAUDE.md"
+    ],
+    "reglas_applied": [
+      "no-any-strict-ts",
+      "server-first",
+      "zod-input-validation",
+      "code-en-ui-es",
+      "tenant-org-id-rls-test",
+      "getUser-no-getSession-no-service-role-client",
+      "versioned-migrations-only",
+      "money-numeric-cents",
+      "stock-via-events-only",
+      "void-not-edit-no-hard-delete",
+      "uuidv7-idempotent-register-sale",
+      "no-third-party-brands",
+      "conventional-commits-change-id",
+      "branch-per-change-no-main-commits",
+      "no-env-secrets-atl-ignored",
+      "definition-of-done"
+    ]
+  }
+}
