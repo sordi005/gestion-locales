@@ -450,6 +450,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - RPC `create_organization` y `create_location` (solo `platform_admin`, auditadas). Los **medios de pago por defecto** y la **"Caja 1"** los agregan C-15 y C-14 con triggers `AFTER INSERT` sobre `organizations` y `locations` (más backfill), para no acoplar este change a tablas que todavía no existen
   - `supabase/seed.sql`: 2 organizaciones demo ("Kiosco Demo Norte", "Almacén Demo Sur"), 1-2 locales cada una, un usuario por rol y un `platform_admin` (credenciales de prueba solo en el seed)
   - Tests pgTAP: la org A no lee, inserta ni actualiza filas de la B en ninguna tabla; membresía `disabled` pierde el acceso; `employee` sin local asignado ve 0 filas; la FK compuesta impide referenciar otra organización; los helpers no son ejecutables por `anon`; el job RLS del CI en verde
+  - CI: sumar `supabase db advisors` como paso informativo (no bloqueante) del job `db` (decisión del fundador en C-02)
 - **Dependencias**: C-01, C-02
 - **Governance**: CRITICO
 - **Leer antes**:
