@@ -1,0 +1,31 @@
+# Generado o de terceros
+node_modules/
+.next/
+pnpm-lock.yaml
+next-env.d.ts
+coverage/
+
+# Supabase local
+supabase/.temp/
+supabase/.branches/
+
+# Reportes de Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.auth/
+
+# Documentación y specs: se escriben a mano, no se reformatean
+knowledge-base/
+docs/
+openspec/
+.claude/
+.atl/
+
+# Archivos de agentes y tooling externo (no son código del producto)
+.agents/
+.jr-orchestrator-state.json
+skills-lock.json
+AGENTS.md
+CLAUDE.md
+CHANGES.md

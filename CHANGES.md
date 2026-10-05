@@ -376,7 +376,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 > C-02 y C-03 pueden proponerse en paralelo una vez archivado C-01.
 
 ### [C-01] `foundation-setup`
-- **Estado**: `[ ]` pendiente · Prioridad **D1**
+- **Estado**: `[x]` completado (archivado 2026-10-05) · Prioridad **D1**
 - **Scope**: Scaffolding del proyecto Next.js + tooling, sin lógica de negocio
   - Next.js (última estable, App Router) + React 19 + TypeScript `strict: true`, pnpm, ESLint + Prettier, Tailwind CSS + shadcn/ui inicializados (`components.json`)
   - Estructura de KB 08 §Estructura de directorios: `src/app`, `src/features`, `src/shared/{db,ui,lib}`, `tests/{e2e,fixtures/imports}`; regla `app → features → shared` verificada por lint
