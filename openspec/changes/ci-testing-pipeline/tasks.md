@@ -95,7 +95,8 @@
 
 ## 9. Verificación en GitHub y `main` protegida (solo necesita GitHub)
 
-- [ ] 9.1 Proponer al fundador el commit `feat(C-02): ci pipeline, pgTAP helpers and RLS guard` en `feat/C-02-ci-testing-pipeline`; con su aprobación, push y PR **en borrador** (plantilla completa; no se mergea hasta terminar la Parte B, ver 13.1). Verificar los cinco checks en verde en la primera corrida (si `pnpm/action-setup` falla con pnpm 12, aplicar el fallback de Risks y repetir)
+- [x] 9.1 Proponer al fundador el commit `feat(C-02): ci pipeline, pgTAP helpers and RLS guard` en `feat/C-02-ci-testing-pipeline`; con su aprobación, push y PR **en borrador** (plantilla completa; no se mergea hasta terminar la Parte B, ver 13.1). Verificar los cinco checks en verde en la primera corrida (si `pnpm/action-setup` falla con pnpm 12, aplicar el fallback de Risks y repetir)
+  - Nota: commit `a06cba3`, PR en borrador sordi005/gestion-locales#2. Primera corrida (run 37418294538) con los cinco checks en verde: `lint` 26s, `typecheck` 26s, `unit` 25s, `e2e` 57s, `db` 1m51s. `pnpm/action-setup@v6` instaló pnpm 12 sin necesidad del fallback.
 - [ ] 9.2 PR de prueba (con aprobación del fundador): rama `test/C-02-rls-canary` desde la de C-02 con la migración `rls_canary` sin RLS (y su `types.ts` regenerado, para aislar la causa); confirmar que el job `db` falla en `supabase test db` nombrando `rls_canary` y que el resto de los checks no se ve afectado. **No cerrarlo todavía**: se usa en 9.4
 - [ ] 9.3 **[MANUAL — fundador]** Proteger `main` en GitHub (se hace una sola vez, toma 5 minutos):
   1. Entrá a `https://github.com/sordi005/gestion-locales` con tu usuario.
