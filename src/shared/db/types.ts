@@ -5,7 +5,20 @@ export type Database = {
   
   "public": {
           Tables: {
-            [_ in never]: never
+            "rls_canary": {
+                  Row: {
+                    "id": number | null
+                  }
+                  Insert: {
+                    "id"?: number | null
+                  }
+                  Update: {
+                    "id"?: number | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                }
           }
           Views: {
             [_ in never]: never

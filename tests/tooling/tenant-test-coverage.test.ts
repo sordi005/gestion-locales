@@ -151,7 +151,10 @@ describe("findUncovered", () => {
 describe("repo real", () => {
   // Tablas que no pertenecen a una organización (plataforma): tabla -> motivo.
   // Vacía hoy; cada entrada nueva necesita un motivo no vacío.
-  const EXEMPT_TABLES: Record<string, string> = {};
+  const EXEMPT_TABLES: Record<string, string> = {
+    rls_canary:
+      "PR de prueba de C-02 (tarea 9.2): aísla la falla en el job db; nunca se mergea",
+  };
 
   const root = new URL("../../supabase/", import.meta.url);
 
