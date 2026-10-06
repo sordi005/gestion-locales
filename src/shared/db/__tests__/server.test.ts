@@ -1,8 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  vi,
+} from "vitest";
 
 import { createClient } from "@/shared/db/server";
+import type { Database } from "@/shared/db/types";
 
 vi.mock("@supabase/ssr");
 vi.mock("next/headers");
@@ -140,5 +150,22 @@ describe("createClient (servidor)", () => {
       "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
     );
     expect(createServerClient).not.toHaveBeenCalled();
+  });
+});
+
+describe("createClient (servidor): tipos", () => {
+  it("devuelve un SupabaseClient tipado con Database", () => {
+    expectTypeOf<Awaited<ReturnType<typeof createClient>>>().toEqualTypeOf<
+      SupabaseClient<Database>
+    >();
+  });
+
+  it("una tabla inexistente en Database es un error de tipos", () => {
+    const client = { from: vi.fn() } as unknown as Awaited<
+      ReturnType<typeof createClient>
+    >;
+
+    // @ts-expect-error `tabla_inexistente` no existe en Database
+    client.from("tabla_inexistente");
   });
 });

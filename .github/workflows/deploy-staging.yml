@@ -1,0 +1,82 @@
+# Aplica las migraciones de `supabase/migrations/` al proyecto Supabase de STAGING
+# después de cada merge a `main` con el CI en verde. Nunca toca producción.
+#
+# - Corre solo cuando el workflow CI termina con éxito sobre un `push` a `main`
+#   (un merge), o a mano desde `main` (pestaña Actions -> Run workflow). Nunca en PRs.
+# - Los tres secretos viven en el Environment `staging` de GitHub (restringido a
+#   la rama `main`) y este es el único workflow que los usa.
+# - Antes de vincular o aplicar nada, una guardia verifica que el ref configurado
+#   sea el de un proyecto llamado exactamente `staging` (scripts/ci/assert-staging-target.ts).
+# - Sin seed y sin reset: el seed trae credenciales de prueba y no va a staging.
+#
+# Los secretos se pasan solo a los pasos que los necesitan (nunca a nivel de
+# workflow o job), para que `pnpm install` y las acciones de terceros no los vean.
+name: Deploy staging
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Dos merges seguidos se aplican en orden; una corrida nunca se cancela a mitad.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    if: >-
+      ${{
+        (github.event_name == 'workflow_run'
+          && github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.event == 'push'
+          && github.event.workflow_run.head_branch == 'main')
+        || (github.event_name == 'workflow_dispatch'
+          && github.ref == 'refs/heads/main')
+      }}
+    steps:
+      # El commit exacto que pasó el CI (no lo que `main` tenga al momento de correr).
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      # Guardia de destino: si el ref no es el del proyecto `staging`, el job falla
+      # acá y no se ejecuta ningún paso de Supabase que modifique una base.
+      - name: Guardia de destino (el ref tiene que ser el de staging)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_STAGING_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
+        run: |
+          set -o pipefail
+          pnpm exec supabase projects list -o json | node scripts/ci/assert-staging-target.ts "$SUPABASE_STAGING_PROJECT_REF"
+      # La contraseña de la base llega por SUPABASE_DB_PASSWORD, nunca como argumento.
+      - name: Vincular el proyecto de staging
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
+          SUPABASE_STAGING_PROJECT_REF: ${{ secrets.SUPABASE_STAGING_PROJECT_REF }}
+        run: pnpm exec supabase link --project-ref "$SUPABASE_STAGING_PROJECT_REF"
+      # Sin migraciones nuevas informa que la base está al día y termina en verde.
+      - name: Aplicar las migraciones pendientes
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
+        run: pnpm exec supabase db push --linked --yes
+      - name: Historial de migraciones (local y remoto)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}
+        run: pnpm exec supabase migration list --linked

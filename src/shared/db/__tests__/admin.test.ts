@@ -1,4 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  vi,
+} from "vitest";
+
+import type { createAdminClient } from "@/shared/db/admin";
+import type { Database } from "@/shared/db/types";
 
 const SECRET = "sb_secret_valor-que-no-debe-filtrarse";
 
@@ -86,5 +98,22 @@ describe("createAdminClient", () => {
     expect(call).toThrow("NEXT_PUBLIC_SUPABASE_URL");
     expect(call).not.toThrow(SECRET);
     expect(createClientMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("createAdminClient: tipos", () => {
+  it("devuelve un SupabaseClient tipado con Database", () => {
+    expectTypeOf<ReturnType<typeof createAdminClient>>().toEqualTypeOf<
+      SupabaseClient<Database>
+    >();
+  });
+
+  it("una tabla inexistente en Database es un error de tipos", () => {
+    const client = { from: vi.fn() } as unknown as ReturnType<
+      typeof createAdminClient
+    >;
+
+    // @ts-expect-error `tabla_inexistente` no existe en Database
+    client.from("tabla_inexistente");
   });
 });

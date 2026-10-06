@@ -1,0 +1,22 @@
+name: Setup del proyecto
+description: >-
+  Instala pnpm (la versión de packageManager en package.json), Node (la de .nvmrc)
+  con caché del store de pnpm y las dependencias con el lockfile congelado.
+  Requiere que el job haya hecho checkout antes.
+
+runs:
+  using: composite
+  steps:
+    # Sin `version`: pnpm/action-setup la toma de "packageManager".
+    - name: Instalar pnpm
+      uses: pnpm/action-setup@v6
+
+    - name: Instalar Node (versión de .nvmrc) con caché de pnpm
+      uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    - name: Instalar dependencias
+      shell: bash
+      run: pnpm install --frozen-lockfile

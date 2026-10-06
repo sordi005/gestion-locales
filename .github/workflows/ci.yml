@@ -1,0 +1,109 @@
+# CI de [NOMBRE-PRODUCTO]: cinco jobs independientes que corren en paralelo.
+# Los ids de los jobs (lint, typecheck, unit, db, e2e) son los checks requeridos
+# del ruleset que protege `main`: NO renombrarlos sin actualizar el ruleset.
+#
+# Este workflow no usa secretos: todo corre contra un Supabase local efímero. El
+# repo es público, así que un PR desde un fork corre con `pull_request` (token de
+# solo lectura, sin secretos). Ningún workflow del repo usa `pull_request_target`.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: ESLint
+        run: pnpm lint
+      - name: Prettier
+        run: pnpm format:check
+
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: TypeScript
+        run: pnpm typecheck
+
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Vitest (proyectos unit y dom)
+        run: pnpm test
+
+  db:
+    name: db
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      # Arranque mínimo: Postgres, Auth, Kong y postgres-meta (lo usa `gen types`).
+      # `supabase start` aplica las migraciones y el seed: una migración rota
+      # falla acá. La CLI es la fijada en devDependencies (pnpm exec).
+      - name: Levantar Supabase local
+        id: start
+        run: pnpm exec supabase start -x studio,imgproxy,mailpit,edge-runtime,logflare,vector,realtime,storage-api,supavisor,postgrest
+      - name: Tests de base de datos (pgTAP)
+        run: pnpm test:db
+      # Corre aunque pgTAP haya fallado, siempre que Supabase haya arrancado.
+      - name: Tipos de la base sin diff
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        run: |
+          pnpm db:types
+          if [ -n "$(git status --porcelain -- src/shared/db/types.ts)" ]; then
+            git status --short -- src/shared/db/types.ts
+            git --no-pager diff -- src/shared/db/types.ts
+            echo '::error file=src/shared/db/types.ts::Los tipos generados no coinciden con las migraciones. Corré "pnpm db:types" con Supabase local levantado ("pnpm exec supabase start") y commiteá el resultado.'
+            exit 1
+          fi
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Instalar Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      # Se testea el build de producción (lo que se despliega); `CI=true` lo define
+      # GitHub y hace que Playwright use `pnpm start`.
+      - name: Build de producción
+        run: pnpm build
+      - name: Playwright (desktop-keyboard y mobile)
+        run: pnpm test:e2e
+      - name: Subir reporte y trazas
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

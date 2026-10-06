@@ -1,14 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+import type { Database } from "@/shared/db/types";
 import { readPublicEnv } from "@/shared/lib/env";
 
-// TODO(C-02): tipar el cliente con `Database` cuando exista el esquema.
 export async function createClient() {
   const { supabaseUrl, supabasePublishableKey } = readPublicEnv();
   const cookieStore = await cookies();
 
-  return createServerClient(supabaseUrl, supabasePublishableKey, {
+  return createServerClient<Database>(supabaseUrl, supabasePublishableKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

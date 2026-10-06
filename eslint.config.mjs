@@ -86,6 +86,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generado por `pnpm db:types` (supabase gen types): no se edita ni se lintea.
+    "src/shared/db/types.ts",
   ]),
 ]);
 
