@@ -5,6 +5,9 @@ pnpm-lock.yaml
 next-env.d.ts
 coverage/
 
+# Tipos generados por `supabase gen types` (db:types): se versiona la salida exacta de la CLI
+src/shared/db/types.ts
+
 # Supabase local
 supabase/.temp/
 supabase/.branches/

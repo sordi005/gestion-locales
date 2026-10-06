@@ -1,9 +1,9 @@
 import { createBrowserClient } from "@supabase/ssr";
 
+import type { Database } from "@/shared/db/types";
 import { readPublicEnv } from "@/shared/lib/env";
 
-// TODO(C-02): tipar el cliente con `Database` cuando exista el esquema.
 export function createClient() {
   const { supabaseUrl, supabasePublishableKey } = readPublicEnv();
-  return createBrowserClient(supabaseUrl, supabasePublishableKey);
+  return createBrowserClient<Database>(supabaseUrl, supabasePublishableKey);
 }

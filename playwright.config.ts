@@ -1,20 +1,24 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 3000;
+// `PORT` permite correr los E2E cuando el 3000 está ocupado por otra app
+// (`next dev` y `next start` también lo leen del entorno).
+const PORT = Number(process.env.PORT ?? 3000);
 const baseURL = `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "tests/e2e",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? "github" : "list",
+  // En CI: anotaciones de GitHub + reporte HTML que se sube como artefacto si falla.
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL,
     trace: "on-first-retry",
     video: "retain-on-failure",
   },
   webServer: {
-    command: "pnpm dev",
+    // En CI se sirve el build de producción (el job corre `pnpm build` antes).
+    command: process.env.CI ? "pnpm start" : "pnpm dev",
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
