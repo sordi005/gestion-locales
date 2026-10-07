@@ -1,9 +1,7 @@
 ## Purpose
 
 Configura Vitest para tests unitarios y de componentes, e inicializa Playwright para pruebas E2E en desktop y mobile.
-
 ## Requirements
-
 ### Requirement: Vitest con proyectos unit y dom
 El repo SHALL tener Vitest configurado con dos proyectos: `unit` (entorno `node`, archivos `*.test.ts`) y `dom` (entorno `jsdom` con Testing Library y matchers de `jest-dom`, archivos `*.test.tsx`). Los tests de Playwright (`tests/e2e/**`) MUST quedar excluidos de Vitest. El alias `@/` MUST resolver igual que en la app.
 
@@ -27,7 +25,7 @@ El proyecto `dom` SHALL incluir al menos un test real de componente que renderic
 - **THEN** encuentra por rol `heading` de nivel 1 el texto `[NOMBRE-PRODUCTO]`
 
 ### Requirement: Playwright con proyectos desktop-keyboard y mobile
-El repo SHALL tener Playwright configurado con `baseURL`, un `webServer` que levanta la app (reutilizando un servidor existente fuera de CI), `forbidOnly` y `retries` según CI, `trace: 'on-first-retry'`, y dos proyectos: `desktop-keyboard` (viewport de PC, uso solo con teclado) y `mobile` (dispositivo móvil emulado).
+El repo SHALL tener Playwright configurado con `baseURL`, un `webServer` que levanta la app, `forbidOnly` y `retries` según CI, `trace: 'on-first-retry'`, y dos proyectos: `desktop-keyboard` (viewport de PC, uso solo con teclado) y `mobile` (dispositivo móvil emulado). Fuera de CI el `webServer` MUST usar `pnpm dev` y reutilizar un servidor existente; en CI (`CI` definido) MUST servir el build de producción con `pnpm start` (el build lo hace un paso previo del job) y MUST NOT reutilizar servidores. En CI el reporter SHALL combinar anotaciones de GitHub con un reporte HTML que no se abre solo (`open: 'never'`), para subirlo como artefacto.
 
 #### Scenario: Humo en ambos proyectos
 - **WHEN** se ejecuta `pnpm test:e2e`
@@ -41,12 +39,20 @@ El repo SHALL tener Playwright configurado con `baseURL`, un `webServer` que lev
 - **WHEN** en el proyecto `desktop-keyboard` el test presiona `Tab` desde el inicio del documento
 - **THEN** el foco llega a un elemento enfocable de la página sin usar el mouse
 
+#### Scenario: Servidor según el entorno
+- **WHEN** se evalúa la configuración de Playwright con `CI` definido y sin definir
+- **THEN** con `CI` el comando del `webServer` es `pnpm start` sin reutilizar servidor y el reporter incluye `github` y `html`; sin `CI` es `pnpm dev` reutilizando el servidor existente
+
 ### Requirement: Scripts estándar de verificación
-`package.json` SHALL exponer los scripts `dev`, `build`, `start`, `lint`, `typecheck`, `format`, `format:check`, `test`, `test:watch`, `test:e2e` y `check` (lint + typecheck + test). Ningún script de test MUST quedar en modo watch por defecto.
+`package.json` SHALL exponer los scripts `dev`, `build`, `start`, `lint`, `typecheck`, `format`, `format:check`, `test`, `test:watch`, `test:e2e`, `test:db` (`supabase test db`, requiere Supabase local levantado), `db:types` (regenera `src/shared/db/types.ts` desde la base local) y `check` (lint + typecheck + test). Ningún script de test MUST quedar en modo watch por defecto, y `check` MUST NOT requerir Docker.
 
 #### Scenario: Verificación completa local
 - **WHEN** se ejecuta `pnpm check`
 - **THEN** corren lint, typecheck y los tests de Vitest, y el comando termina en verde
+
+#### Scenario: Tests de base locales
+- **WHEN** con Docker disponible se ejecuta `pnpm exec supabase start` y luego `pnpm test:db`
+- **THEN** corren los tests pgTAP de `supabase/tests/` y terminan en verde
 
 ### Requirement: Tests sin aserciones triviales
 Los tests de humo SHALL verificar comportamiento observable (contenido renderizado, errores de lint, valores calculados) y MUST NOT ser tautologías (`expect(true).toBe(true)`), chequeos solo de tipo ni loops sin aserciones.
@@ -54,3 +60,4 @@ Los tests de humo SHALL verificar comportamiento observable (contenido renderiza
 #### Scenario: Revisión de los tests de humo
 - **WHEN** se revisan los tests agregados por este change
 - **THEN** cada uno falla si se rompe el comportamiento que describe
+

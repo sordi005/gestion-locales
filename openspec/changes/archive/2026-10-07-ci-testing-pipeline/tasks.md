@@ -167,16 +167,16 @@
 
 ## 12. Cuenta de Vercel y previews (manual)
 
-- [ ] 12.1 **[MANUAL — fundador]** Crear la cuenta de Vercel:
+- [x] 12.1 **[MANUAL — fundador]** Crear la cuenta de Vercel:
   1. Entrá a `https://vercel.com/signup`.
   2. Elegí el plan **Hobby** (gratis; alcanza mientras desarrollamos, sin datos reales).
   3. Elegí **Continue with GitHub** y aceptá los permisos que pide.
-- [ ] 12.2 **[MANUAL — fundador]** Importar el repo:
+- [x] 12.2 **[MANUAL — fundador]** Importar el repo:
   1. En el panel de Vercel, hacé clic en **Add New…** → **Project**.
   2. En la lista de repos de GitHub, buscá `gestion-locales` y hacé clic en **Import** (si no aparece, hacé clic en **Adjust GitHub App Permissions** y dale acceso a ese repo).
   3. Vercel detecta solo que es Next.js y que usa pnpm: no cambies nada de **Build and Output Settings**.
   4. **No cargues variables en esta pantalla** (acá se aplican a producción). Hacé clic en **Deploy** y esperá a que termine (va a mostrar la página "En construcción").
-- [ ] 12.3 **[MANUAL — fundador]** Cargar las variables solo para los previews:
+- [x] 12.3 **[MANUAL — fundador]** Cargar las variables solo para los previews:
   1. En el proyecto, entrá a **Settings** → **Environment Variables**.
   2. Para cada variable de esta lista, escribí el nombre exacto en **Key**, pegá el valor en **Value**, y en **Environments** dejá tildado **solo Preview** (destildá Production y Development):
      - `NEXT_PUBLIC_SUPABASE_URL` → la URL de 11.3.2
@@ -186,12 +186,18 @@
   3. Hacé clic en **Save** después de cada una.
   4. En **Settings** → **Node.js Version** (dentro de **Build and Deployment**), elegí **24.x** y guardá.
   5. En **Settings** → **Deployment Protection**, revisá que **Vercel Authentication** esté activado para los previews y que **Git Fork Protection** esté activado (vienen así por defecto; si no, activalos).
-- [ ] 12.4 **[MANUAL — fundador]** Comprobar el preview: en el PR de C-02 en GitHub, esperá el comentario o el check de Vercel con un enlace **Preview**; abrilo y confirmá que se ve `[NOMBRE-PRODUCTO]`. Avisale al agente
-- [ ] 12.5 Verificación del agente: el PR muestra el check de Vercel en verde y el enlace de preview; anotarlo. Confirmar con el fundador que el scope Production quedó sin variables de Supabase
+  - Nota: el fundador cargó las cuatro variables primero en Development y las corrigió a Preview; `SUPABASE_SECRET_KEY` como Sensitive. Git Fork Protection está en **Settings → Security** del proyecto (no en Deployment Protection), activada por defecto.
+- [x] 12.4 **[MANUAL — fundador]** Comprobar el preview: en el PR de C-02 en GitHub, esperá el comentario o el check de Vercel con un enlace **Preview**; abrilo y confirmá que se ve `[NOMBRE-PRODUCTO]`. Avisale al agente
+- [x] 12.5 Verificación del agente: el PR muestra el check de Vercel en verde y el enlace de preview; anotarlo. Confirmar con el fundador que el scope Production quedó sin variables de Supabase
+  - Nota: commit `758ecfd` del PR #2 con el estado `Vercel: success — Deployment has completed`; el fundador abrió el preview y vio `[NOMBRE-PRODUCTO]`. Confirmó que Production no tiene variables de Supabase. Gotcha: Vercel solo despliega los pushes posteriores a conectar el repo (hizo falta un push nuevo).
 
 ## 13. Merge y verificación posterior
 
-- [ ] 13.1 Con 11 completo (si no, la primera corrida de `deploy-staging` fallaría por falta de secretos): sacar el PR de borrador; con los cinco checks en verde y la aprobación del fundador, mergear a `main` (el ruleset no permite otra vía)
-- [ ] 13.2 Verificar en la pestaña **Actions** que, al terminar el CI sobre `main`, corrió `deploy-staging` en verde: la guardia aceptó el proyecto `staging`, `db push` informó que la base está al día (no hay migraciones) y `migration list` muestra el historial vacío en local y remoto. Si falla por credenciales, revisar con el fundador los nombres de los secretos (11.4) y re-ejecutarlo con **Run workflow**
-- [ ] 13.3 Dejar anotado para C-04: al mergear su primera migración, verificar que `deploy-staging` la aplica y que las tablas aparecen en el panel de Supabase de staging (**Database** → **Migrations**)
-- [ ] 13.4 Actualizar `CHANGES.md` (estado de C-02, y en C-36: "el workflow de producción reutiliza la guardia de destino con el nombre del proyecto de producción") y proponer `/opsx:archive ci-testing-pipeline`
+- [x] 13.1 Con 11 completo (si no, la primera corrida de `deploy-staging` fallaría por falta de secretos): sacar el PR de borrador; con los cinco checks en verde y la aprobación del fundador, mergear a `main` (el ruleset no permite otra vía)
+  - Nota: con el OK del fundador, PR #2 mergeado a `main` (merge commit `20260ee`, 2026-10-06) con `--match-head-commit` sobre `758ecfd` (cinco checks + Vercel en verde). El registro de los grupos 11–13 va en el PR de cierre, porque `main` está protegida.
+- [x] 13.2 Verificar en la pestaña **Actions** que, al terminar el CI sobre `main`, corrió `deploy-staging` en verde: la guardia aceptó el proyecto `staging`, `db push` informó que la base está al día (no hay migraciones) y `migration list` muestra el historial vacío en local y remoto. Si falla por credenciales, revisar con el fundador los nombres de los secretos (11.4) y re-ejecutarlo con **Run workflow**
+  - Nota: run 37515627376 de `deploy-staging` sobre `20260ee`. Intentos 1 y 2 fallaron en la guardia (`Invalid access token format`): el pegado interactivo de `gh secret set` en la terminal de Windows guardó solo `sbp_` (el log enmascaró `sbp_` en el ejemplo de la CLI). El fundador recargó los tres secretos desde la web de GitHub. Intento 3 en verde: guardia "el ref configurado es el del proyecto staging", `Finished supabase link`, `Remote database is up to date` (sin migraciones; `.gitkeep` ignorado) y `migration list` vacío. Aviso inocuo: `projects list` imprime "Cannot find project ref" porque todavía no hay link.
+- [x] 13.3 Dejar anotado para C-04: al mergear su primera migración, verificar que `deploy-staging` la aplica y que las tablas aparecen en el panel de Supabase de staging (**Database** → **Migrations**)
+  - Nota: anotado en `CHANGES.md` dentro del scope de C-04 (verificación de `deploy-staging` con la primera migración y la sobrecarga `tests.create_user(identifier, org, role)`).
+- [x] 13.4 Actualizar `CHANGES.md` (estado de C-02, y en C-36: "el workflow de producción reutiliza la guardia de destino con el nombre del proyecto de producción") y proponer `/opsx:archive ci-testing-pipeline`
+  - Nota: `CHANGES.md` actualizado (C-02 completado; en C-04 la verificación de la primera migración en staging y la sobrecarga de `tests.create_user`; en C-36 la reutilización de la guardia). Como `main` está protegida, el registro de los grupos 11–13 y el archivado van en un PR de cierre.
