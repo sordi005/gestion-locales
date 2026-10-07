@@ -397,7 +397,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 ---
 
 ### [C-02] `ci-testing-pipeline`
-- **Estado**: `[ ]` pendiente · Prioridad **D1**
+- **Estado**: `[x]` completado (archivado 2026-10-07) · Prioridad **D1**
 - **Scope**: Pipeline de CI y guardias automáticas
   - GitHub Actions: jobs `lint`, `typecheck`, `unit` (Vitest), `db` (`supabase start` + `supabase test db` pgTAP), `e2e` (Playwright PC y mobile) con caché de pnpm
   - Guardia que **falla el CI si alguna tabla de `public` no tiene RLS habilitado** (US-005 CA-3), con esquema vacío pasa trivialmente
@@ -451,6 +451,8 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - `supabase/seed.sql`: 2 organizaciones demo ("Kiosco Demo Norte", "Almacén Demo Sur"), 1-2 locales cada una, un usuario por rol y un `platform_admin` (credenciales de prueba solo en el seed)
   - Tests pgTAP: la org A no lee, inserta ni actualiza filas de la B en ninguna tabla; membresía `disabled` pierde el acceso; `employee` sin local asignado ve 0 filas; la FK compuesta impide referenciar otra organización; los helpers no son ejecutables por `anon`; el job RLS del CI en verde
   - CI: sumar `supabase db advisors` como paso informativo (no bloqueante) del job `db` (decisión del fundador en C-02)
+  - Helpers pgTAP: C-02 dejó `tests.create_user(identifier)`; este change agrega la sobrecarga `tests.create_user(identifier, org, role)` con la membresía real, y cada tabla nueva trae su `tests.assert_cross_tenant_denied` (lo exige el test de cobertura de Vitest)
+  - Staging: al mergear, verificar en Actions que `deploy-staging` aplica la migración y que las tablas aparecen en el panel de Supabase de staging (**Database** → **Migrations**) (C-02 tarea 13.3)
 - **Dependencias**: C-01, C-02
 - **Governance**: CRITICO
 - **Leer antes**:
@@ -1087,7 +1089,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Proyecto Supabase de producción (**Pro**: backups diarios y sin pausa por inactividad; región `sa-east-1`) y el de staging separado (Free, solo desarrollo); Vercel **Pro** Production (uso comercial) con funciones en `gru1`; variables por entorno, la secret key solo en Vercel. **Los planes se contratan antes del Día 1, no antes**
   - Headers en `next.config`: CSP estricta, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`
   - SMTP propio (por ejemplo Resend) en el panel de Supabase Auth antes de la primera visita (gotcha 17); plantillas de invitación y recupero en español; redirect URLs de producción
-  - Promoción de migraciones staging → producción (`supabase db push`); seed **solo** de presets globales, sin datos demo; bootstrap del `platform_admin` del fundador en producción; restauración de prueba de un backup
+  - Promoción de migraciones staging → producción (`supabase db push`); el workflow de producción reutiliza la guardia de destino de C-02 (`scripts/ci/assert-staging-target.ts`, parametrizada con el nombre del proyecto de producción) y su propio GitHub Environment; seed **solo** de presets globales, sin datos demo; bootstrap del `platform_admin` del fundador en producción; restauración de prueba de un backup
   - Observabilidad mínima: `SENTRY_DSN` (**Suposición**: "somos la caja")
   - Checklist de la visita de configuración (12 §6) versionada en `docs/`
   - Tests: verificación automatizada de headers y de que ningún `NEXT_PUBLIC_*` contiene secretos; smoke de login en el despliegue
