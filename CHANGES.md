@@ -441,7 +441,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 > Dominio **CRITICO** (auth, RLS, membresías, secret key, auditoría): cada change se propone y se revisa antes de escribir código. Archivado C-05, los changes C-06 y C-07 pueden ir en paralelo.
 
 ### [C-04] `tenancy-schema-rls`
-- **Estado**: `[ ]` pendiente · Prioridad **D1**
+- **Estado**: `[ ]` en curso (propuesta aprobada por el fundador 2026-10-08; próximo: `/opsx:apply`) · Prioridad **D1**
 - **Scope**: Esquema multi-tenant y RLS (fundación de US-005)
   - Migración 001: `organizations` (con `timezone`, `expiry_warning_days`, `expiry_critical_days`, `cash_difference_tolerance`, `sale_void_window_minutes`, `slow_mover_days`), `locations` (con `last_sale_number`), `profiles` (trigger de alta sobre `auth.users`), `platform_admins`, `memberships`, `membership_locations`, `audit_events` (append-only)
   - `UNIQUE (id, organization_id)` en tablas padre y FKs compuestas con `organization_id` como convención (RN-TE-08)
