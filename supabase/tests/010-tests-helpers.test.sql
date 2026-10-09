@@ -2,7 +2,7 @@
 -- Corre dentro de una transacción que se revierte: nada de lo que crea sobrevive.
 begin;
 
-select plan(31);
+select plan(68);
 
 -- ---------------------------------------------------------------------------
 -- Identidad: create_user / as_user / as_anon / as_postgres
@@ -383,6 +383,349 @@ select is(
   array['_fixture_matview'],
   'views_without_security_invoker: una vista materializada en public se marca'
 );
+
+-- ---------------------------------------------------------------------------
+-- Guardia de FKs sin índice
+-- ---------------------------------------------------------------------------
+
+-- FK simple sin índice: aparece como <tabla>.<nombre de la FK>.
+create table public._fixture_fk_child (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references public.organizations (id)
+);
+alter table public._fixture_fk_child enable row level security;
+
+select is(
+  array(select f from tests.foreign_keys_without_index() f where f like '\_fixture\_%'),
+  array['_fixture_fk_child._fixture_fk_child_organization_id_fkey'],
+  'foreign_keys_without_index: una FK sin índice aparece como <tabla>.<fk>'
+);
+
+-- Un índice cuyas primeras columnas son las de la FK la cubre (aunque tenga más columnas).
+create index _fixture_fk_child_org_idx on public._fixture_fk_child (organization_id, id);
+
+select is(
+  array(select f from tests.foreign_keys_without_index() f where f like '\_fixture\_%'),
+  '{}'::text[],
+  'foreign_keys_without_index: con un índice que empieza por la columna de la FK deja de aparecer'
+);
+
+-- Triangulación: un índice donde la columna de la FK NO está primera no la cubre.
+create table public._fixture_fk_second (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references public.organizations (id)
+);
+alter table public._fixture_fk_second enable row level security;
+create index _fixture_fk_second_idx on public._fixture_fk_second (id, organization_id);
+
+select is(
+  array(select f from tests.foreign_keys_without_index() f where f like '\_fixture\_%'),
+  array['_fixture_fk_second._fixture_fk_second_organization_id_fkey'],
+  'foreign_keys_without_index: un índice donde la columna de la FK no es la primera no la cubre'
+);
+
+-- FK compuesta sin índice.
+create table public._fixture_fk_composite (
+  id uuid primary key default gen_random_uuid(),
+  location_id uuid not null,
+  organization_id uuid not null,
+  foreign key (location_id, organization_id)
+    references public.locations (id, organization_id)
+);
+alter table public._fixture_fk_composite enable row level security;
+
+select is(
+  array(select f from tests.foreign_keys_without_index() f
+         where f like '\_fixture\_fk\_composite.%'),
+  array['_fixture_fk_composite._fixture_fk_composite_location_id_organization_id_fkey'],
+  'foreign_keys_without_index: una FK compuesta sin índice aparece'
+);
+
+create index _fixture_fk_composite_idx on public._fixture_fk_composite (location_id, organization_id);
+
+select is(
+  array(select f from tests.foreign_keys_without_index() f
+         where f like '\_fixture\_fk\_composite.%'),
+  '{}'::text[],
+  'foreign_keys_without_index: un índice con las columnas de la FK compuesta la cubre'
+);
+
+-- Las columnas pueden estar en cualquier orden dentro del prefijo del índice.
+drop index public._fixture_fk_composite_idx;
+create index _fixture_fk_composite_idx on public._fixture_fk_composite (organization_id, location_id);
+
+select is(
+  array(select f from tests.foreign_keys_without_index() f
+         where f like '\_fixture\_fk\_composite.%'),
+  '{}'::text[],
+  'foreign_keys_without_index: el prefijo del índice puede tener las columnas en otro orden'
+);
+
+-- Revisa el esquema que se le pide.
+create table _fixture_other.fk_child (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid references public.organizations (id)
+);
+
+select is(
+  array(select f from tests.foreign_keys_without_index('_fixture_other') f),
+  array['fk_child.fk_child_organization_id_fkey'],
+  'foreign_keys_without_index: revisa el esquema que se le pide'
+);
+
+-- ---------------------------------------------------------------------------
+-- Guardia de anon: nada de `public` queda expuesto al rol anon
+-- ---------------------------------------------------------------------------
+
+-- Supabase da por defecto privilegios a anon sobre toda tabla/secuencia nueva de public,
+-- y Postgres da EXECUTE a PUBLIC en toda función nueva: la guardia lo detecta.
+create table public._fixture_anon_table (id int);
+alter table public._fixture_anon_table enable row level security;
+grant select on public._fixture_anon_table to anon;
+
+select is(
+  array(select o from tests.anon_exposed_objects() o where o like '%\_fixture\_anon\_%'),
+  array['table _fixture_anon_table'],
+  'anon_exposed_objects: una tabla con privilegios para anon aparece'
+);
+
+revoke all on public._fixture_anon_table from anon;
+
+select is(
+  array(select o from tests.anon_exposed_objects() o where o like '%\_fixture\_anon\_%'),
+  '{}'::text[],
+  'anon_exposed_objects: al quitarle los privilegios a anon deja de aparecer'
+);
+
+-- Un privilegio solo de columna también cuenta.
+grant select (id) on public._fixture_anon_table to anon;
+
+select is(
+  array(select o from tests.anon_exposed_objects() o where o like '%\_fixture\_anon\_%'),
+  array['table _fixture_anon_table'],
+  'anon_exposed_objects: un privilegio de columna para anon aparece'
+);
+
+revoke all on public._fixture_anon_table from anon;
+
+create function public._fixture_anon_fn(a int)
+returns int
+language sql
+as $$ select a $$;
+
+select is(
+  array(select o from tests.anon_exposed_objects() o where o like '%\_fixture\_anon\_%'),
+  array['function _fixture_anon_fn(a integer)'],
+  'anon_exposed_objects: una función con EXECUTE por defecto (PUBLIC) aparece'
+);
+
+revoke execute on function public._fixture_anon_fn(int) from public, anon;
+
+select is(
+  array(select o from tests.anon_exposed_objects() o where o like '%\_fixture\_anon\_%'),
+  '{}'::text[],
+  'anon_exposed_objects: al revocar EXECUTE a PUBLIC y anon deja de aparecer'
+);
+
+create sequence public._fixture_anon_seq;
+grant usage on sequence public._fixture_anon_seq to anon;
+
+select is(
+  array(select o from tests.anon_exposed_objects() o where o like '%\_fixture\_anon\_%'),
+  array['sequence _fixture_anon_seq'],
+  'anon_exposed_objects: una secuencia con privilegios para anon aparece'
+);
+
+revoke all on sequence public._fixture_anon_seq from anon;
+
+-- Los objetos que instala una extensión en public no son nuestros: se excluyen.
+create extension citext with schema public;
+
+select is(
+  (select count(*) from tests.anon_exposed_objects() o where o like '%citext%'),
+  0::bigint,
+  'anon_exposed_objects: las funciones de una extensión instalada en public no se marcan'
+);
+
+select is(
+  array(select o from tests.anon_exposed_objects('_fixture_other') o),
+  '{}'::text[],
+  'anon_exposed_objects: revisa el esquema que se le pide'
+);
+
+-- ---------------------------------------------------------------------------
+-- Fixtures de tenancy: create_org / create_location / create_user(identifier, org, role)
+-- / assign_location / make_platform_admin
+-- ---------------------------------------------------------------------------
+
+select set_config('tests.t_org_a', tests.create_org('t-org-a')::text, true);
+select set_config('tests.t_org_b', tests.create_org('t-org-b')::text, true);
+
+select is(
+  (select (name, slug, status)::text from public.organizations
+    where id = current_setting('tests.t_org_a')::uuid),
+  '(t-org-a,t-org-a,active)',
+  'create_org: crea una organización activa con el slug como nombre'
+);
+
+select is(
+  tests.create_org('t-org-a'),
+  current_setting('tests.t_org_a')::uuid,
+  'create_org: es idempotente (el mismo slug devuelve la misma organización)'
+);
+
+select set_config('tests.t_loc_1', tests.create_location(current_setting('tests.t_org_a')::uuid, 'L1')::text, true);
+
+select is(
+  (select (organization_id, name, status)::text from public.locations
+    where id = current_setting('tests.t_loc_1')::uuid),
+  format('(%s,L1,active)', current_setting('tests.t_org_a')),
+  'create_location: crea un local activo de la organización'
+);
+
+select is(
+  tests.create_location(current_setting('tests.t_org_a')::uuid, 'L1'),
+  current_setting('tests.t_loc_1')::uuid,
+  'create_location: es idempotente (mismo nombre en la misma organización devuelve el mismo local)'
+);
+
+select set_config(
+  'tests.t_ana',
+  tests.create_user('t_ana', current_setting('tests.t_org_a')::uuid, 'owner')::text,
+  true
+);
+
+select is(
+  (select (role, status)::text from public.memberships
+    where user_id = current_setting('tests.t_ana')::uuid
+      and organization_id = current_setting('tests.t_org_a')::uuid),
+  '(owner,active)',
+  'create_user(identifier, org, role): crea la membresía activa con ese rol'
+);
+
+select is(
+  (select full_name from public.profiles where id = current_setting('tests.t_ana')::uuid),
+  't_ana',
+  'create_user(identifier, org, role): el usuario nace con full_name = identifier y el trigger le crea el perfil'
+);
+
+select is(
+  tests.create_user('t_ana', current_setting('tests.t_org_b')::uuid, 'employee'),
+  current_setting('tests.t_ana')::uuid,
+  'create_user(identifier, org, role): el mismo usuario en otra organización devuelve el mismo id'
+);
+
+select is(
+  (select count(*) from public.memberships where user_id = current_setting('tests.t_ana')::uuid),
+  2::bigint,
+  'create_user(identifier, org, role): el usuario queda con dos membresías'
+);
+
+select throws_ok(
+  format($$select tests.create_user('t_ana', %L::uuid, 'admin')$$, current_setting('tests.t_org_a')),
+  '23514', null,
+  'create_user(identifier, org, role): un rol inválido falla por el CHECK de memberships.role'
+);
+
+-- Las llamadas de 1 y 2 argumentos siguen resolviendo a la versión de C-02.
+select lives_ok(
+  $$select tests.create_user('t_zoe')$$,
+  'create_user(identifier): sigue resolviendo a la versión sin organización'
+);
+
+select tests.create_user('t_yan', '{"k": 1}'::jsonb);
+select is(
+  (select raw_app_meta_data from auth.users where email = 't_yan@test.local'),
+  '{"k": 1}'::jsonb,
+  'create_user(identifier, app_metadata): sigue resolviendo a la versión de C-02'
+);
+
+select tests.create_user('t_carla', current_setting('tests.t_org_a')::uuid, 'manager');
+select tests.assign_location('t_carla', current_setting('tests.t_loc_1')::uuid);
+
+select is(
+  (select count(*) from public.membership_locations ml
+     join public.memberships m on m.id = ml.membership_id
+    where m.user_id = tests.get_user_id('t_carla')
+      and ml.location_id = current_setting('tests.t_loc_1')::uuid
+      and ml.organization_id = current_setting('tests.t_org_a')::uuid),
+  1::bigint,
+  'assign_location: asigna el local a la membresía del usuario en la organización del local'
+);
+
+select lives_ok(
+  format($$select tests.assign_location('t_carla', %L::uuid)$$, current_setting('tests.t_loc_1')),
+  'assign_location: es idempotente'
+);
+
+select tests.create_user('t_beto');
+
+select throws_ok(
+  format($$select tests.assign_location('t_beto', %L::uuid)$$, current_setting('tests.t_loc_1')),
+  'P0001',
+  'tests: el usuario "t_beto" no es miembro de la organización del local "L1"',
+  'assign_location: un usuario sin membresía en esa organización lanza un error que nombra al usuario y al local'
+);
+
+select tests.create_user('t_root');
+select tests.make_platform_admin('t_root');
+
+select is(
+  (select count(*) from public.platform_admins where user_id = tests.get_user_id('t_root')),
+  1::bigint,
+  'make_platform_admin: inserta al usuario en platform_admins'
+);
+
+select lives_ok(
+  $$select tests.make_platform_admin('t_root')$$,
+  'make_platform_admin: es idempotente'
+);
+
+-- ---------------------------------------------------------------------------
+-- Los fixtures de tenancy producen lo que los helpers de `private` esperan
+-- (verificado como `authenticated`, el rol real de las políticas)
+-- ---------------------------------------------------------------------------
+
+select tests.as_user('t_ana');
+select is(
+  private.org_role(current_setting('tests.t_org_a')::uuid), 'owner',
+  'create_user(identifier, org, role): org_role ve el rol de la membresía creada'
+);
+select is(
+  private.org_role(current_setting('tests.t_org_b')::uuid), 'employee',
+  'create_user(identifier, org, role): el mismo usuario tiene su otro rol en la otra organización'
+);
+select is(
+  private.is_platform_admin(), false,
+  'create_user(identifier, org, role): el usuario creado no es super-admin'
+);
+
+-- Las fixtures se crean como postgres, antes de cambiar de identidad.
+select tests.as_postgres();
+select tests.create_location(current_setting('tests.t_org_a')::uuid, 'L2');
+
+select tests.as_user('t_carla');
+select is(
+  private.has_location_access(current_setting('tests.t_loc_1')::uuid), true,
+  'assign_location: has_location_access ve el local asignado'
+);
+
+select is(
+  private.has_location_access(
+    (select id from public.locations
+      where organization_id = current_setting('tests.t_org_a')::uuid and name = 'L2')
+  ),
+  false,
+  'assign_location: un local sin asignar no da acceso al manager'
+);
+
+select tests.as_user('t_root');
+select is(
+  private.is_platform_admin(), true,
+  'make_platform_admin: is_platform_admin reconoce al usuario'
+);
+
+select tests.as_postgres();
 
 select * from finish();
 

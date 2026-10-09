@@ -71,6 +71,13 @@ jobs:
         run: pnpm exec supabase start -x studio,imgproxy,mailpit,edge-runtime,logflare,vector,realtime,storage-api,supavisor,postgrest
       - name: Tests de base de datos (pgTAP)
         run: pnpm test:db
+      # Informativo (decisión del fundador en C-02): los hallazgos de seguridad y de
+      # rendimiento quedan en el log para revisarlos en el PR, pero nunca ponen el job
+      # en rojo (continue-on-error). Corre aunque pgTAP haya fallado, si Supabase arrancó.
+      - name: Advisors de Supabase (informativo)
+        if: ${{ !cancelled() && steps.start.outcome == 'success' }}
+        continue-on-error: true
+        run: pnpm exec supabase db advisors --local
       # Corre aunque pgTAP haya fallado, siempre que Supabase haya arrancado.
       - name: Tipos de la base sin diff
         if: ${{ !cancelled() && steps.start.outcome == 'success' }}
