@@ -22,12 +22,39 @@ El seed MUST insertar con `INSERT` comunes sobre las tablas (sin desactivar trig
 - **WHEN** el `employee` de "Almacén Demo Sur" consulta `locations` (con `tests.as_user` sobre su id)
 - **THEN** ve un solo local de los dos
 
+### Requirement: El seed solo corre sobre una base local limpia
+El seed crea un super-admin con una contraseña de prueba pública, así que `supabase/seed.sql` SHALL empezar con un bloque `DO` que, antes de insertar nada, lance una excepción en español (`55000`) en dos casos, en este orden: (1) la base no es la local de Supabase: el ajuste de base de datos `app.settings.jwt_secret` es distinto del JWT secret de desarrollo que la CLI fija en toda base local y de CI (una base remota vacía, sin usuarios ajenos, también tiene que fallar); (2) `auth.users` contiene alguna fila cuyo email no sea del dominio `@demo.test` (o no tenga email). Así solo puede correr sobre una base local vacía o ya sembrada con los usuarios demo, y nunca sobre una base remota ni con usuarios reales. La guardia MUST ejecutarse en un test (no solo verificarse como texto), contra una condición no local simulada dentro de una transacción revertida.
+
+#### Scenario: Base con un usuario real
+- **WHEN** se ejecuta `seed.sql` sobre una base donde `auth.users` tiene `real.person@gmail.com` (o un usuario sin email)
+- **THEN** el seed falla con el mensaje "El seed solo corre sobre una base local limpia…" y no inserta nada
+
+#### Scenario: Base remota vacía
+- **WHEN** se ejecuta `seed.sql` (por ejemplo con `supabase db reset --linked`) sobre una base cuyo `app.settings.jwt_secret` es el de un proyecto remoto (o no está configurado) y que no tiene usuarios
+- **THEN** el seed falla con el mensaje "El seed solo corre sobre una base local de Supabase…" y no inserta nada
+
+#### Scenario: Base local recién reseteada
+- **WHEN** `supabase db reset` (local o en el job `db` del CI) carga el seed sobre una base sin usuarios
+- **THEN** la guardia no interviene y se cargan los datos demo
+
+#### Scenario: La guardia es lo primero del archivo
+- **WHEN** un test de tooling lee `supabase/seed.sql`
+- **THEN** el primer bloque ejecutable es el `DO` que compara `app.settings.jwt_secret`, mira `auth.users`, excluye `@demo.test` y lanza las excepciones, y no hay ningún `insert` antes
+
+#### Scenario: La guardia que se prueba es la del seed
+- **WHEN** el test pgTAP ejecuta su copia del bloque en los dos caminos de error y en el feliz
+- **THEN** un test de tooling falla si esa copia difiere (salvo espacios) del bloque de `seed.sql`
+
 ### Requirement: Los datos demo nunca salen de la máquina local ni del CI
 El seed y sus credenciales de prueba SHALL vivir solo en `supabase/seed.sql`; MUST NOT aparecer en `supabase/migrations/` ni cargarse en staging o producción (`deploy-staging` no usa `--include-seed` ni `db reset`, requisito de `staging-environment`). Los tests pgTAP de aislamiento MUST crear sus propias organizaciones y usuarios y MUST NOT depender de los datos demo, para que pasen aunque el seed cambie.
 
 #### Scenario: Migraciones sin datos demo
 - **WHEN** se buscan los slugs demo, el dominio `demo.test` o la contraseña de prueba en `supabase/migrations/`
 - **THEN** no aparecen
+
+#### Scenario: Migraciones sin helpers de prueba
+- **WHEN** un test de tooling busca `tests.<función>`, `schema tests` o `pgtap` en `supabase/migrations/`
+- **THEN** no aparecen, y una migración con alguna de esas referencias hace fallar el test nombrando el archivo
 
 #### Scenario: Tests independientes del seed
 - **WHEN** los tests de aislamiento corren sobre una base con el seed cargado

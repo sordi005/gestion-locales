@@ -28,7 +28,7 @@ El esquema `tests` SHALL exponer: `tests.create_user(identifier text, app_metada
 - **THEN** la llamada falla por el `CHECK` de `memberships.role`
 
 ### Requirement: Toda tabla nueva trae su test A↔B
-Un test de tooling (Vitest) SHALL leer `supabase/migrations/*.sql` y `supabase/tests/**/*.sql` y fallar si alguna tabla creada en `public` (y no eliminada luego) no aparece como primer argumento de `tests.assert_cross_tenant_denied` en algún test. Las excepciones (tablas que no pertenecen a una organización, como las de plataforma) MUST declararse en una lista explícita con el motivo de cada una, y cada tabla exceptuada MUST tener igualmente tests pgTAP propios de su política de acceso. Desde C-04 la lista contiene exactamente `public.profiles` (identidad de la persona, compartida entre organizaciones; aislada por `shares_organization`) y `public.platform_admins` (plataforma, sin organización; cada usuario solo se ve a sí mismo). La detección SHALL ser una función pura testeada con SQL de ejemplo.
+Un test de tooling (Vitest) SHALL leer `supabase/migrations/*.sql` y `supabase/tests/**/*.sql` y fallar si alguna tabla creada en `public` (y no eliminada luego) no aparece como primer argumento de `tests.assert_cross_tenant_denied` en algún test. Las excepciones (tablas que no pertenecen a una organización, como las de plataforma) MUST declararse en una lista explícita con el motivo de cada una, y cada tabla exceptuada MUST tener igualmente tests pgTAP propios de su política de acceso. Desde C-04 la lista contiene exactamente `public.profiles` (identidad de la persona, compartida entre organizaciones; aislada por `private.can_view_profile`) y `public.platform_admins` (plataforma, sin organización; cada usuario solo se ve a sí mismo). La detección SHALL ser una función pura testeada con SQL de ejemplo.
 
 #### Scenario: Tablas de tenancy cubiertas
 - **WHEN** corre el test sobre el repo con la migración de C-04
@@ -88,3 +88,22 @@ El esquema `tests` SHALL exponer helpers para armar organizaciones y locales de 
 #### Scenario: Esquema de tenancy
 - **WHEN** corre la guardia sobre `public` con la migración de C-04
 - **THEN** pasa
+
+### Requirement: Guardia de anon sin privilegios en public
+`tests.anon_exposed_objects(p_schema name default 'public') returns setof text` SHALL devolver, como `<tipo> <nombre>`, cada tabla, vista o vista materializada con algún privilegio de tabla o de columna para `anon`, cada secuencia con algún privilegio para `anon` y cada función con `EXECUTE` para `anon` (incluido el que Postgres da por defecto a `PUBLIC`) en el esquema, **excluyendo** los objetos que instala una extensión (`pg_depend` con `deptype = 'e'`). `001-rls-guard.sql` MUST afirmar que la lista está vacía para `public`, de modo que una tabla o función nueva que olvide el `revoke` haga fallar el job `db`. El producto no tiene páginas públicas con datos.
+
+#### Scenario: Tabla con privilegios para anon
+- **WHEN** dentro de la transacción de un test se crea una tabla en `public` con `grant select` para `anon` (o solo un privilegio de columna)
+- **THEN** `tests.anon_exposed_objects()` la devuelve como `table <nombre>`, y deja de aparecer al revocarle los privilegios
+
+#### Scenario: Función y secuencia expuestas
+- **WHEN** se crea una función en `public` sin revocar `EXECUTE` a `PUBLIC`, o una secuencia con `usage` para `anon`
+- **THEN** aparecen como `function <nombre>(<args>)` y `sequence <nombre>`; la función deja de aparecer al revocar `EXECUTE` a `PUBLIC` y `anon`
+
+#### Scenario: Objetos de extensiones
+- **WHEN** se instala una extensión (por ejemplo `citext`) en `public`
+- **THEN** sus funciones no se marcan
+
+#### Scenario: Esquema de tenancy
+- **WHEN** corre la guardia sobre `public` con la migración de C-04
+- **THEN** pasa; y si se le otorga a `anon` un `select` sobre una tabla de tenencia o una función sin revocar, la guardia falla nombrándola
