@@ -149,9 +149,14 @@ describe("findUncovered", () => {
 });
 
 describe("repo real", () => {
-  // Tablas que no pertenecen a una organización (plataforma): tabla -> motivo.
-  // Vacía hoy; cada entrada nueva necesita un motivo no vacío.
-  const EXEMPT_TABLES: Record<string, string> = {};
+  // Tablas sin test A↔B propio: tabla -> motivo. Cada entrada nueva necesita
+  // un motivo no vacío.
+  const EXEMPT_TABLES: Record<string, string> = {
+    "public.profiles":
+      "Identidad de la persona, compartida entre organizaciones; aislada por private.can_view_profile (equipo y local), probado en 022-tenancy-rls.test.sql",
+    "public.platform_admins":
+      "Tabla de plataforma, sin organización; cada usuario solo se ve a sí mismo, probado en 022-tenancy-rls.test.sql",
+  };
 
   const root = new URL("../../supabase/", import.meta.url);
 

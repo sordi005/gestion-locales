@@ -441,7 +441,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 > Dominio **CRITICO** (auth, RLS, membresías, secret key, auditoría): cada change se propone y se revisa antes de escribir código. Archivado C-05, los changes C-06 y C-07 pueden ir en paralelo.
 
 ### [C-04] `tenancy-schema-rls`
-- **Estado**: `[ ]` pendiente · Prioridad **D1**
+- **Estado**: `[ ]` en curso — implementación completa (tareas 0–11 hechas, 2026-10-09); pendiente: commit, PR, merge y verificación en staging (grupo 12), y luego `/opsx:archive` · Prioridad **D1**
 - **Scope**: Esquema multi-tenant y RLS (fundación de US-005)
   - Migración 001: `organizations` (con `timezone`, `expiry_warning_days`, `expiry_critical_days`, `cash_difference_tolerance`, `sale_void_window_minutes`, `slow_mover_days`), `locations` (con `last_sale_number`), `profiles` (trigger de alta sobre `auth.users`), `platform_admins`, `memberships`, `membership_locations`, `audit_events` (append-only)
   - `UNIQUE (id, organization_id)` en tablas padre y FKs compuestas con `organization_id` como convención (RN-TE-08)
@@ -514,6 +514,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Script de bootstrap del primer `platform_admin` con la secret key, **fuera del SQL versionado** (`scripts/bootstrap-platform-admin.ts`)
   - Guardas: `/admin/*` solo `platform_admin`; la secret key nunca llega al cliente (test que escanea el bundle)
   - Tests: pgTAP (solo ADM crea organizaciones, locales y membresías; deshabilitada corta el acceso en la siguiente consulta), Vitest (guardas), Playwright (alta completa con invitación vía Inbucket)
+  - Nota de C-04: las escrituras de tenancy (`create_organization`, `create_location`, altas de `memberships` y `membership_locations`, cambios de estado) las hace el super-admin **con su propia sesión** (políticas ADM y `security invoker`): no hace falta la secret key para eso, solo para invitar usuarios por Auth. C-04 no incluye baja de asignaciones: `membership_locations` no tiene `DELETE` para nadie; si hace falta sacar a alguien de un local (hoy solo se deshabilita la membresía entera), C-07 decide si suma esa baja con política ADM y auditoría. `status` de organizaciones y locales no es escribible por la API: el pase a `suspended`/`inactive` también lo define C-07 (RPC propia). Las RPCs de C-04 quedan documentadas en la migración (comentario junto a cada función). Visibilidad de `profiles` (decisión del fundador 2026-10-09): el owner ve a todo su equipo (activo o deshabilitado); manager y employee solo ven a los miembros activos que comparten un local con ellos (`private.can_view_profile`), así que las pantallas que muestran "quién vendió / quién abrió la caja" (C-19+) deben tolerar un perfil no visible (texto neutro).
 - **Dependencias**: C-05
 - **Governance**: CRITICO
 - **Leer antes**:
@@ -656,6 +657,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - RPC `open_cash_session(register_id, opening_float)` (`security invoker`): guarda lo contado en el cierre anterior como `opening_expected` y la `opening_difference`; rechaza CJ-E01 (ya hay una abierta), CJ-E02 (sesión olvidada) y CJ-E03 (monto inválido)
   - Seed: una sesión abierta y movimientos de cada tipo (las sesiones cerradas las siembra C-17)
   - Tests pgTAP: una sola sesión abierta por caja (dos aperturas simultáneas → la segunda falla), sesión olvidada → CJ-E02, movimiento solo con sesión abierta, UPDATE de columnas de monto rechazado, RLS A↔B
+  - Nota de C-04 (D11): el trigger `AFTER INSERT` sobre `locations` corre con los permisos de quien llama a `create_location` (el super-admin, `security invoker`). La función del trigger debe ser `security definer` en `private` (con `search_path = ''`, sin `EXECUTE` para `anon`) **o** `cash_registers` debe tener una política de inserción para el super-admin; si no, el alta de un local fallará por RLS. Probado en C-04 con un trigger de prueba: ve el alta y el id devuelto.
 - **Dependencias**: C-04, C-08
 - **Governance**: ALTO
 - **Leer antes**:
@@ -676,6 +678,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Vista `product_costs` (`security_invoker = true`) con `reference_cost` y `sale_price`; C-31 le suma el costo del último ingreso
   - RLS según 04 §RLS (`employee` lee las ventas de su local salvo que PQ-05 lo restrinja); índices de 04 §Índices
   - Tests pgTAP: Σ ≠ total falla al `COMMIT`, venta sin líneas falla, dos efectivos falla; UPDATE de columnas no permitidas rechazado; DELETE imposible; RLS A↔B en cada tabla; FK compuesta contra producto, medio o sesión ajenos; un solo efectivo activo
+  - Nota de C-04 (D11): igual que en C-14, el trigger `AFTER INSERT` sobre `organizations` corre con los permisos del super-admin que llama a `create_organization`: su función debe ser `security definer` en `private` o `payment_methods` debe tener política de inserción del super-admin. Recordar que toda tabla nueva necesita `organization_id`, `revoke`/`grant` explícitos (los privilegios por defecto de la Data API se retiran para todos los proyectos desde 2026-10-30), las políticas `<tabla>_<comando>` y su `tests.assert_cross_tenant_denied`; y que cada función nueva en `private` repite el `revoke`/`grant` de `EXECUTE`.
 - **Dependencias**: C-14, C-08
 - **Governance**: ALTO
 - **Leer antes**:

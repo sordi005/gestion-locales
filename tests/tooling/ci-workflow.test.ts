@@ -11,6 +11,7 @@ type Step = {
   id?: string;
   name?: string;
   if?: string;
+  "continue-on-error"?: boolean;
   uses?: string;
   run?: string;
   with?: Record<string, unknown>;
@@ -168,6 +169,24 @@ describe("ci.yml", () => {
       const condition = db.steps?.[types]?.if ?? "";
       expect(condition).toContain("!cancelled()");
       expect(condition).toContain("steps.start.outcome == 'success'");
+    });
+
+    it("corre supabase db advisors después de pgTAP, informativo y aunque pgTAP falle", () => {
+      const tests = stepIndex(
+        db,
+        (s) => s.run?.includes("pnpm test:db") === true,
+      );
+      const advisors = stepIndex(
+        db,
+        (s) => s.run?.includes("supabase db advisors") === true,
+      );
+
+      expect(advisors).toBeGreaterThan(tests);
+
+      const step = db.steps?.[advisors];
+      expect(step?.["continue-on-error"]).toBe(true);
+      expect(step?.if ?? "").toContain("!cancelled()");
+      expect(step?.if ?? "").toContain("steps.start.outcome == 'success'");
     });
 
     it("falla si los tipos generados tienen cambios o quedan sin trackear", () => {

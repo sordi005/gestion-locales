@@ -5,13 +5,172 @@ export type Database = {
   
   "public": {
           Tables: {
-            [_ in never]: never
+            "audit_events": {
+                  Row: {
+                    "action": string,"actor_id": string | null,"created_at": string,"entity": string,"entity_id": string | null,"id": string,"organization_id": string | null,"payload": NonNullable<Json>
+                  }
+                  Insert: {
+                    "action": string,"actor_id"?: string | null,"created_at"?: string,"entity": string,"entity_id"?: string | null,"id"?: string,"organization_id"?: string | null,"payload"?: NonNullable<Json>
+                  }
+                  Update: {
+                    "action"?: string,"actor_id"?: string | null,"created_at"?: string,"entity"?: string,"entity_id"?: string | null,"id"?: string,"organization_id"?: string | null,"payload"?: NonNullable<Json>
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "audit_events_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"locations": {
+                  Row: {
+                    "address": string | null,"created_at": string,"created_by": string | null,"id": string,"last_sale_number": number,"name": string,"organization_id": string,"status": string,"timezone": string | null
+                  }
+                  Insert: {
+                    "address"?: string | null,"created_at"?: string,"created_by"?: string | null,"id"?: string,"last_sale_number"?: number,"name": string,"organization_id": string,"status"?: string,"timezone"?: string | null
+                  }
+                  Update: {
+                    "address"?: string | null,"created_at"?: string,"created_by"?: string | null,"id"?: string,"last_sale_number"?: number,"name"?: string,"organization_id"?: string,"status"?: string,"timezone"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "locations_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"membership_locations": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"location_id": string,"membership_id": string,"organization_id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"location_id": string,"membership_id": string,"organization_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"location_id"?: string,"membership_id"?: string,"organization_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "membership_locations_location_fkey"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "membership_locations_membership_fkey"
+      columns: ["membership_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "memberships"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"memberships": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"id": string,"organization_id": string,"role": string,"status": string,"user_id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"organization_id": string,"role": string,"status"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"organization_id"?: string,"role"?: string,"status"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "memberships_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"organizations": {
+                  Row: {
+                    "cash_difference_tolerance": number,"created_at": string,"created_by": string | null,"expiry_critical_days": number,"expiry_warning_days": number,"id": string,"name": string,"sale_void_window_minutes": number,"slow_mover_days": number,"slug": string,"status": string,"timezone": string
+                  }
+                  Insert: {
+                    "cash_difference_tolerance"?: number,"created_at"?: string,"created_by"?: string | null,"expiry_critical_days"?: number,"expiry_warning_days"?: number,"id"?: string,"name": string,"sale_void_window_minutes"?: number,"slow_mover_days"?: number,"slug": string,"status"?: string,"timezone"?: string
+                  }
+                  Update: {
+                    "cash_difference_tolerance"?: number,"created_at"?: string,"created_by"?: string | null,"expiry_critical_days"?: number,"expiry_warning_days"?: number,"id"?: string,"name"?: string,"sale_void_window_minutes"?: number,"slow_mover_days"?: number,"slug"?: string,"status"?: string,"timezone"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"platform_admins": {
+                  Row: {
+                    "created_at": string,"user_id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"profiles": {
+                  Row: {
+                    "created_at": string,"full_name": string | null,"id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"full_name"?: string | null,"id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"full_name"?: string | null,"id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                }
           }
           Views: {
             [_ in never]: never
           }
           Functions: {
-            [_ in never]: never
+            "create_location":
+{ Args: { "p_address"?: string,"p_name": string,"p_organization_id": string }; Returns: {
+              "address": string | null,
+"created_at": string,
+"created_by": string | null,
+"id": string,
+"last_sale_number": number,
+"name": string,
+"organization_id": string,
+"status": string,
+"timezone": string | null
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "locations"
+        isOneToOne: true
+        isSetofReturn: false
+      } },
+"create_organization":
+{ Args: { "p_name": string,"p_slug": string,"p_timezone"?: string }; Returns: {
+              "cash_difference_tolerance": number,
+"created_at": string,
+"created_by": string | null,
+"expiry_critical_days": number,
+"expiry_warning_days": number,
+"id": string,
+"name": string,
+"sale_void_window_minutes": number,
+"slow_mover_days": number,
+"slug": string,
+"status": string,
+"timezone": string
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "organizations"
+        isOneToOne: true
+        isSetofReturn: false
+      } }
           }
           Enums: {
             [_ in never]: never
