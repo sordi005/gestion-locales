@@ -441,7 +441,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 > Dominio **CRITICO** (auth, RLS, membresías, secret key, auditoría): cada change se propone y se revisa antes de escribir código. Archivado C-05, los changes C-06 y C-07 pueden ir en paralelo.
 
 ### [C-04] `tenancy-schema-rls`
-- **Estado**: `[ ]` en curso — implementación completa (tareas 0–11 hechas, 2026-10-09); pendiente: commit, PR, merge y verificación en staging (grupo 12), y luego `/opsx:archive` · Prioridad **D1**
+- **Estado**: `[x]` completado (archivado 2026-10-13, PR #5) · Prioridad **D1**
 - **Scope**: Esquema multi-tenant y RLS (fundación de US-005)
   - Migración 001: `organizations` (con `timezone`, `expiry_warning_days`, `expiry_critical_days`, `cash_difference_tolerance`, `sale_void_window_minutes`, `slow_mover_days`), `locations` (con `last_sale_number`), `profiles` (trigger de alta sobre `auth.users`), `platform_admins`, `memberships`, `membership_locations`, `audit_events` (append-only)
   - `UNIQUE (id, organization_id)` en tablas padre y FKs compuestas con `organization_id` como convención (RN-TE-08)
@@ -452,7 +452,8 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Tests pgTAP: la org A no lee, inserta ni actualiza filas de la B en ninguna tabla; membresía `disabled` pierde el acceso; `employee` sin local asignado ve 0 filas; la FK compuesta impide referenciar otra organización; los helpers no son ejecutables por `anon`; el job RLS del CI en verde
   - CI: sumar `supabase db advisors` como paso informativo (no bloqueante) del job `db` (decisión del fundador en C-02)
   - Helpers pgTAP: C-02 dejó `tests.create_user(identifier)`; este change agrega la sobrecarga `tests.create_user(identifier, org, role)` con la membresía real, y cada tabla nueva trae su `tests.assert_cross_tenant_denied` (lo exige el test de cobertura de Vitest)
-  - Staging: al mergear, verificar en Actions que `deploy-staging` aplica la migración y que las tablas aparecen en el panel de Supabase de staging (**Database** → **Migrations**) (C-02 tarea 13.3)
+  - Staging: verificado el 2026-10-13 en el run `38422351265` de `deploy-staging`: `migration list` Local = Remote `20261008200225` y el panel muestra las siete tablas con RLS (**Database** → **Migrations**) (C-02 tarea 13.3)
+  - Staging (plan gratuito): el proyecto se pausa tras ~1 semana sin uso y el `SUPABASE_ACCESS_TOKEN` puede vencer. Si `deploy-staging` falla con «project is paused» o «Invalid access token», es una de esas dos causas (la guardia frena antes de tocar la base)
 - **Dependencias**: C-01, C-02
 - **Governance**: CRITICO
 - **Leer antes**:
@@ -473,6 +474,8 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Sin registro público (RN-AU-01): signups deshabilitados en `supabase/config.toml`
   - Cierre de sesión con hook de limpieza de datos locales (lo consume C-11)
   - Tests: Vitest (guardas), Playwright (login, recupero, link vencido, invitación con el correo local Inbucket), pgTAP del trigger de `profiles`; verificación estática de que `getSession()` no se usa en el servidor
+  - Follow-up de C-04 (archivado 2026-10-13): verificar que el rol `authenticated` lee por la Data API las tablas de tenencia. El panel marca «API Disabled» y «custom Data API permissions» en las 7 tablas, probablemente porque `anon` no tiene privilegios; si `authenticated` no lee, migración correctiva
+  - Follow-up de C-04 (revisión doble): cerrar el alta abierta. En local, un `POST /auth/v1/signup` crea usuario y perfil; hoy `supabase/config.toml` tiene `enable_signup = true` en `[auth]` y `[auth.email]`: hay que deshabilitarlo ahí y en el panel de Auth (RN-TE-04 y RN-AU-01: sin registro por cuenta propia)
 - **Dependencias**: C-04
 - **Governance**: CRITICO
 - **Leer antes**:

@@ -2,13 +2,13 @@
 
 Inicializa Supabase localmente sin esquema de datos, configura variables de entorno y expone fábricas de clientes para navegador, servidor y admin.
 ## Requirements
-### Requirement: Supabase local inicializado sin esquema
-El repo SHALL contener la configuración local de Supabase generada por la CLI (`supabase/config.toml`), las carpetas `supabase/migrations/` y `supabase/tests/` versionadas y un `supabase/seed.sql` vacío. `supabase/tests/` SHALL contener solo los helpers pgTAP del esquema `tests`, la guardia de RLS y los tests de esos helpers (capability `db-test-harness`). Hasta C-04, `supabase/migrations/` MUST NOT contener migraciones: ni tablas, ni políticas, ni funciones de la app.
+### Requirement: Supabase local con migraciones versionadas
+El repo SHALL contener la configuración local de Supabase generada por la CLI (`supabase/config.toml`), las carpetas `supabase/migrations/` y `supabase/tests/` versionadas y `supabase/seed.sql`. Desde C-04, `supabase/migrations/` SHALL contener las migraciones de la app, cada una creada con `supabase migration new <nombre>` (nunca con un nombre inventado a mano) y aplicada en orden; el esquema MUST cambiar solo por migraciones, nunca desde el panel de Supabase. `supabase/tests/` SHALL contener los helpers pgTAP del esquema `tests`, la guardia de RLS, los tests de esos helpers (capability `db-test-harness`) y los tests de las tablas, políticas y RPCs de cada migración. `supabase/seed.sql` SHALL contener solo datos demo de desarrollo local (capability `dev-seed`).
 
 #### Scenario: Estructura de Supabase presente
 - **WHEN** se clona el repo
 - **THEN** existen `supabase/config.toml`, `supabase/migrations/`, `supabase/tests/` y `supabase/seed.sql`
-- **AND** `supabase/migrations/` no contiene archivos `.sql`
+- **AND** `supabase/migrations/` contiene la migración de tenancy de C-04 con el formato de nombre que genera la CLI (`<timestamp>_<nombre>.sql`)
 
 #### Scenario: CLI disponible en el proyecto
 - **WHEN** se ejecuta `pnpm exec supabase --version`
@@ -16,7 +16,11 @@ El repo SHALL contener la configuración local de Supabase generada por la CLI (
 
 #### Scenario: Tests de base presentes
 - **WHEN** se lista `supabase/tests/`
-- **THEN** hay un archivo de setup con prefijo `000-` y los archivos de la guardia de RLS y de los tests de helpers
+- **THEN** hay un archivo de setup con prefijo `000-`, los archivos de la guardia de RLS y de los tests de helpers, y los tests de tenancy
+
+#### Scenario: Base local desde cero
+- **WHEN** se ejecuta `pnpm exec supabase db reset` sobre la base local
+- **THEN** se aplican todas las migraciones en orden y luego el seed, sin errores
 
 ### Requirement: Variables de entorno documentadas sin secretos
 El repo SHALL incluir `.env.example` con exactamente las variables de KB 08: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_SITE_URL`, `SUPABASE_PROJECT_ID` y `SENTRY_DSN` (opcional). Las variables sensibles (`SUPABASE_SECRET_KEY`, `SENTRY_DSN`) MUST NOT tener valor.
@@ -85,11 +89,10 @@ La lectura de variables de entorno SHALL validarse con Zod en `src/shared/lib/en
 ### Requirement: Tipos de la base generados y versionados
 `src/shared/db/types.ts` SHALL ser generado por el script `pnpm db:types` (`supabase gen types typescript --local` sobre el esquema `public`) y versionado. Es la única fuente del tipo `Database`: MUST NOT editarse a mano, y queda excluido de Prettier y ESLint para que su contenido sea byte a byte la salida de la CLI fijada en `devDependencies`. Cada PR que cambia el esquema MUST incluir el archivo regenerado (lo verifica el job `db` del CI).
 
-#### Scenario: Esquema vacío
-- **WHEN** se ejecuta `pnpm db:types` con Supabase local levantado y sin migraciones
-- **THEN** `src/shared/db/types.ts` exporta `Database` con el esquema `public` sin tablas y el archivo no cambia respecto del versionado
+#### Scenario: Esquema de tenancy
+- **WHEN** se ejecuta `pnpm db:types` con Supabase local levantado y la migración de C-04 aplicada
+- **THEN** `src/shared/db/types.ts` exporta `Database` con las tablas `organizations`, `locations`, `profiles`, `platform_admins`, `memberships`, `membership_locations` y `audit_events` y las funciones `create_organization` y `create_location` en `public` (nada del esquema `private`), y el archivo no cambia respecto del versionado
 
 #### Scenario: Archivo generado intacto
 - **WHEN** se ejecutan `pnpm format:check` y `pnpm lint`
 - **THEN** no reportan nada sobre `src/shared/db/types.ts` aunque su formato no sea el de Prettier
-

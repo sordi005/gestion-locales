@@ -157,9 +157,15 @@
 
 ## 12. PR, merge y verificación en staging
 
-- [ ] 12.1 **[CHECKPOINT — fundador]** Mostrarle a Santiago qué quedó hecho (en lenguaje llano), los hallazgos de los advisors y lo que falta; con su OK, commit (`feat(C-04): ...`) y push de la rama, y abrir el PR con la plantilla
-- [ ] 12.2 Esperar los cinco checks en verde; revisar en el log del job `db` la salida del paso de advisors y anotarla
-- [ ] 12.3 **[CHECKPOINT — fundador]** Con su aprobación, mergear a `main` (el ruleset no permite otra vía)
-- [ ] 12.4 Verificar en **Actions** que `deploy-staging` corrió en verde y aplicó la migración (en el log, `db push` la aplica y `migration list` la muestra en local y remoto) — pendiente de C-02 13.3
-- [ ] 12.5 **[MANUAL — fundador]** Con guía paso a paso: en el panel de Supabase del proyecto `staging`, **Database → Migrations** muestra la migración `tenancy_schema_rls`, y **Table Editor** muestra las siete tablas con el candado de RLS activado y sin filas (staging no recibe el seed)
-- [ ] 12.6 Proponer `/opsx:archive tenancy-schema-rls`
+- [x] 12.1 **[CHECKPOINT — fundador]** Mostrarle a Santiago qué quedó hecho (en lenguaje llano), los hallazgos de los advisors y lo que falta; con su OK, commit (`feat(C-04): ...`) y push de la rama, y abrir el PR con la plantilla
+  - Nota: commit `98e6c00` `feat(C-04): tenancy schema, RLS and org provisioning`, empujado como `feat/C-04-tenancy-schema-rls`; PR https://github.com/sordi005/gestion-locales/pull/5. Antes del PR: revisión doble (judgment day) de 2 rondas, 0 críticos; los arreglos quedaron en 11.4 y 11.5.
+- [x] 12.2 Esperar los cinco checks en verde; revisar en el log del job `db` la salida del paso de advisors y anotarla
+  - Nota: los 5 checks y Vercel en verde. En el job `db` el seed corrió con la guardia del `jwt_secret`; el paso de advisors mostró solo los 12 `function_search_path_mutable` de `tests.*`, aceptados en 10.3.
+- [x] 12.3 **[CHECKPOINT — fundador]** Con su aprobación, mergear a `main` (el ruleset no permite otra vía)
+  - Nota: mergeado a `main` con OK del fundador el 2026-10-13 (merge `d301148`, PR #5).
+- [x] 12.4 Verificar en **Actions** que `deploy-staging` corrió en verde y aplicó la migración (en el log, `db push` la aplica y `migration list` la muestra en local y remoto) — pendiente de C-02 13.3
+  - Nota: run `38422351265` de `Deploy staging`. Falló dos veces antes de pasar: (1) `SUPABASE_ACCESS_TOKEN` vencido/revocado; el fundador lo reemplazó el 2026-10-13 15:46 UTC (vive en el entorno `staging` de GitHub, no en los secretos del repo); (2) el proyecto de staging estaba pausado (plan gratuito, ~1 semana sin uso); el fundador lo reactivó. Tercera corrida en verde: `Applying migration 20261008200225_tenancy_schema_rls.sql` y `migration list` Local = Remote `20261008200225`. La guardia de destino frenó en ambos fallos sin tocar la base.
+- [x] 12.5 **[MANUAL — fundador]** Con guía paso a paso: en el panel de Supabase del proyecto `staging`, **Database → Migrations** muestra la migración `tenancy_schema_rls`, y **Table Editor** muestra las siete tablas con el candado de RLS activado y sin filas (staging no recibe el seed)
+  - Nota: el fundador verificó en el panel: las 7 tablas con RLS activado (botón «Disable RLS») y las 15 políticas `<tabla>_<comando>` `to authenticated`, sin DELETE. El panel marca «API Disabled» y «custom Data API permissions» en las 7 tablas, probablemente porque `anon` no tiene privilegios; verificar en C-05 que `authenticated` lee por la Data API (si no, migración correctiva).
+- [x] 12.6 Proponer `/opsx:archive tenancy-schema-rls`
+  - Nota: archivado el 2026-10-13 en `openspec/changes/archive/2026-10-13-tenancy-schema-rls/`, con las 7 specs sincronizadas a `openspec/specs/` (4 nuevas, 3 modificadas). `CHANGES.md` actualizado (C-04 completado; notas para C-05 y de staging). Sin commit: pendiente del OK del fundador.
