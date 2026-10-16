@@ -75,7 +75,55 @@ function stepIndex(jobDef: Job, predicate: (step: Step) => boolean): number {
   return (jobDef.steps ?? []).findIndex(predicate);
 }
 
+/**
+ * Servicios que la CLI de Supabase (2.119) acepta en `supabase start -x`, verificados
+ * con `supabase start --help` en C-05 (0.3). Un nombre que no esté acá es un typo:
+ * la CLI lo rechazaría y el job fallaría recién en GitHub.
+ */
+const SUPABASE_CLI_SERVICES = [
+  "gotrue",
+  "realtime",
+  "storage-api",
+  "imgproxy",
+  "kong",
+  "mailpit",
+  "postgrest",
+  "postgres-meta",
+  "studio",
+  "edge-runtime",
+  "logflare",
+  "vector",
+  "supavisor",
+];
+
+/** Los servicios que excluye una línea `supabase start -x a,b,c` (o `--exclude a,b,c`). */
+function excludedServices(line: string): string[] {
+  const match = /\s(?:-x|--exclude)[\s=]+(\S+)/.exec(line);
+  return match?.[1]?.split(",").filter((name) => name !== "") ?? [];
+}
+
 const REQUIRED_JOBS = ["db", "e2e", "lint", "typecheck", "unit"];
+
+describe("excludedServices (lector de supabase start -x)", () => {
+  it("lee la lista de -x", () => {
+    expect(
+      excludedServices("pnpm exec supabase start -x studio,vector,realtime"),
+    ).toEqual(["studio", "vector", "realtime"]);
+  });
+
+  it("lee --exclude, con espacio o con =", () => {
+    expect(
+      excludedServices("pnpm exec supabase start --exclude studio,vector"),
+    ).toEqual(["studio", "vector"]);
+    expect(
+      excludedServices("pnpm exec supabase start --exclude=studio"),
+    ).toEqual(["studio"]);
+  });
+
+  it("sin -x no excluye nada", () => {
+    expect(excludedServices("pnpm exec supabase start")).toEqual([]);
+  });
+});
 
 describe("ci.yml", () => {
   const { text, workflow } = readWorkflow("ci.yml");
@@ -210,6 +258,71 @@ describe("ci.yml", () => {
       expect(lines[install]).toContain("--with-deps chromium");
       expect(build).toBeGreaterThan(-1);
       expect(run).toBeGreaterThan(build);
+    });
+
+    // El job levanta el Supabase local que necesitan los E2E (D15): Postgres, Auth,
+    // la Data API y Mailpit; el resto se excluye con `-x` para que arranque rápido.
+    const START_PREFIX = "pnpm exec supabase start";
+    const ENV_SCRIPT_LINE =
+      "pnpm exec supabase status -o json | node scripts/ci/local-supabase-env.ts > .env.local";
+
+    it("levanta Supabase, arma .env.local y recién después compila y corre Playwright", () => {
+      const lines = runLines(e2e);
+      const start = lines.findIndex((l) => l.startsWith(START_PREFIX));
+      const env = lines.indexOf(ENV_SCRIPT_LINE);
+      const build = lines.indexOf("pnpm build");
+      const run = lines.indexOf("pnpm test:e2e");
+
+      expect(start, "arranque de Supabase").toBeGreaterThanOrEqual(0);
+      expect(env, "script de entorno").toBeGreaterThan(start);
+      // Las variables NEXT_PUBLIC_* se fijan al compilar: el entorno va antes del build.
+      expect(build, "pnpm build").toBeGreaterThan(env);
+      expect(run, "pnpm test:e2e").toBeGreaterThan(build);
+    });
+
+    it("el arranque deja Auth, Kong, la Data API y Mailpit, y solo excluye servicios que la CLI conoce", () => {
+      const start = runLines(e2e).find((l) => l.startsWith(START_PREFIX));
+      expect(start, "arranque de Supabase").toBeDefined();
+      const excluded = excludedServices(start ?? "");
+
+      // Si el parser no leyera nada, los chequeos de abajo pasarían sin probar nada.
+      expect(excluded.length).toBeGreaterThan(0);
+      for (const needed of ["gotrue", "kong", "postgrest", "mailpit"]) {
+        expect(excluded, `${needed} no se puede excluir`).not.toContain(needed);
+      }
+      for (const name of excluded) {
+        expect(SUPABASE_CLI_SERVICES, `servicio "${name}"`).toContain(name);
+      }
+    });
+
+    it("arma .env.local con el script versionado y corta si algo falla en el pipe", () => {
+      const step = e2e.steps?.find((s) =>
+        s.run?.includes("scripts/ci/local-supabase-env.ts"),
+      );
+      const lines = (step?.run ?? "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line !== "");
+
+      expect(lines).toContain(ENV_SCRIPT_LINE);
+      // Si `supabase status` falla, el paso falla en vez de dejar un `.env.local` vacío.
+      expect(lines.indexOf("set -o pipefail")).toBeGreaterThanOrEqual(0);
+      expect(lines.indexOf("set -o pipefail")).toBeLessThan(
+        lines.indexOf(ENV_SCRIPT_LINE),
+      );
+      // Las claves salen de la CLI: el YAML no las lleva ni en `env:`.
+      expect(step?.env).toBeUndefined();
+    });
+
+    it("tiene 25 minutos de timeout (el arranque de Supabase suma tiempo)", () => {
+      expect(e2e["timeout-minutes"]).toBe(25);
+    });
+
+    it("no sube .env.local con el reporte", () => {
+      const upload = e2e.steps?.find((s) =>
+        s.uses?.startsWith("actions/upload-artifact@"),
+      );
+      expect(String(upload?.with?.path)).not.toContain(".env");
     });
 
     it("sube el reporte y las trazas solo si falla", () => {

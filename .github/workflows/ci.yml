@@ -93,17 +93,36 @@ jobs:
   e2e:
     name: e2e
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 25 y no 20: el arranque de Supabase local suma tiempo al job.
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - name: Instalar Chromium
         run: pnpm exec playwright install --with-deps chromium
+      # Los E2E de autenticación hablan con un Supabase local real: arranque mínimo
+      # con Postgres, Auth (gotrue), Kong (la puerta de entrada de la API), PostgREST
+      # (la Data API) y Mailpit (el correo local donde caen los links de invitación y
+      # de recupero). Lo demás se excluye con `-x` para que arranque rápido; NO excluir
+      # gotrue, kong, postgrest ni mailpit. `supabase start` aplica las migraciones y el
+      # seed. La CLI es la fijada en devDependencies (pnpm exec).
+      - name: Levantar Supabase local
+        run: pnpm exec supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,storage-api,supavisor,postgres-meta
+      # `.env.local` va ANTES del build: Next fija las variables NEXT_PUBLIC_* al
+      # compilar, así que un build sin ellas no sabría a qué Supabase hablar. El YAML no
+      # nombra ninguna clave: las toma el script de la salida de la CLI (son las claves
+      # de desarrollo del Supabase efímero de este job, no secretos) y falla nombrando la
+      # variable que falte sin imprimir valores. Así la regla de `ci-workflow.test.ts`
+      # (nada de `secrets.` ni nombres de claves en el YAML) sigue valiendo.
+      - name: Armar .env.local con el entorno del Supabase local
+        run: |
+          set -o pipefail
+          pnpm exec supabase status -o json | node scripts/ci/local-supabase-env.ts > .env.local
       # Se testea el build de producción (lo que se despliega); `CI=true` lo define
       # GitHub y hace que Playwright use `pnpm start`.
       - name: Build de producción
         run: pnpm build
-      - name: Playwright (desktop-keyboard y mobile)
+      - name: Playwright (desktop-keyboard, mobile y api)
         run: pnpm test:e2e
       - name: Subir reporte y trazas
         if: failure()

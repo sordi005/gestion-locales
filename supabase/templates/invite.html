@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Te invitaron a [NOMBRE-PRODUCTO]</title>
+  </head>
+  <body
+    style="
+      margin: 0;
+      padding: 24px;
+      background: #f4f4f5;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #18181b;
+    "
+  >
+    <!--
+      Plantilla de invitación (D8, C-05). Dos cosas a tener en cuenta:
+      - El nombre del producto está escrito a mano ([NOMBRE-PRODUCTO]): si cambia, hay
+        que cambiarlo acá y en supabase/config.toml (ver src/shared/lib/brand.ts).
+      - El botón NO usa el link de confirmación estándar de Supabase: ese link se gasta
+        con un simple GET y los antivirus y clientes de correo abren los links por
+        adelantado. Este va a /auth/confirm, que solo verifica cuando la persona toca
+        "Continuar". (No escribir acá la variable de ese link: Go la reemplazaría
+        también dentro de este comentario.)
+    -->
+    <table
+      role="presentation"
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      style="
+        max-width: 480px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 8px;
+      "
+    >
+      <tr>
+        <td style="padding: 32px">
+          <h1 style="margin: 0 0 16px; font-size: 22px">
+            Te invitaron a [NOMBRE-PRODUCTO]
+          </h1>
+          <p style="margin: 0 0 16px; font-size: 16px; line-height: 1.5">
+            Hola. Te invitaron a usar [NOMBRE-PRODUCTO] para llevar las ventas,
+            el stock y la caja de tu local. Tocá el botón para crear tu
+            contraseña y entrar.
+          </p>
+          <p style="margin: 0 0 24px">
+            <a
+              href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite"
+              style="
+                display: inline-block;
+                padding: 12px 20px;
+                background: #18181b;
+                color: #ffffff;
+                text-decoration: none;
+                border-radius: 6px;
+                font-size: 16px;
+              "
+              >Crear mi contraseña</a
+            >
+          </p>
+          <p
+            style="
+              margin: 0 0 16px;
+              font-size: 14px;
+              line-height: 1.5;
+              color: #52525b;
+            "
+          >
+            El link sirve una sola vez y vence en 1 hora. Si ya venció, entrá a
+            [NOMBRE-PRODUCTO], tocá «¿Olvidaste tu contraseña?» y pedí uno
+            nuevo.
+          </p>
+          <p
+            style="margin: 0; font-size: 14px; line-height: 1.5; color: #52525b"
+          >
+            Si no esperabas esta invitación, ignorá este email.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

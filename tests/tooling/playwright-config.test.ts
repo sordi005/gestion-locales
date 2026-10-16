@@ -86,3 +86,76 @@ describe("playwright.config.ts: puerto", () => {
     expect(webServer.url).toBe("http://localhost:4317");
   });
 });
+
+describe("playwright.config.ts: proyectos", () => {
+  type Project = NonNullable<
+    Awaited<ReturnType<typeof loadConfig>>["config"]["projects"]
+  >[number];
+
+  /** Un patrón de Playwright (`testMatch` / `testIgnore`) contra un archivo. */
+  function matchesFile(pattern: Project["testMatch"], file: string): boolean {
+    const patterns = Array.isArray(pattern) ? pattern : [pattern];
+    return patterns.some(
+      (candidate) => candidate instanceof RegExp && candidate.test(file),
+    );
+  }
+
+  async function loadProjects() {
+    const { config } = await loadConfig({ CI: undefined, PORT: undefined });
+    const projects = config.projects ?? [];
+    const byName = (name: string): Project => {
+      const project = projects.find((candidate) => candidate.name === name);
+      if (project === undefined) {
+        throw new Error(`Falta el proyecto "${name}" en playwright.config.ts`);
+      }
+      return project;
+    };
+    return { projects, byName };
+  }
+
+  it("tiene exactamente los proyectos desktop-keyboard, mobile y api", async () => {
+    const { projects } = await loadProjects();
+
+    expect(projects.map((project) => project.name)).toEqual([
+      "desktop-keyboard",
+      "mobile",
+      "api",
+    ]);
+  });
+
+  it("api toma solo los *.api.spec.ts", async () => {
+    const { byName } = await loadProjects();
+    const api = byName("api");
+
+    expect(matchesFile(api.testMatch, "auth.api.spec.ts")).toBe(true);
+    expect(matchesFile(api.testMatch, "data-api.api.spec.ts")).toBe(true);
+    expect(matchesFile(api.testMatch, "smoke.spec.ts")).toBe(false);
+    expect(matchesFile(api.testMatch, "auth-login.spec.ts")).toBe(false);
+  });
+
+  it.each(["desktop-keyboard", "mobile"])(
+    "%s ignora los *.api.spec.ts y corre el resto",
+    async (name) => {
+      const { byName } = await loadProjects();
+      const project = byName(name);
+
+      expect(matchesFile(project.testIgnore, "auth.api.spec.ts")).toBe(true);
+      expect(matchesFile(project.testIgnore, "smoke.spec.ts")).toBe(false);
+      expect(matchesFile(project.testIgnore, "auth-login.spec.ts")).toBe(false);
+    },
+  );
+
+  it("el proyecto api no abre navegador (sin dispositivo ni viewport)", async () => {
+    const { byName } = await loadProjects();
+    const api = byName("api");
+
+    expect(api.use?.viewport).toBeUndefined();
+    expect(api.use?.userAgent).toBeUndefined();
+  });
+
+  it("declara el globalSetup que corta la corrida si Supabase no responde", async () => {
+    const { config } = await loadConfig({ CI: undefined, PORT: undefined });
+
+    expect(config.globalSetup).toMatch(/tests[\/]e2e[\/]global-setup\.ts$/);
+  });
+});

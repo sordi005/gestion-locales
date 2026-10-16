@@ -17,7 +17,7 @@ Stack: Next.js (App Router) + React 19 + TypeScript estricto, Supabase (Postgres
   ```bash
   npm i -g pnpm@12.9.1
   ```
-- **Docker**, necesario para los tests de base de datos (`pnpm test:db`) y para generar los tipos (`pnpm db:types`): levantan Supabase local con `pnpm exec supabase start`. `pnpm check` no lo necesita. La primera vez baja varias imágenes y tarda unos minutos.
+- **Docker**, necesario para los tests de base de datos (`pnpm test:db`), para los tests E2E (`pnpm test:e2e`) y para generar los tipos (`pnpm db:types`): levantan Supabase local con `pnpm exec supabase start`. `pnpm check` no lo necesita. La primera vez baja varias imágenes y tarda unos minutos.
 
 ## Arranque
 
@@ -29,13 +29,9 @@ pnpm dev                     # http://localhost:3000
 
 `.env.local` nunca se commitea. Las claves reales van ahí (o en las variables de entorno de Vercel), jamás en `.env.example`. La clave secreta de Supabase (`SUPABASE_SECRET_KEY`) es solo de servidor.
 
-Para correr los tests E2E la primera vez hay que bajar el navegador:
+Para ingresar a la app en local hace falta un Supabase local con los usuarios de prueba y un `.env.local` armado con su entorno: la guía está en [Tests E2E](#tests-e2e-con-supabase-local), más abajo.
 
-```bash
-pnpm exec playwright install chromium
-```
-
-Si el puerto 3000 ya lo usa otra app, corré los E2E con otro puerto (`PORT=4317 pnpm test:e2e`): sin eso Playwright reutiliza el servidor que ya está en el 3000 y los tests fallan.
+> **Ojo con `AGENTS.md`:** si `pnpm dev` (o los E2E, que lo levantan) lo arranca un agente de IA, Next puede agregar al final de `AGENTS.md` un bloque `nextjs-agent-rules`. No lo commitees: descartalo con `git checkout -- AGENTS.md`.
 
 ## Scripts
 
@@ -50,7 +46,7 @@ Si el puerto 3000 ya lo usa otra app, corré los E2E con otro puerto (`PORT=4317
 | `pnpm format:check` | Verifica el formato sin modificar archivos                          |
 | `pnpm test`         | Tests de Vitest (`unit` y `dom`), una sola corrida                  |
 | `pnpm test:watch`   | Vitest en modo watch                                                |
-| `pnpm test:e2e`     | Tests E2E de Playwright (PC solo teclado y mobile)                  |
+| `pnpm test:e2e`     | Tests E2E de Playwright; necesita Supabase local y `.env.local`     |
 | `pnpm test:db`      | Tests de base de datos (pgTAP); necesita Supabase local levantado   |
 | `pnpm db:types`     | Regenera `src/shared/db/types.ts` desde la base local               |
 | `pnpm check`        | `lint` + `typecheck` + `test`: correrlo antes de pedir una revisión |
@@ -62,7 +58,7 @@ src/
   app/        rutas, layouts y páginas (Next App Router)
   features/   una carpeta por funcionalidad (pos, payments, stock...)
   shared/     código común
-    db/       clientes de Supabase (browser, server, admin)
+    db/       clientes de Supabase (browser, server, proxy, admin)
     ui/       componentes de shadcn/ui
     lib/      utilidades (env, brand, utils)
 tests/
@@ -70,7 +66,7 @@ tests/
   fixtures/   datos de prueba (catálogos para el importador)
   setup/      preparación de los tests de componentes
   tooling/    tests de la configuración (reglas de capas, .env.example)
-scripts/ci/   scripts que usan los workflows (guardia de destino de staging)
+scripts/ci/   scripts de los workflows y de los E2E (guardia de destino de staging, armado de .env.local)
 supabase/     configuración local, migraciones y tests de base de datos
 knowledge-base/  fuente de verdad del dominio
 ```
@@ -94,13 +90,13 @@ ESLint lo hace cumplir y los mensajes de error explican qué se rompió.
 
 Todo cambio llega a `main` por Pull Request, y GitHub Actions corre cinco chequeos en paralelo (`.github/workflows/ci.yml`). Se mergea **solo con los cinco en verde**; `main` está protegida por un ruleset de GitHub, así que no se puede pushear directo ni saltearse los chequeos.
 
-| Check       | Qué corre                                                                                                                                            | Cómo reproducirlo local                                                                                                    |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `lint`      | ESLint y Prettier                                                                                                                                    | `pnpm lint && pnpm format:check`                                                                                           |
-| `typecheck` | TypeScript                                                                                                                                           | `pnpm typecheck`                                                                                                           |
-| `unit`      | Vitest (proyectos `unit` y `dom`)                                                                                                                    | `pnpm test`                                                                                                                |
-| `db`        | Levanta Supabase local (aplica migraciones y seed), corre los tests pgTAP y verifica que `src/shared/db/types.ts` coincida con lo que genera la base | `pnpm exec supabase start`, `pnpm test:db` y `pnpm db:types` (después `git status`: el archivo no debe quedar con cambios) |
-| `e2e`       | Build de producción y Playwright (PC solo teclado y mobile); si falla, sube el reporte como artefacto                                                | `pnpm build` y `CI=1 pnpm test:e2e` (contra `pnpm start`)                                                                  |
+| Check       | Qué corre                                                                                                                                                                                                                            | Cómo reproducirlo local                                                                                                                                                  |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lint`      | ESLint y Prettier                                                                                                                                                                                                                    | `pnpm lint && pnpm format:check`                                                                                                                                         |
+| `typecheck` | TypeScript                                                                                                                                                                                                                           | `pnpm typecheck`                                                                                                                                                         |
+| `unit`      | Vitest (proyectos `unit` y `dom`)                                                                                                                                                                                                    | `pnpm test`                                                                                                                                                              |
+| `db`        | Levanta Supabase local (aplica migraciones y seed), corre los tests pgTAP y verifica que `src/shared/db/types.ts` coincida con lo que genera la base                                                                                 | `pnpm exec supabase start`, `pnpm test:db` y `pnpm db:types` (después `git status`: el archivo no debe quedar con cambios)                                               |
+| `e2e`       | Levanta Supabase local (Postgres, Auth, Kong, PostgREST y Mailpit), arma `.env.local` con un script, hace el build de producción y corre Playwright (`desktop-keyboard`, `mobile` y `api`); si falla, sube el reporte como artefacto | `pnpm exec supabase start`, el comando que arma `.env.local` (ver [Tests E2E](#tests-e2e-con-supabase-local)), `pnpm build` y `CI=1 pnpm test:e2e` (contra `pnpm start`) |
 
 `pnpm check` (`lint` + `typecheck` + `test`) es el atajo rápido y no necesita Docker.
 
@@ -110,6 +106,40 @@ Todo cambio llega a `main` por Pull Request, y GitHub Actions corre cinco cheque
 - El **título** y los **commits** siguen Conventional Commits con el id del change: `tipo(C-XX): descripción`, por ejemplo `feat(C-08): registrar venta`.
 - Al abrir el PR GitHub carga la plantilla (`.github/pull_request_template.md`) con el checklist de Definition of Done: completala.
 - El CI no usa secretos: corre todo contra un Supabase local efímero dentro del job. El repo es público, así que ningún workflow usa `pull_request_target`.
+
+## Tests E2E (con Supabase local)
+
+Los E2E de Playwright prueban la app de punta a punta con un Supabase local de verdad: ingreso, recupero de contraseña, invitaciones y lectura por la Data API. Por eso **necesitan Docker y Supabase levantado**. Corren en tres proyectos: `desktop-keyboard` (PC del mostrador, solo con teclado), `mobile` y `api` (tests por HTTP, sin navegador).
+
+1. **El navegador** (una sola vez):
+   ```bash
+   pnpm exec playwright install chromium
+   ```
+2. **Supabase local.** Aplica las migraciones y el seed (siete usuarios de prueba `@demo.test`):
+   ```bash
+   pnpm exec supabase start
+   ```
+3. **El `.env.local`** con el entorno de ese Supabase (URL, claves y Mailpit):
+   ```bash
+   pnpm exec supabase status -o json | node scripts/ci/local-supabase-env.ts > .env.local
+   ```
+   - ⚠️ Esto **sobrescribe** `.env.local` entero, también si el comando falla. Si ya tenías cosas ahí (por ejemplo `SENTRY_DSN`), hacé una copia antes y volvé a agregarlas.
+   - El script es TypeScript que Node corre directo: en local necesita **Node 22.18 o más nuevo, o la 24 de `.nvmrc`**. Con un Node 22 más viejo agregá el flag: `node --experimental-strip-types scripts/ci/local-supabase-env.ts`.
+   - Las claves que muestra la CLI local son de desarrollo, no secretos; igual `.env.local` no se commitea nunca.
+4. **Correr los tests:**
+   ```bash
+   pnpm test:e2e
+   ```
+
+Si el puerto 3000 ya lo usa otra app, corré los E2E con otro puerto (`PORT=4317 pnpm test:e2e`): sin eso Playwright reutiliza el servidor que ya está en el 3000 y los tests fallan.
+
+**Los emails, en Mailpit.** Supabase local no manda emails de verdad: todos caen en Mailpit, un buzón que se ve en el navegador en `http://127.0.0.1:54324`. Ahí están las invitaciones y los links de recupero (en castellano, con la plantilla de `supabase/templates/`). Los tests los leen por su API (variable `MAILPIT_URL`).
+
+**Reglas de los E2E:**
+
+- **Solo contra Supabase local.** Los E2E crean, invitan y borran usuarios con la clave secreta, y mandan emails. Si `NEXT_PUBLIC_SUPABASE_URL` o `MAILPIT_URL` no apuntan exactamente a `127.0.0.1`, `localhost` o `[::1]`, el setup global se niega a correr (nombra la variable, nunca muestra su valor). Así un `.env.local` de staging por error no los deja tocar staging.
+- **Usuarios propios en cada test:** cada test crea un usuario `e2e-<aleatorio>@e2e.test` y lo borra al terminar. Nunca crean usuarios `@demo.test`, y los del seed solo se usan para ingresar y leer: no les pidas recuperos ni les cambies la contraseña (el test `090-dev-seed` de la base exige que sigan intactos).
+- **Los límites de Auth son altos solo en local** (`supabase/config.toml`), porque toda la suite sale de una sola IP. Staging y producción conservan los de Supabase.
 
 ## Tests de base de datos
 
@@ -196,11 +226,45 @@ Todo lo que sigue se hace en el navegador. **No pegues ninguna contraseña, toke
    - `NEXT_PUBLIC_SUPABASE_URL`: la URL de staging.
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: la publishable key.
    - `SUPABASE_SECRET_KEY`: la secret key, con el interruptor **Sensitive** activado.
-   - `NEXT_PUBLIC_SITE_URL`: la misma URL de staging por ahora (se ajusta en C-05).
+   - `NEXT_PUBLIC_SITE_URL`: la misma URL de staging por ahora (se cambia por la de Vercel en el paso 2 de la guía de Auth de staging, más abajo).
 
    En **Settings** → **Build and Deployment** → **Node.js Version** elegí **24.x**, y en **Deployment Protection** revisá que **Vercel Authentication** y **Git Fork Protection** estén activados (vienen así por defecto).
 
 8. **Comprobar.** Abrí un PR: Vercel comenta con un enlace **Preview**. Abrilo y tiene que verse `[NOMBRE-PRODUCTO]`. En producción de Vercel no tiene que quedar ninguna variable de Supabase.
+
+### Auth de staging (una sola vez, la hace el fundador)
+
+La configuración de Auth de `supabase/config.toml` (alta cerrada, contraseña de 8, plantillas) **no se sube** a staging: ese panel se ajusta a mano, una sola vez, antes de mirar el preview de C-05. Los nombres del panel de Supabase pueden variar un poco; si algo no aparece, avisá y lo armamos juntos.
+
+**Paso 1. Supabase: ingreso, contraseña y direcciones.**
+
+1. Entrá a `https://supabase.com/dashboard` y abrí el proyecto `staging`.
+2. Menú de la izquierda → **Authentication** → **Sign In / Providers**. En **User Signups**, apagá **Allow new users to sign up** y tocá **Save changes**. En la lista de proveedores, **Email** tiene que seguir activado: no lo toques.
+3. En esa misma pantalla abrí **Email** y, en **Minimum password length**, escribí `8`. No actives ningún requisito de símbolos o números. Tocá **Save**.
+4. **Authentication** → **URL Configuration**. En **Site URL** poné la dirección de Vercel del proyecto, `https://<proyecto>.vercel.app` (la ves en Vercel → tu proyecto → **Domains**) y tocá **Save**. En **Redirect URLs** tocá **Add URL** y pegá `https://<proyecto>-*-<equipo>.vercel.app/**`, reemplazando `<proyecto>` y `<equipo>` por los tuyos (el `*` se deja tal cual: es el comodín que cubre todos los previews). Guardá.
+   - **Cómo sacar `<proyecto>` y `<equipo>`:** abrí cualquier preview de un PR y mirá la dirección. Tiene la forma `<proyecto>-<hash>-<equipo>.vercel.app` (por ejemplo `kiosco-app-a1b2c3d4e-santiago-team.vercel.app`) o, si es el de una rama, `<proyecto>-git-<rama>-<equipo>.vercel.app`. `<proyecto>` es el nombre de tu proyecto en Vercel: va **al principio** de la dirección, antes del hash (o antes de `-git-`), y es el mismo que ves arriba de todo en Vercel → tu proyecto y el que usaste en el Site URL. `<equipo>` es lo que va **justo antes** de `.vercel.app`, después del hash. En el ejemplo: `https://kiosco-app-*-santiago-team.vercel.app/**`.
+   - **No pegues una versión más corta** como `https://*-<equipo>.vercel.app/**`: calzaría con cualquier proyecto cuyo nombre termine igual, también con uno ajeno.
+5. **Authentication** → **Users** → **Add user** → **Create new user**: tu email y una contraseña de al menos 8 caracteres (guardala en tu gestor), con **Auto Confirm User** tildado → **Create user**. Es tu usuario de prueba de staging.
+
+**Paso 2. Vercel: la dirección del sitio.**
+
+1. En Vercel → tu proyecto → **Settings** → **Environment Variables**, editá `NEXT_PUBLIC_SITE_URL` (solo **Preview**) y poné `https://<proyecto>.vercel.app` → **Save**.
+2. En **Deployments**, abrí el preview del PR → menú **⋯** → **Redeploy**. Hace falta porque el valor se fija al compilar: sin el redeploy el preview sigue con el valor viejo.
+
+**Paso 3. Comprobar en el preview.**
+
+1. Abrí el link **Preview** del PR (Vercel puede pedirte entrar con tu cuenta). Tenés que ver la pantalla de ingreso con `[NOMBRE-PRODUCTO]`.
+2. Ingresá con el usuario del paso 1.5: tiene que decir "Hola, " y tu email.
+3. Tocá **Cerrar sesión**: volvés al ingreso, y si abrís el link del preview de nuevo seguís en el ingreso.
+4. Tocá **¿Olvidaste tu contraseña?**, escribí tu email y mandalo: aparece el mensaje "Si ese email tiene una cuenta…".
+5. **En el mismo navegador**, abrí el email y tocá el link: pantalla **Contraseña nueva**. Escribí una nueva dos veces y tocá **Guardar contraseña**: volvés al ingreso con "Listo, guardamos tu contraseña".
+6. Probá la contraseña vieja (no tiene que andar) y la nueva (sí).
+
+**Qué tener en cuenta:**
+
+- Los emails de staging salen **en inglés**, con la plantilla estándar de Supabase: en el plan gratuito con el servicio de email por defecto no se pueden personalizar. En local y en el CI sí salen en castellano.
+- El link de recupero **se abre en el mismo navegador** donde se pidió. Si lo abrís en otro (o en el celular), muestra "El link venció o ya se usó" y hay que pedir otro. Si pedís dos links seguidos, abrí primero el más nuevo.
+- Con el servicio de email por defecto, Supabase manda como máximo **2 emails por hora** en todo el proyecto: no pruebes el recupero más veces que eso.
 
 ## Documentación
 
