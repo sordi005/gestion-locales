@@ -18,30 +18,42 @@ El repo SHALL tener Vitest configurado con dos proyectos: `unit` (entorno `node`
 - **THEN** no se recolecta ningún archivo de `tests/e2e/`
 
 ### Requirement: Test de humo de componentes
-El proyecto `dom` SHALL incluir al menos un test real de componente que renderice la página de inicio y verifique contenido visible por rol, demostrando que JSX, alias y matchers funcionan.
+El proyecto `dom` SHALL incluir al menos un test real de componente que renderice el marco de las pantallas de autenticación (`AuthShell`) y verifique contenido visible por rol, demostrando que JSX, alias y matchers funcionan.
 
-#### Scenario: Renderizado de la página de inicio
-- **WHEN** el test renderiza la página de inicio con Testing Library
-- **THEN** encuentra por rol `heading` de nivel 1 el texto `[NOMBRE-PRODUCTO]`
+#### Scenario: Renderizado del marco de autenticación
+- **WHEN** el test renderiza `AuthShell` con un contenido de prueba usando Testing Library
+- **THEN** encuentra por rol `heading` de nivel 1 el texto `[NOMBRE-PRODUCTO]` y el contenido de prueba
 
-### Requirement: Playwright con proyectos desktop-keyboard y mobile
-El repo SHALL tener Playwright configurado con `baseURL`, un `webServer` que levanta la app, `forbidOnly` y `retries` según CI, `trace: 'on-first-retry'`, y dos proyectos: `desktop-keyboard` (viewport de PC, uso solo con teclado) y `mobile` (dispositivo móvil emulado). Fuera de CI el `webServer` MUST usar `pnpm dev` y reutilizar un servidor existente; en CI (`CI` definido) MUST servir el build de producción con `pnpm start` (el build lo hace un paso previo del job) y MUST NOT reutilizar servidores. En CI el reporter SHALL combinar anotaciones de GitHub con un reporte HTML que no se abre solo (`open: 'never'`), para subirlo como artefacto.
+### Requirement: Playwright con proyectos desktop-keyboard, mobile y api
+El repo SHALL tener Playwright configurado con `baseURL`, un `webServer` que levanta la app, `forbidOnly` y `retries` según CI, `trace: 'on-first-retry'`, y tres proyectos: `desktop-keyboard` (viewport de PC, uso solo con teclado), `mobile` (dispositivo móvil emulado) y `api` (sin navegador, solo los archivos `*.api.spec.ts`, para pruebas por HTTP contra Supabase local); los dos primeros MUST ignorar los `*.api.spec.ts`. Fuera de CI el `webServer` MUST usar `pnpm dev` y reutilizar un servidor existente; en CI (`CI` definido) MUST servir el build de producción con `pnpm start` (el build lo hace un paso previo del job) y MUST NOT reutilizar servidores. En CI el reporter SHALL combinar anotaciones de GitHub con un reporte HTML que no se abre solo (`open: 'never'`), para subirlo como artefacto. La configuración MUST cargar `.env.local` si existe (con `process.loadEnvFile` de Node, sin pisar variables ya definidas) y un `globalSetup` MUST cortar la corrida con un mensaje claro ("Levantá Supabase local: pnpm exec supabase start") si faltan las variables de Supabase o Supabase local no responde: los E2E corren contra Supabase local real.
 
-#### Scenario: Humo en ambos proyectos
-- **WHEN** se ejecuta `pnpm test:e2e`
+#### Scenario: Humo en los proyectos de navegador
+- **WHEN** se ejecuta `pnpm test:e2e` con Supabase local levantado
 - **THEN** el test de humo corre en `desktop-keyboard` y en `mobile` y ambos pasan
 
-#### Scenario: Página de inicio en el navegador
-- **WHEN** el test de humo navega a `/`
-- **THEN** ve el encabezado `[NOMBRE-PRODUCTO]` y el `<html>` tiene `lang="es"`
+#### Scenario: Pantalla de ingreso en el navegador
+- **WHEN** el test de humo navega a `/` sin sesión
+- **THEN** termina en `/login`, ve el encabezado `[NOMBRE-PRODUCTO]` y el `<html>` tiene `lang="es"`
 
 #### Scenario: Navegación solo con teclado en PC
-- **WHEN** en el proyecto `desktop-keyboard` el test presiona `Tab` desde el inicio del documento
-- **THEN** el foco llega a un elemento enfocable de la página sin usar el mouse
+- **WHEN** en el proyecto `desktop-keyboard` el test presiona `Tab` desde el inicio de `/login`
+- **THEN** el foco llega al enlace "Saltar al contenido" sin usar el mouse
 
 #### Scenario: Servidor según el entorno
 - **WHEN** se evalúa la configuración de Playwright con `CI` definido y sin definir
 - **THEN** con `CI` el comando del `webServer` es `pnpm start` sin reutilizar servidor y el reporter incluye `github` y `html`; sin `CI` es `pnpm dev` reutilizando el servidor existente
+
+#### Scenario: Proyecto api separado
+- **WHEN** se evalúa la configuración de Playwright
+- **THEN** hay exactamente los proyectos `desktop-keyboard`, `mobile` y `api`; `api` solo toma `*.api.spec.ts` y los otros dos los ignoran
+
+#### Scenario: Entorno local cargado sin pisar
+- **WHEN** existe `.env.local` con `NEXT_PUBLIC_SUPABASE_URL` y el proceso ya tiene otra `NEXT_PUBLIC_SITE_URL` definida
+- **THEN** la configuración toma la URL de Supabase del archivo y conserva la `NEXT_PUBLIC_SITE_URL` del proceso
+
+#### Scenario: Supabase local apagado
+- **WHEN** se ejecuta `pnpm test:e2e` sin Supabase local levantado
+- **THEN** la corrida termina enseguida con el mensaje que indica levantarlo, en lugar de fallar test por test
 
 ### Requirement: Scripts estándar de verificación
 `package.json` SHALL exponer los scripts `dev`, `build`, `start`, `lint`, `typecheck`, `format`, `format:check`, `test`, `test:watch`, `test:e2e`, `test:db` (`supabase test db`, requiere Supabase local levantado), `db:types` (regenera `src/shared/db/types.ts` desde la base local) y `check` (lint + typecheck + test). Ningún script de test MUST quedar en modo watch por defecto, y `check` MUST NOT requerir Docker.
@@ -61,3 +73,17 @@ Los tests de humo SHALL verificar comportamiento observable (contenido renderiza
 - **WHEN** se revisan los tests agregados por este change
 - **THEN** cada uno falla si se rompe el comportamiento que describe
 
+### Requirement: Helpers E2E de usuarios aislados y correo local
+`tests/e2e/support/` SHALL proveer: un cliente admin propio de los tests (con `SUPABASE_SECRET_KEY` del entorno; nunca importa `src/shared/db/admin.ts`) para crear usuarios aislados con email confirmado, invitar usuarios como lo hará C-07 y borrarlos al terminar; un lector de Mailpit (API `/api/v1/search` y `/api/v1/message/{id}`, con espera por sondeo y tope de tiempo) que encuentra el email de un destinatario y extrae su link; una función que lleva ese link al `baseURL` de la corrida (por si `PORT` no es 3000); y fixtures de Playwright que crean y borran un usuario aislado por test. Los usuarios aislados MUST usar emails `e2e-<aleatorio>@e2e.test` (nunca `@demo.test`, que contaría como usuario del seed) y los usuarios del seed MUST usarse solo para ingresar y leer, nunca para cambiar su contraseña ni pedir recupero.
+
+#### Scenario: Usuario aislado por test
+- **WHEN** un test usa la fixture de usuario aislado
+- **THEN** recibe un email `@e2e.test` único con contraseña conocida, y al terminar el usuario ya no existe en Auth
+
+#### Scenario: Email encontrado por destinatario
+- **WHEN** se pide un recupero para un usuario aislado y el test busca su email en Mailpit
+- **THEN** encuentra solo el email de ese destinatario y extrae el link a `/auth/confirm` con el host del `baseURL`
+
+#### Scenario: Seed intacto después de los E2E
+- **WHEN** se corre `pnpm test:e2e` y después `pnpm test:db` sobre la misma base local
+- **THEN** `090-dev-seed.test.sql` sigue en verde (siete usuarios `@demo.test` con su contraseña y tokens vacíos)

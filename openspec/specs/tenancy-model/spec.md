@@ -77,7 +77,7 @@ Los nombres que escribe una persona (`organizations.name`, `locations.name`, `pr
 - **THEN** la primera queda NULL, la segunda se normaliza a un solo renglón y la tercera se rechaza; una de 200 caracteres se acepta
 
 ### Requirement: Perfil creado al dar de alta un usuario
-La tabla `public.profiles` SHALL tener `id uuid` PK con FK a `auth.users(id) on delete cascade`, `full_name text NULL` y `created_at timestamptz NOT NULL default now()`. Un trigger `AFTER INSERT` sobre `auth.users`, con su función en el esquema `private` (`security definer`, `set search_path = ''`), MUST crear el perfil de cada usuario nuevo copiando `raw_user_meta_data ->> 'full_name'` (dato solo de presentación: MUST NOT usarse nunca para autorizar). El nombre copiado MUST normalizarse y recortarse a 120 caracteres (en blanco = NULL): el trigger de alta nunca debe fallar por el contenido de los metadatos, porque un error ahí bloquearía los registros. La migración MUST crear además, de forma idempotente (`insert ... select from auth.users ... on conflict do nothing`), el perfil de los usuarios que ya existían antes de ella (staging y producción), con el mismo nombre normalizado y recortado. Ningún rol de la API MUST poder insertar perfiles directamente.
+La tabla `public.profiles` SHALL tener `id uuid` PK con FK a `auth.users(id) on delete cascade`, `full_name text NULL` y `created_at timestamptz NOT NULL default now()`. Un trigger `AFTER INSERT` sobre `auth.users`, con su función en el esquema `private` (`security definer`, `set search_path = ''`), MUST crear el perfil de cada usuario nuevo copiando `raw_user_meta_data ->> 'full_name'` (dato solo de presentación: MUST NOT usarse nunca para autorizar). El nombre copiado MUST normalizarse y recortarse a 120 caracteres (en blanco = NULL): el trigger de alta nunca debe fallar por el contenido de los metadatos, porque un error ahí bloquearía los registros. Esto vale para toda forma de alta, incluido el usuario **invitado** (`auth.admin.inviteUserByEmail`), que se crea sin contraseña, sin email confirmado y con `invited_at`: su perfil MUST existir desde la invitación, antes de que defina su contraseña. La migración MUST crear además, de forma idempotente (`insert ... select from auth.users ... on conflict do nothing`), el perfil de los usuarios que ya existían antes de ella (staging y producción), con el mismo nombre normalizado y recortado. Ningún rol de la API MUST poder insertar perfiles directamente.
 
 #### Scenario: Alta de usuario con nombre
 - **WHEN** se crea un usuario en `auth.users` con `raw_user_meta_data = {"full_name": "Ana Pérez"}`
@@ -94,6 +94,14 @@ La tabla `public.profiles` SHALL tener `id uuid` PK con FK a `auth.users(id) on 
 #### Scenario: Usuarios anteriores a la migración
 - **WHEN** la migración se aplica sobre una base donde `auth.users` ya tiene filas sin perfil
 - **THEN** cada una recibe su perfil, repetir el backfill no cambia nada y después de la migración ningún usuario de `auth.users` queda sin perfil
+
+#### Scenario: Usuario invitado
+- **WHEN** se inserta en `auth.users` un usuario como lo crea una invitación (sin `encrypted_password`, `email_confirmed_at` NULL, `invited_at` con fecha, `raw_user_meta_data = {"full_name": "Invitada Pérez"}`), y otro igual sin `full_name`
+- **THEN** el primero tiene su perfil con `full_name = 'Invitada Pérez'` y el segundo con `full_name` NULL, y ninguna de las dos altas falla
+
+#### Scenario: Invitación real por Auth
+- **WHEN** contra Supabase local se invita un email con `data.full_name = "Invitada E2E"` usando la secret key
+- **THEN** existe su perfil con ese nombre antes de que acepte la invitación
 
 ### Requirement: Super-admins fuera de las membresías
 La tabla `public.platform_admins` SHALL tener `user_id uuid` PK con FK a `auth.users(id) on delete cascade` y `created_at timestamptz NOT NULL default now()`. Ser super-admin MUST NOT requerir ni implicar una membresía: un super-admin no aparece en `memberships` de ninguna organización (DD-22, RN-AU-05).
