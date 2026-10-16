@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("página de inicio", () => {
+test.describe("pantalla de ingreso", () => {
   test(
-    "muestra el nombre del producto y declara el idioma español",
+    "sin sesión, / termina en /login con el nombre del producto y declara el idioma español",
     { tag: "@smoke" },
     async ({ page }) => {
       await page.goto("/");
 
+      await expect(page).toHaveURL("/login?next=%2F");
       await expect(
         page.getByRole("heading", { level: 1, name: "[NOMBRE-PRODUCTO]" }),
       ).toBeVisible();
@@ -18,10 +19,10 @@ test.describe("página de inicio", () => {
 test.describe("navegación con teclado", () => {
   // Solo corre en `desktop-keyboard` (el proyecto `mobile` excluye @keyboard).
   test(
-    "Tab desde el inicio enfoca el enlace para saltar al contenido y Enter lo activa",
+    "Tab desde el inicio de /login enfoca el enlace para saltar al contenido y Enter lo activa",
     { tag: ["@smoke", "@keyboard"] },
     async ({ page }) => {
-      await page.goto("/");
+      await page.goto("/login");
 
       await page.keyboard.press("Tab");
 

@@ -11,6 +11,7 @@ import {
   vi,
 } from "vitest";
 
+import { sessionCookieOptions } from "@/shared/db/cookie-options";
 import { createClient } from "@/shared/db/server";
 import type { Database } from "@/shared/db/types";
 
@@ -91,6 +92,33 @@ describe("createClient (servidor)", () => {
     expect(key).toBe("sb_publishable_abc123");
     expect(capturedAdapter().getAll()).toEqual(requestCookies);
     expect(client).toBe(fakeClient);
+  });
+
+  it("pasa las cookieOptions de sesión de cookie-options.ts (httpOnly, SameSite=Lax)", async () => {
+    mockCookieStore();
+
+    await createClient();
+
+    const options = vi.mocked(createServerClient).mock.calls[0]?.[2];
+    expect(options?.cookieOptions).toEqual(sessionCookieOptions());
+    expect(options?.cookieOptions).toMatchObject({
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+    });
+  });
+
+  it("con NODE_ENV=production las cookieOptions llevan Secure", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    mockCookieStore();
+
+    await createClient();
+
+    const options = vi.mocked(createServerClient).mock.calls[0]?.[2];
+    expect(options?.cookieOptions).toMatchObject({
+      httpOnly: true,
+      secure: true,
+    });
   });
 
   it("pide las cookies en cada llamada (un cliente nuevo por request)", async () => {

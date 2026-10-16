@@ -1,0 +1,20 @@
+{
+  "ANON_KEY": "fake-anon-key-not-a-real-jwt",
+  "API_URL": "http://127.0.0.1:54321",
+  "DB_URL": "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+  "FUNCTIONS_URL": "http://127.0.0.1:54321/functions/v1",
+  "GRAPHQL_URL": "http://127.0.0.1:54321/graphql/v1",
+  "INBUCKET_URL": "http://127.0.0.1:54324",
+  "JWT_SECRET": "fake-jwt-secret-for-tests-only-0123456789",
+  "MAILPIT_URL": "http://127.0.0.1:54324",
+  "MCP_URL": "http://127.0.0.1:54321/mcp",
+  "PUBLISHABLE_KEY": "fake-publishable-key-not-real",
+  "REST_URL": "http://127.0.0.1:54321/rest/v1",
+  "S3_PROTOCOL_ACCESS_KEY_ID": "fake-s3-access-key-id",
+  "S3_PROTOCOL_ACCESS_KEY_SECRET": "fake-s3-access-key-secret",
+  "S3_PROTOCOL_REGION": "local",
+  "SECRET_KEY": "fake-secret-key-not-real",
+  "SERVICE_ROLE_KEY": "fake-service-role-key-not-a-real-jwt",
+  "STORAGE_S3_URL": "http://127.0.0.1:54321/storage/v1/s3",
+  "STUDIO_URL": "http://127.0.0.1:54323"
+}

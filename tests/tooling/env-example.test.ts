@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // Variables de KB 08 (§Variables de entorno).
-const EXPECTED_VARIABLES = [
+const KB_VARIABLES = [
   "NEXT_PUBLIC_SITE_URL",
   "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -12,6 +12,11 @@ const EXPECTED_VARIABLES = [
   "SUPABASE_PROJECT_ID",
   "SUPABASE_SECRET_KEY",
 ] as const;
+
+// Solo para los tests E2E (C-05): el buzón local de los emails de Auth.
+const E2E_ONLY_VARIABLES = ["MAILPIT_URL"] as const;
+
+const EXPECTED_VARIABLES = [...KB_VARIABLES, ...E2E_ONLY_VARIABLES].sort();
 
 // Sensibles: nunca llevan valor en `.env.example`.
 const SENSITIVE_VARIABLES = ["SUPABASE_SECRET_KEY", "SENTRY_DSN"] as const;
@@ -43,9 +48,14 @@ function loadEnvExample(): Map<string, string> {
 }
 
 describe(".env.example", () => {
-  it("declara exactamente las seis variables de KB 08", () => {
+  it("declara exactamente las seis variables de KB 08 más MAILPIT_URL (solo E2E)", () => {
     const variables = loadEnvExample();
-    expect([...variables.keys()].sort()).toEqual([...EXPECTED_VARIABLES]);
+    expect([...variables.keys()].sort()).toEqual(EXPECTED_VARIABLES);
+  });
+
+  it("documenta MAILPIT_URL con el valor local de Mailpit (la usan solo los E2E, siempre contra local)", () => {
+    const variables = loadEnvExample();
+    expect(variables.get("MAILPIT_URL")).toBe("http://127.0.0.1:54324");
   });
 
   it("deja sin valor la secret key y el DSN de Sentry", () => {

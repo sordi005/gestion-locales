@@ -28,7 +28,7 @@ La app SHALL ofrecer en `/login` un formulario de ingreso con email y contraseñ
 - **THEN** ingresa sin usar el mouse
 
 ### Requirement: Redirecciones internas seguras
-Todo destino tomado de la URL (`next`) SHALL pasar por una función pura (`safeNextPath`) que solo acepta rutas internas que empiezan con una única `/`. MUST rechazar y reemplazar por `/`: valores que no son texto, rutas que empiezan con `//` o `/\`, URLs con esquema (`https:`, `javascript:`), barras invertidas, caracteres de control (tab, salto de línea) y las rutas de autenticación (`/login`, `/recuperar-contrasena`, `/actualizar-contrasena` y todo `/auth/...`), para no permitir redirecciones abiertas ni bucles.
+Todo destino tomado de la URL (`next`) SHALL pasar por una función pura (`safeNextPath`) que solo acepta rutas internas que empiezan con una única `/`. MUST rechazar y reemplazar por `/`: valores que no son texto, rutas que empiezan con `//` o `/\`, URLs con esquema (`https:`, `javascript:`), barras invertidas, todo carácter que no sea ASCII imprimible sin espacio (controles como tab y salto de línea, espacios, NBSP, U+2028, letras con tilde, `€`: el destino viaja en un header y rompería la redirección) y las rutas de autenticación (`/login`, `/recuperar-contrasena`, `/actualizar-contrasena` y todo `/auth/...`), para no permitir redirecciones abiertas ni bucles.
 
 #### Scenario: Ruta interna válida
 - **WHEN** `next` es `/l/123/vender?tab=1`
@@ -38,12 +38,16 @@ Todo destino tomado de la URL (`next`) SHALL pasar por una función pura (`safeN
 - **WHEN** `next` es `//evil.example`, `/\evil.example`, `https://evil.example`, `javascript:alert(1)` o `/\t/evil.example`
 - **THEN** el destino es `/`
 
+#### Scenario: Caracteres fuera de ASCII imprimible
+- **WHEN** `next` es `/€`, `/日本`, `/ñ`, `/a b` o contiene un NBSP o U+2028
+- **THEN** el destino es `/` (el valor codificado, como `/%E2%82%AC`, sí se acepta)
+
 #### Scenario: Sin bucles hacia las pantallas de auth
 - **WHEN** `next` es `/login` o `/auth/callback?code=x`
 - **THEN** el destino es `/`
 
 ### Requirement: Proxy de sesión
-`src/proxy.ts` SHALL correr en toda request de página, excluyendo con su `matcher` los archivos estáticos de Next (`_next/static`, `_next/image`), `favicon.ico`, `manifest.webmanifest`, `sw.js`, `icons/` y los archivos de imagen. MUST crear el cliente de Supabase del proxy, llamar a `auth.getClaims()` antes de cualquier otra lógica (eso refresca la sesión), clasificar la sesión y decidir según la tabla de rutas: rutas de invitado (`/login`, `/recuperar-contrasena`), de link (`/auth/confirm`, `/auth/callback`), de definir contraseña (`/actualizar-contrasena`) y protegidas (todo lo demás). Toda respuesta del proxy, incluidas las redirecciones, MUST llevar las cookies y los headers anti-caché que dejó el refresco. El proxy es un filtro de experiencia: no reemplaza la verificación en el servidor.
+`src/proxy.ts` SHALL correr en toda request de página, excluyendo con su `matcher` los archivos estáticos de Next (`_next/static`, `_next/image`), `favicon.ico`, `manifest.webmanifest`, `sw.js`, `icons/` y los archivos de imagen. MUST crear el cliente de Supabase del proxy, llamar a `auth.getClaims()` antes de cualquier otra lógica (eso refresca la sesión), clasificar la sesión y decidir según la tabla de rutas: rutas de invitado (`/login`, `/recuperar-contrasena`), de link (`/auth/confirm`, `/auth/callback`), de definir contraseña (`/actualizar-contrasena`) y protegidas (todo lo demás). Toda respuesta del proxy, incluidas las redirecciones, MUST llevar las cookies y los headers anti-caché que dejó el refresco. Una Server Action invocada por el JavaScript de Next (POST con el header `Next-Action`) MUST seguir siempre, solo con la sesión refrescada y sin cerrar ninguna sesión: el cliente de Next no puede seguir una redirección HTTP a una acción, y cada acción ya verifica por su cuenta y responde con `redirect()`. El proxy es un filtro de experiencia: no reemplaza la verificación en el servidor.
 
 #### Scenario: Ruta protegida sin sesión
 - **WHEN** alguien sin sesión abre `/`
@@ -52,6 +56,10 @@ Todo destino tomado de la URL (`next`) SHALL pasar por una función pura (`safeN
 #### Scenario: Sesión completa en una pantalla de invitado
 - **WHEN** alguien con sesión normal abre `/login` o `/recuperar-contrasena`
 - **THEN** es redirigido a `/`
+
+#### Scenario: Server Action sin sesión o con sesión perdida
+- **WHEN** la persona toca "Cerrar sesión" (o envía `/login` desde una pestaña vieja) y su sesión ya no existe o cambió desde otro lado
+- **THEN** el proxy deja pasar la Server Action sin redirigir ni cerrar sesión, la acción responde con su propia redirección y la persona llega a `/login` (o a `/`) sin ver una pantalla de error
 
 #### Scenario: Links siempre pasan
 - **WHEN** se abre `/auth/confirm` o `/auth/callback`, con o sin sesión

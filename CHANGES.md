@@ -466,16 +466,17 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 ---
 
 ### [C-05] `auth-session-flows`
-- **Estado**: `[ ]` en curso (propuesta aprobada por el fundador 2026-10-14; próximo: `/opsx:apply`) · Prioridad **D1**
+- **Estado**: `[ ]` en curso (propuesta aprobada por el fundador 2026-10-14; **implementado 2026-10-15** en la rama `feat/C-05-auth-session-flows`, grupos 0 a 12 de `tasks.md` hechos con la revisión doble aprobada; **pendiente**: OK del fundador, commit y PR, pasos de Auth de staging y verificación en el preview, merge y `/opsx:archive`) · Prioridad **D1**
 - **Scope**: Autenticación con Supabase Auth (US-002, US-003)
   - Email + contraseña con `@supabase/ssr` (cookies httpOnly); `middleware.ts` o `proxy.ts` según la versión de Next.js instalada (gotcha 19) que refresca la sesión y redirige a `/login`
   - Rutas: `/login`, `/recuperar-contrasena`, `/auth/callback`, `/auth/confirm` (token hash de invitación y recupero), `/actualizar-contrasena` (requiere sesión temporal válida); link vencido o usado → error claro con opción de pedir otro
   - Credenciales inválidas → mensaje genérico que no revela si el email existe; en el servidor se valida con `getUser()`/`getClaims()`, **nunca** `getSession()`
   - Sin registro público (RN-AU-01): signups deshabilitados en `supabase/config.toml`
   - Cierre de sesión con hook de limpieza de datos locales (lo consume C-11)
-  - Tests: Vitest (guardas), Playwright (login, recupero, link vencido, invitación con el correo local Inbucket), pgTAP del trigger de `profiles`; verificación estática de que `getSession()` no se usa en el servidor
+  - Tests: Vitest (guardas), Playwright (login, recupero, link vencido, invitación con el correo local **Mailpit**: la CLI 2.119 reemplazó a Inbucket), pgTAP del trigger de `profiles`; verificación estática de que `getSession()` no se usa en el servidor
   - Follow-up de C-04 (archivado 2026-10-13): verificar que el rol `authenticated` lee por la Data API las tablas de tenencia. El panel marca «API Disabled» y «custom Data API permissions» en las 7 tablas, probablemente porque `anon` no tiene privilegios; si `authenticated` no lee, migración correctiva
   - Follow-up de C-04 (revisión doble): cerrar el alta abierta. En local, un `POST /auth/v1/signup` crea usuario y perfil; hoy `supabase/config.toml` tiene `enable_signup = true` en `[auth]` y `[auth.email]`: hay que deshabilitarlo ahí y en el panel de Auth (RN-TE-04 y RN-AU-01: sin registro por cuenta propia)
+  - **Resultado de C-05 (2026-10-15)**: ambos follow-ups de C-04 cerrados. La Data API anda con una sesión real (`authenticated` lee las siete tablas de tenencia y `anon` recibe `42501`; no hizo falta migración correctiva) y el alta pública quedó cerrada con `[auth] enable_signup = false` (el `enable_signup` de `[auth.email]` NO se toca: en la CLI apaga el proveedor de email entero y rompe el ingreso con contraseña). En staging queda por hacer a mano en el panel (guía en `README.md`, "Auth de staging"). Los límites de `[auth.rate_limit]` están altos **solo** en `supabase/config.toml` local (ver la nota de C-36). Detalle de decisiones y de la revisión doble en `openspec/changes/auth-session-flows/` (hasta que se archive)
 - **Dependencias**: C-04
 - **Governance**: CRITICO
 - **Leer antes**:
@@ -497,6 +498,13 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Organización `suspended`: aviso y modo solo lectura (RN-TE-06); membresía deshabilitada → "sin acceso" y cierre de sesión
   - Hook de limpieza de IndexedDB y carrito al cerrar sesión
   - Tests: Vitest + Testing Library (guardas y redirecciones); Playwright: el usuario de A no entra a `/l/[locationB]` (404), el `employee` solo ve sus locales, la membresía deshabilitada cierra la sesión
+  - **Notas de C-05 (para este change)**:
+    - **Identidad en el servidor:** `requireUser()` (devuelve `{ id, email }` y redirige a `/login` si no hay sesión completa) y `getAuthState()` (devuelve `{ kind, user }`) se importan de `@/features/auth/server` (`server-only`). Nunca `getSession()` (un test falla si aparece en `src/`).
+    - **El proxy no es la frontera:** `src/proxy.ts` deja pasar a propósito los POST de Server Actions (header `Next-Action`: una redirección rompería el cliente de Next) y solo refresca la sesión. La protección es que **cada página protegida y cada Server Action** llame a `requireUser()` o `requirePasswordSetup()`. Sumar un test de convención que recorra `src/app/**/page.tsx` y todo export de un archivo `"use server"` y falle si uno protegido no verifica (las acciones públicas —`login`, `requestPasswordReset`, `confirmLink`, `logout`— van en una lista de excepciones con su motivo).
+    - **Reemplazar la bienvenida provisoria:** `src/app/page.tsx` (+ `WelcomeScreen` y su test) pasa a la redirección por rol y dispositivo.
+    - **Limpieza al cerrar sesión:** punto único de registro en `src/app/logout-cleanups.tsx` (`registerLogoutCleanup(name, task)` de `@/features/auth/logout-cleanup`, ver el comentario del archivo); C-06 registra ahí el estado del local activo.
+    - **E2E:** hoy cada spec ingresa por la UI con los usuarios del seed (`tests/e2e/support/auth-ui.ts`); con muchas pantallas protegidas, sumar un proyecto de setup con `storageState` por rol (D14).
+    - **Endurecimientos que quedaron como INFO de la revisión doble:** (1) `React.cache` para `getAuthState` antes de que haya varias llamadas por request (hoy es una consulta por request y `getClaims()` verifica el JWT local); (2) `safeNextPath` acepta formas con segmentos punto como `/.//host` (hoy Next normaliza los paths con `//` con un 308): rechazar cuando el pathname resuelto difiere o empieza con `//`; (3) un `getClaims()` que lanza (cookie de sesión adulterada) hoy da un 500 en todas las rutas desde el proxy: `try/catch` que lo trate como `none` (ver la distinción "no se pudo verificar" en la nota de C-11); (4) el guardia de `getSession(` solo ve llamadas literales: evaluar una regla de ESLint; (5) `src/shared/db/browser.ts` no tiene restricción de uso: evaluar `no-restricted-imports`; (6) mostrar el email de la cuenta en `/actualizar-contrasena`.
 - **Dependencias**: C-05
 - **Governance**: ALTO
 - **Leer antes**:
@@ -516,8 +524,15 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Cada acción queda en `audit_events` (RN-AU-05)
   - Script de bootstrap del primer `platform_admin` con la secret key, **fuera del SQL versionado** (`scripts/bootstrap-platform-admin.ts`)
   - Guardas: `/admin/*` solo `platform_admin`; la secret key nunca llega al cliente (test que escanea el bundle)
-  - Tests: pgTAP (solo ADM crea organizaciones, locales y membresías; deshabilitada corta el acceso en la siguiente consulta), Vitest (guardas), Playwright (alta completa con invitación vía Inbucket)
+  - Tests: pgTAP (solo ADM crea organizaciones, locales y membresías; deshabilitada corta el acceso en la siguiente consulta), Vitest (guardas), Playwright (alta completa con invitación vía Mailpit)
   - Nota de C-04: las escrituras de tenancy (`create_organization`, `create_location`, altas de `memberships` y `membership_locations`, cambios de estado) las hace el super-admin **con su propia sesión** (políticas ADM y `security invoker`): no hace falta la secret key para eso, solo para invitar usuarios por Auth. C-04 no incluye baja de asignaciones: `membership_locations` no tiene `DELETE` para nadie; si hace falta sacar a alguien de un local (hoy solo se deshabilita la membresía entera), C-07 decide si suma esa baja con política ADM y auditoría. `status` de organizaciones y locales no es escribible por la API: el pase a `suspended`/`inactive` también lo define C-07 (RPC propia). Las RPCs de C-04 quedan documentadas en la migración (comentario junto a cada función). Visibilidad de `profiles` (decisión del fundador 2026-10-09): el owner ve a todo su equipo (activo o deshabilitado); manager y employee solo ven a los miembros activos que comparten un local con ellos (`private.can_view_profile`), así que las pantallas que muestran "quién vendió / quién abrió la caja" (C-19+) deben tolerar un perfil no visible (texto neutro).
+  - **Notas de C-05 (para este change)**:
+    - **Inbucket → Mailpit:** la CLI 2.119 reemplazó Inbucket por Mailpit (`http://127.0.0.1:54324`; el contenedor se sigue llamando `supabase_inbucket_<proyecto>`). Los E2E de C-05 ya traen los helpers para leerlo (`tests/e2e/support/{mailpit,supabase-admin,fixtures}.ts`, con la fixture `invitedUser`): son el modelo del E2E de alta completa de este change. Variable `MAILPIT_URL` en `.env.local` (la arma `scripts/ci/local-supabase-env.ts`).
+    - **Cómo invitar:** `auth.admin.inviteUserByEmail(email, { data: { full_name }, redirectTo })`. El `full_name` del `data` lo copia a `profiles.full_name` el trigger de C-04 (sin él el perfil queda con `full_name` NULL y la bienvenida saluda por el email); el `redirectTo` es `<origen de la request>/auth/callback`, con `resolveRedirectOrigin` (`src/features/auth/domain/redirect-origin.ts`), como hacen los pedidos de recupero. `supabase/tests/030-auth-invited-user.test.sql` ya caracteriza el perfil de un invitado (sin contraseña, sin email confirmado, `invited_at`).
+    - **El lado receptor ya existe:** la invitación abre `/auth/confirm?token_hash=…&type=invite` (dos pasos: el GET no gasta el link, el POST "Continuar" lo verifica), define la contraseña en `/actualizar-contrasena` y entra. Con el link vencido o usado, el invitado pide otro desde "¿Olvidaste tu contraseña?" (Supabase le manda un recupero, no otra invitación) y no depende del super-admin.
+    - **Staging con la plantilla estándar (D8):** el plan Free con el SMTP por defecto no permite plantillas propias (desde 2026-06-03). Una invitación creada con `inviteUserByEmail` no puede usar PKCE (no hay navegador que guarde el verificador), así que con la plantilla estándar el link vuelve con los tokens en el **fragmento** de la URL (`#access_token=…`), que el servidor no ve. C-07 tiene que resolver las invitaciones de staging con plantilla propia (requiere SMTP propio) o con otro mecanismo; en local y en el CI ya funcionan con las plantillas de `supabase/templates/`.
+    - **Límite del PKCE en staging:** `/auth/callback` canjea el código sin `flowId`; si alguien pide dos links de recupero y abre primero el más viejo, fallan los dos (documentado en `design.md`, Risks). Si el SMTP propio (C-36) no lo resuelve, evaluar pasar el `sb_flow_id` que auth-js agrega al `redirectTo`.
+    - **Seed intacto:** los E2E nunca crean usuarios `@demo.test` ni piden recuperos para los del seed (lo exige `090-dev-seed.test.sql`); usan `e2e-<aleatorio>@e2e.test` y los borran.
 - **Dependencias**: C-05
 - **Governance**: CRITICO
 - **Leer antes**:
@@ -599,6 +614,10 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - `navigator.storage.persist()`; reconstrucción desde el servidor si el navegador borra el almacenamiento (gotcha 10); borrado al cerrar sesión (hook de C-05/C-06)
   - Base de la cola sin conexión de la Etapa 1 (DD-31), **sin outbox** en la Etapa 0
   - Tests: Vitest con `fake-indexeddb` (delta, desactivaciones, búsqueda con/sin ceros y acentos), prueba de que el `employee` no recibe `reference_cost`, medición < 200 ms con 3.000 productos
+  - **Notas de C-05 (para este change, y para C-19)**:
+    - **Registrar la limpieza:** en `src/app/logout-cleanups.tsx` (punto único, montado en el layout raíz; ver el comentario del archivo) con `registerLogoutCleanup("<nombre>", tarea)` de `@/features/auth/logout-cleanup`. `LogoutButton` corre `runLogoutCleanups()` antes de la acción `logout`, y `LoginForm` la corre al montarse. Cada tarea tiene un tope de 3 s; una que falla o se cuelga no frena a las demás ni el cierre de sesión.
+    - **Cookies `httpOnly` (D2):** el navegador no ve la sesión de Supabase, así que no se puede usar `browser.ts` ni Realtime directo desde el cliente. La sincronización (`GET /api/catalog/delta`) y todo dato del usuario pasan por Route Handlers o Server Actions con la sesión de la cookie.
+    - **Contrato `getClaims()` / limpieza (hay que resolverlo ANTES de registrar una limpieza que toque datos sin sincronizar, DD-31):** hoy un `getClaims()` con error se trata como "sin sesión" y `LoginForm` corre `runLogoutCleanups()` al montarse; es inofensivo en C-05 (no hay tareas registradas), pero con la cola de ventas offline sería pérdida de datos. Hay que: (1) distinguir "no se pudo verificar la sesión" (red, Supabase caído) de "no hay sesión"; (2) no borrar datos solo porque se montó `/login`; (3) permitir que una limpieza pueda **vetar o conservar** lo que todavía no se sincronizó. Además `src/app/error.tsx` cierra sesión con un `<form action={logout}>` común, sin pasar por `LogoutButton`: las limpiezas no corren antes, corren al llegar a `/login`.
 - **Dependencias**: C-08, C-06, C-03
 - **Governance**: MEDIO
 - **Leer antes**:
@@ -767,6 +786,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - `shared/ui/<Hotkeys/>`: `↑`/`↓`, `+`/`-`, `Supr`, `F2`, `F4`, `F8`, `F9`, `Esc` con confirmación, `?` muestra el mapa de atajos; sin teclas reservadas del navegador
   - `Cobrar` (`F9`) navega al cobro de C-20; indicador de conexión permanente (el reintento lo completa C-34)
   - Tests: Vitest (reducer y persistencia con `fake-indexeddb`), Testing Library (atajos, foco), Playwright en viewport PC **solo teclado**; cronometraje informativo de 3 ítems + efectivo < 10 s (**Suposición**)
+  - **Notas de C-05 (para este change)**: registrar la limpieza del carrito y del borrador de la venta en `src/app/logout-cleanups.tsx` (`registerLogoutCleanup`, ver la nota de C-11). Con cookies `httpOnly` no hay Supabase directo desde el navegador: el cobro y la sincronización pasan por Server Actions o Route Handlers. **Antes** de registrar una limpieza que toque ventas sin sincronizar (DD-31) hay que resolver el contrato de la nota de C-11: distinguir "no se pudo verificar la sesión" de "no hay sesión", no borrar por montar `/login` y dejar que la limpieza conserve lo pendiente.
 - **Dependencias**: C-10, C-11, C-12, C-13, C-14, C-06
 - **Governance**: MEDIO
 - **Leer antes**:
@@ -1099,6 +1119,14 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Observabilidad mínima: `SENTRY_DSN` (**Suposición**: "somos la caja")
   - Checklist de la visita de configuración (12 §6) versionada en `docs/`
   - Tests: verificación automatizada de headers y de que ningún `NEXT_PUBLIC_*` contiene secretos; smoke de login en el despliegue
+  - **Notas de C-05 (para este change)**:
+    - **Plantillas y SMTP:** cargar en producción las plantillas de invitación y recupero (`supabase/templates/{invite,recovery}.html`, en castellano; repiten `[NOMBRE-PRODUCTO]` a mano, ver `brand.ts`, así que un cambio de nombre las toca) junto con el SMTP propio. Con eso desaparecen las limitaciones de staging (emails en inglés con la plantilla estándar, recupero solo en el mismo navegador por PKCE, invitaciones con tokens en el fragmento).
+    - **Redirect URLs exactas, sin comodines:** staging usa el patrón `https://<proyecto>-*-<equipo>.vercel.app/**` (aceptable solo porque son usuarios de prueba y el equipo de Vercel es del fundador); producción usa URLs exactas. Alta pública apagada y contraseña mínima de 8 también en el panel de producción (RN-AU-01).
+    - **IP real en el ingreso:** el ingreso sale del servidor (Vercel), así que el límite por IP de Auth lo comparten todos los usuarios: reenviar la IP real con `Sb-Forwarded-For` exige la secret key en el cliente de ingreso y habilitarlo en el panel de Supabase. Evaluar.
+    - **Headers de seguridad:** además de la CSP, `Referrer-Policy` y `X-Frame-Options` / `frame-ancestors` (hoy ninguna pantalla de auth los lleva; `/auth/confirm` solo declara `referrer: no-referrer` porque el token viaja en la URL).
+    - **Inferencia de cuentas por la API pública de Auth:** fuera de la app todavía se puede saber si un email tiene cuenta (`/auth/v1/otp` responde `signup_disabled` para un email desconocido; `/recover` da 429 por usuario; el tiempo de respuesta de `requestPasswordReset` cambia según mande o no el email). Evaluar mitigaciones: SMTP propio, captcha y latencia constante en el recupero.
+    - **Guardia contra `supabase config push`:** la configuración local sube límites de `[auth.rate_limit]` muy altos (solo para la suite E2E, que sale de una sola IP). Un `supabase config push` los llevaría a staging o producción y debilitaría el freno a la fuerza bruta: agregar una guardia (test o paso de CI) que lo impida.
+    - **Pantallas de auth:** `noindex` y un título propio por página (hoy todas comparten el del layout raíz).
 - **Dependencias**: C-02, C-07
 - **Governance**: ALTO
 - **Leer antes**:
