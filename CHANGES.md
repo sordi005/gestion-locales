@@ -466,7 +466,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 ---
 
 ### [C-05] `auth-session-flows`
-- **Estado**: `[ ]` en curso (propuesta aprobada por el fundador 2026-10-14; **implementado 2026-10-15** en la rama `feat/C-05-auth-session-flows`, grupos 0 a 12 de `tasks.md` hechos con la revisión doble aprobada; **pendiente**: OK del fundador, commit y PR, pasos de Auth de staging y verificación en el preview, merge y `/opsx:archive`) · Prioridad **D1**
+- **Estado**: `[x]` completado (archivado 2026-10-16, PR #7, en `openspec/changes/archive/2026-10-16-auth-session-flows/`) · Prioridad **D1**
 - **Scope**: Autenticación con Supabase Auth (US-002, US-003)
   - Email + contraseña con `@supabase/ssr` (cookies httpOnly); `middleware.ts` o `proxy.ts` según la versión de Next.js instalada (gotcha 19) que refresca la sesión y redirige a `/login`
   - Rutas: `/login`, `/recuperar-contrasena`, `/auth/callback`, `/auth/confirm` (token hash de invitación y recupero), `/actualizar-contrasena` (requiere sesión temporal válida); link vencido o usado → error claro con opción de pedir otro
