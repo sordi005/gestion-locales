@@ -489,7 +489,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 ---
 
 ### [C-06] `tenant-context-app-shell`
-- **Estado**: `[ ]` pendiente · Prioridad **D1**
+- **Estado**: `[ ]` en curso (propuesta en `openspec/changes/tenant-context-app-shell/`, pendiente de aprobación del diseño por el fundador; próximo: tarea 0.1) · Prioridad **D1**
 - **Scope**: Contexto de organización/local y shell responsive (US-002, US-004)
   - Layout `(app)/l/[locationId]/…` que valida el `locationId` contra las membresías (sin acceso → `notFound()`, sin filtrar su existencia); selector de local para `owner` y usuarios con varios locales; el local activo va en la URL (DD-24)
   - `features/tenancy`: contexto org/local/rol/usuario en RSC y guardas espejo de la matriz de 03 (`requireRole` y afines); nombre del usuario activo siempre visible
