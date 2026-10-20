@@ -7,6 +7,7 @@ import { Button } from "@/shared/ui/button";
 
 import { login } from "../actions";
 import { RECOVERY_PATH } from "../domain/auth-paths";
+import type { LoginNotice } from "../domain/login-notice";
 import type { LoginState } from "../form-state";
 import { runLogoutCleanups } from "../logout-cleanup";
 import { AuthNotice } from "./auth-notice";
@@ -27,8 +28,8 @@ const INITIAL_STATE: LoginState = {};
 type LoginFormProps = {
   /** Destino ya filtrado por `safeNextPath`; la acción lo vuelve a filtrar. */
   next?: string;
-  /** Aviso que llega por la URL (`?aviso=contrasena-actualizada`). */
-  notice?: "password-saved";
+  /** Aviso que llega por la URL (`?aviso=contrasena-actualizada` o `?aviso=sin-acceso`). */
+  notice?: LoginNotice;
 };
 
 export function LoginForm({ next, notice }: LoginFormProps) {
@@ -46,7 +47,7 @@ export function LoginForm({ next, notice }: LoginFormProps) {
     <div className="flex flex-col gap-6">
       <h2 className="text-xl font-semibold">{TEXT.title}</h2>
 
-      {notice === "password-saved" ? <AuthNotice kind={notice} /> : null}
+      {notice === undefined ? null : <AuthNotice kind={notice} />}
 
       <form
         ref={formRef}

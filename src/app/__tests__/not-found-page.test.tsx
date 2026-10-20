@@ -49,10 +49,15 @@ describe("not-found.tsx", () => {
     ).toHaveFocus();
   });
 
-  it("no crea otro <main> ni otro enlace de más (el landmark es el del layout raíz)", () => {
+  it('dibuja un único <main id="contenido"> (a donde lleva "Saltar al contenido") y ningún enlace de más', () => {
     render(<NotFound />);
 
-    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+    const mains = screen.getAllByRole("main");
+    expect(mains).toHaveLength(1);
+    expect(mains[0]).toHaveAttribute("id", "contenido");
+    expect(mains[0]).toContainElement(
+      screen.getByRole("heading", { level: 1 }),
+    );
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 });

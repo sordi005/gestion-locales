@@ -90,13 +90,13 @@ ESLint lo hace cumplir y los mensajes de error explican qué se rompió.
 
 Todo cambio llega a `main` por Pull Request, y GitHub Actions corre cinco chequeos en paralelo (`.github/workflows/ci.yml`). Se mergea **solo con los cinco en verde**; `main` está protegida por un ruleset de GitHub, así que no se puede pushear directo ni saltearse los chequeos.
 
-| Check       | Qué corre                                                                                                                                                                                                                            | Cómo reproducirlo local                                                                                                                                                  |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lint`      | ESLint y Prettier                                                                                                                                                                                                                    | `pnpm lint && pnpm format:check`                                                                                                                                         |
-| `typecheck` | TypeScript                                                                                                                                                                                                                           | `pnpm typecheck`                                                                                                                                                         |
-| `unit`      | Vitest (proyectos `unit` y `dom`)                                                                                                                                                                                                    | `pnpm test`                                                                                                                                                              |
-| `db`        | Levanta Supabase local (aplica migraciones y seed), corre los tests pgTAP y verifica que `src/shared/db/types.ts` coincida con lo que genera la base                                                                                 | `pnpm exec supabase start`, `pnpm test:db` y `pnpm db:types` (después `git status`: el archivo no debe quedar con cambios)                                               |
-| `e2e`       | Levanta Supabase local (Postgres, Auth, Kong, PostgREST y Mailpit), arma `.env.local` con un script, hace el build de producción y corre Playwright (`desktop-keyboard`, `mobile` y `api`); si falla, sube el reporte como artefacto | `pnpm exec supabase start`, el comando que arma `.env.local` (ver [Tests E2E](#tests-e2e-con-supabase-local)), `pnpm build` y `CI=1 pnpm test:e2e` (contra `pnpm start`) |
+| Check       | Qué corre                                                                                                                                                                                                                                     | Cómo reproducirlo local                                                                                                                                                  |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lint`      | ESLint y Prettier                                                                                                                                                                                                                             | `pnpm lint && pnpm format:check`                                                                                                                                         |
+| `typecheck` | TypeScript                                                                                                                                                                                                                                    | `pnpm typecheck`                                                                                                                                                         |
+| `unit`      | Vitest (proyectos `unit` y `dom`)                                                                                                                                                                                                             | `pnpm test`                                                                                                                                                              |
+| `db`        | Levanta Supabase local (aplica migraciones y seed), corre los tests pgTAP y verifica que `src/shared/db/types.ts` coincida con lo que genera la base                                                                                          | `pnpm exec supabase start`, `pnpm test:db` y `pnpm db:types` (después `git status`: el archivo no debe quedar con cambios)                                               |
+| `e2e`       | Levanta Supabase local (Postgres, Auth, Kong, PostgREST y Mailpit), arma `.env.local` con un script, hace el build de producción y corre Playwright (`setup`, `desktop-keyboard`, `mobile` y `api`); si falla, sube el reporte como artefacto | `pnpm exec supabase start`, el comando que arma `.env.local` (ver [Tests E2E](#tests-e2e-con-supabase-local)), `pnpm build` y `CI=1 pnpm test:e2e` (contra `pnpm start`) |
 
 `pnpm check` (`lint` + `typecheck` + `test`) es el atajo rápido y no necesita Docker.
 
@@ -109,7 +109,7 @@ Todo cambio llega a `main` por Pull Request, y GitHub Actions corre cinco cheque
 
 ## Tests E2E (con Supabase local)
 
-Los E2E de Playwright prueban la app de punta a punta con un Supabase local de verdad: ingreso, recupero de contraseña, invitaciones y lectura por la Data API. Por eso **necesitan Docker y Supabase levantado**. Corren en tres proyectos: `desktop-keyboard` (PC del mostrador, solo con teclado), `mobile` y `api` (tests por HTTP, sin navegador).
+Los E2E de Playwright prueban la app de punta a punta con un Supabase local de verdad: ingreso, recupero de contraseña, invitaciones y lectura por la Data API. Por eso **necesitan Docker y Supabase levantado**. Corren en cuatro proyectos: `setup` (ingresa con los usuarios del seed y guarda sus sesiones), `desktop-keyboard` (PC del mostrador, solo con teclado), `mobile` y `api` (tests por HTTP, sin navegador). Los dos de navegador dependen de `setup`, así que no hay que correrlo a mano.
 
 1. **El navegador** (una sola vez):
    ```bash
@@ -138,8 +138,52 @@ Si el puerto 3000 ya lo usa otra app, corré los E2E con otro puerto (`PORT=4317
 **Reglas de los E2E:**
 
 - **Solo contra Supabase local.** Los E2E crean, invitan y borran usuarios con la clave secreta, y mandan emails. Si `NEXT_PUBLIC_SUPABASE_URL` o `MAILPIT_URL` no apuntan exactamente a `127.0.0.1`, `localhost` o `[::1]`, el setup global se niega a correr (nombra la variable, nunca muestra su valor). Así un `.env.local` de staging por error no los deja tocar staging.
-- **Usuarios propios en cada test:** cada test crea un usuario `e2e-<aleatorio>@e2e.test` y lo borra al terminar. Nunca crean usuarios `@demo.test`, y los del seed solo se usan para ingresar y leer: no les pidas recuperos ni les cambies la contraseña (el test `090-dev-seed` de la base exige que sigan intactos).
+- **Usuarios propios en cada test:** lo que necesita datos propios crea usuarios `e2e-<aleatorio>@e2e.test` (sueltos, que se borran al terminar, o dentro de un tenant descartable, ver abajo). Nunca crean, cambian ni deshabilitan usuarios, organizaciones ni membresías `@demo.test`: los del seed solo se usan para ingresar y leer (el test `090-dev-seed` de la base exige que sigan intactos).
 - **Los límites de Auth son altos solo en local** (`supabase/config.toml`), porque toda la suite sale de una sola IP. Staging y producción conservan los de Supabase.
+
+**Sesiones guardadas (`storageState`).** El proyecto `setup` (`tests/e2e/auth.setup.ts`) ingresa por la UI una sola vez por corrida con seis usuarios del seed (`owner.norte`, `employee.norte`, `owner.sur`, `manager.sur`, `employee.sur` y `admin`) y deja cada sesión en `playwright/.auth/<usuario>.json` (carpeta ignorada por git). Un spec que necesita una sesión ya iniciada la toma así, sin pasar por el login:
+
+```ts
+import { storageStateFor } from "./support/storage-state";
+
+test.use({ storageState: storageStateFor("employee.norte") });
+```
+
+- **Las sesiones del seed son de solo lectura:** compartidas por todos los workers y proyectos. Nunca cierres sesión con ellas (el `signOut` revoca la sesión que usan los demás tests) ni cambies datos de esos usuarios. Los tests de ingreso, cierre de sesión y recupero arrancan sin sesión guardada e ingresan con un usuario propio.
+
+**Tenant descartable.** Lo que necesita su propia organización (un empleado que pierde el acceso, una organización suspendida, un local desactivado) usa la fixture `tenant` de `tests/e2e/support/tenant-fixture.ts`: crea una organización `e2e-…` y, al terminar el test, deja las membresías `disabled` y bloquea a los usuarios (con membresía no se pueden borrar). La API, en corto:
+
+```ts
+import { expect, test } from "./support/tenant-fixture";
+
+test("un empleado con dos de tres locales ve solo esos dos", async ({
+  tenant,
+}) => {
+  const centro = await tenant.addLocation("Local Centro");
+  const este = await tenant.addLocation("Local Este");
+  await tenant.addLocation("Local Oeste");
+  const employee = await tenant.addMember({
+    role: "employee",
+    locations: [centro, este],
+  });
+  // employee.email y employee.password sirven para ingresar por la UI.
+
+  await tenant.setMembershipStatus(employee, "disabled"); // también: setOrganizationStatus, setLocationStatus, assignLocation
+});
+```
+
+`addMember({ user })` le da la membresía a un usuario que el test ya tiene (`isolatedUser`, `invitedUser`) y el helper `giveHome(tenant, user)` le arma además un local: así el ingreso termina en `/l/<id>` y no en la salida por falta de acceso.
+
+- **Restos en la base local:** el tenant descartable no se puede borrar, así que cada corrida deja organizaciones y locales `e2e-*` y usuarios bloqueados `…@e2e.test`. No molestan: `supabase db reset` los limpia, y `090-dev-seed` los tolera a propósito (borra los `@e2e.test` dentro de su transacción antes de la guardia del seed, que sigue intacta). En el CI la base es nueva en cada corrida.
+- **Workers:** en local los E2E corren con `workers: 3` (en el CI, el valor por defecto de Playwright). Con más, `next dev` (un solo proceso, sin optimizar), GoTrue (bcrypt en cada ingreso) y los navegadores se pisan: cada paso tarda 2 a 5 s, pasa los 5 s de `expect` y los tests quedan intermitentes. Si ves ese síntoma, mirá la carga de la máquina antes de subir timeouts.
+
+## Agregar una pantalla al menú
+
+El menú lateral (PC), la barra inferior (celular) y la redirección de inicio leen un solo registro: `SECTIONS` en `src/features/tenancy/domain/navigation.ts`. Una sección sin construir no aparece en ningún menú ni es destino de una redirección. Para sumar una pantalla:
+
+1. Creá la página bajo `/l/[locationId]/<segmento>` (secciones de local) o `/org/[orgId]/<segmento>` (de organización), y que llame a su guarda de `@/features/tenancy/server` (`requireLocationContext`, `requireLocationRole`, `requireOrgContext`): el test de convención de `tests/tooling/route-guards.test.ts` falla si una página o Server Action protegida no verifica.
+2. En `SECTIONS`, cambiá esa sección a `built: true` (y revisá sus `roles`, que tienen que coincidir con la RLS). El menú la muestra solo a los roles permitidos y, si corresponde, la redirección de inicio la toma sola (por ejemplo `vender` para el empleado).
+3. Las acciones de escritura de esa pantalla chequean `writable` del contexto: una organización suspendida es solo lectura.
 
 ## Tests de base de datos
 

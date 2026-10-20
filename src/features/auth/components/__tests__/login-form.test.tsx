@@ -83,6 +83,18 @@ describe("LoginForm: aviso de contraseña guardada", () => {
   });
 });
 
+describe("LoginForm: aviso de falta de acceso", () => {
+  it("muestra el aviso como estado y deja el formulario usable", () => {
+    render(<LoginForm notice="no-access" />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Tu usuario no tiene acceso a ningún local. Si creés que es un error, hablá con el dueño del comercio.",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ingresar" })).toBeEnabled();
+  });
+});
+
 describe("LoginForm: envío", () => {
   it("manda email, contraseña y el next recibido a la acción", async () => {
     respondWith({});

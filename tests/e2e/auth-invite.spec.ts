@@ -10,15 +10,19 @@ import {
   submitLogin,
   submitNewPassword,
 } from "./support/auth-ui";
-import { expect, test } from "./support/fixtures";
 import { toBaseURL } from "./support/links";
 import { extractLink, waitForEmail } from "./support/mailpit";
+import { shellText } from "./support/shell-ui";
+import { expect, giveHome, test } from "./support/tenant-fixture";
 
 // Spec auth-password-links "Invitación recibida" y tenancy-model "Invitación real
 // por Auth". La invitación la crea C-07; acá la simula el helper `inviteUser` con la
 // secret key, igual que lo hará esa pantalla (con `data.full_name` y `redirectTo`).
 // Cada test invita a su propio `e2e-<aleatorio>@e2e.test` (fixture `invitedUser`, que
-// lo borra al terminar): nunca un usuario del seed.
+// lo borra al terminar, o lo bloquea si tiene membresía): nunca un usuario del seed.
+// Como C-07 todavía no existe, la membresía que la invitación tendrá se simula con
+// `giveHome` (un local en el tenant descartable): al ingresar, la persona llega al
+// inicio de su local y su nombre sale en el marco de la app.
 
 const INVITE_SUBJECT = "Te invitaron a [NOMBRE-PRODUCTO]";
 const RECOVERY_SUBJECT = "Elegí tu contraseña en [NOMBRE-PRODUCTO]";
@@ -35,8 +39,10 @@ test.describe("invitación recibida", () => {
     page,
     admin,
     baseURL,
+    tenant,
     invitedUser,
   }) => {
+    const { location } = await giveHome(tenant, invitedUser);
     // El perfil existe desde que se invita, antes de que la persona acepte.
     const profile = await admin
       .from("profiles")
@@ -79,10 +85,8 @@ test.describe("invitación recibida", () => {
     ).toHaveText(PASSWORD_SAVED);
 
     await submitLogin(page, { email: invitedUser.email, password });
-    await expect(page).toHaveURL("/");
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Hola, Invitada E2E" }),
-    ).toBeVisible();
+    await expect(page).toHaveURL(`/l/${location.id}`);
+    await expect(shellText(page, "Invitada E2E")).toBeVisible();
   });
 });
 
@@ -91,8 +95,10 @@ test.describe("invitación vencida o usada: la persona pide otro link sola", () 
     page,
     context,
     baseURL,
+    tenant,
     invitedUser,
   }) => {
+    const { location } = await giveHome(tenant, invitedUser);
     const inviteLink = await emailLinkFor(invitedUser.email, baseURL ?? "", {
       subject: INVITE_SUBJECT,
     });
@@ -131,18 +137,18 @@ test.describe("invitación vencida o usada: la persona pide otro link sola", () 
     await expect(page).toHaveURL("/login?aviso=contrasena-actualizada");
 
     await submitLogin(page, { email: invitedUser.email, password });
-    await expect(page).toHaveURL("/");
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Hola, Invitada E2E" }),
-    ).toBeVisible();
+    await expect(page).toHaveURL(`/l/${location.id}`);
+    await expect(shellText(page, "Invitada E2E")).toBeVisible();
   });
 
   test("nunca abierta (por ejemplo, vencida): pedir un link nuevo sin haberla usado también manda un recupero que sirve", async ({
     page,
     admin,
     baseURL,
+    tenant,
     invitedUser,
   }) => {
+    const { location } = await giveHome(tenant, invitedUser);
     // La persona nunca abrió el email de la invitación y pide un link nuevo.
     await requestRecoveryThroughUi(page, invitedUser.email);
     await expect(recoveryNotices(page).neutral).toHaveText(
@@ -164,9 +170,7 @@ test.describe("invitación vencida o usada: la persona pide otro link sola", () 
     expect(accepted.data.user?.email_confirmed_at).toBeTruthy();
 
     await submitLogin(page, { email: invitedUser.email, password });
-    await expect(page).toHaveURL("/");
-    await expect(
-      page.getByRole("heading", { level: 1, name: "Hola, Invitada E2E" }),
-    ).toBeVisible();
+    await expect(page).toHaveURL(`/l/${location.id}`);
+    await expect(shellText(page, "Invitada E2E")).toBeVisible();
   });
 });

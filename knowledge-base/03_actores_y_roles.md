@@ -92,8 +92,8 @@ No hay landing, registro público ni páginas legales en la Etapa 0. Los términ
 | `/l/[locationId]/caja` | Miembros del local | Sesión actual, movimientos, cierre con arqueo, historial de cajas |
 | `/l/[locationId]/ventas` | Miembros del local | Historial de ventas y anulación |
 | `/l/[locationId]/{vencimientos,compras,mermas,conteos,stock}` | Miembros del local | Operación de stock y vencimientos |
-| `/org/{catalogo,precios,proveedores,medios-de-pago,importaciones,configuracion}` | `owner` (y `manager` según la matriz) | Catálogo, precios, configuración |
-| `/org/estadisticas` | `owner` (y `manager` en sus locales) | Estadísticas y control. Inicio sugerido para `owner` en el celular |
+| `/org/[orgId]/{catalogo,precios,proveedores,medios-de-pago,importaciones,configuracion}` | `owner` (y `manager` según la matriz) | Catálogo, precios, configuración |
+| `/org/[orgId]/estadisticas` | `owner` (y `manager` en sus locales) | Estadísticas y control. Inicio sugerido para `owner` en el celular |
 | `/admin/…` | `platform_admin` | Organizaciones, locales, usuarios, presets de importación, uso de los pilotos, auditoría |
 
-**Suposición:** el local activo va en la URL (no en una cookie) para que los links sean compartibles y funcionen varias pestañas a la vez (DD-24).
+**Suposición:** el local activo va en la URL (no en una cookie) para que los links sean compartibles y funcionen varias pestañas a la vez (DD-24). Lo mismo vale para la organización (`/org/[orgId]/…`): una persona puede estar en varias organizaciones con roles distintos (C-06, T1).

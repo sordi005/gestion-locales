@@ -489,7 +489,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 ---
 
 ### [C-06] `tenant-context-app-shell`
-- **Estado**: `[ ]` en curso (propuesta en `openspec/changes/tenant-context-app-shell/`, pendiente de aprobación del diseño por el fundador; próximo: tarea 0.1) · Prioridad **D1**
+- **Estado**: `[ ]` en curso: implementación completa en la rama `feat/C-06-tenant-context-app-shell` (`openspec/changes/tenant-context-app-shell/`, diseño aprobado el 2026-10-17); pendiente la revisión doble (`judgment-day`) y el PR · Prioridad **D1**
 - **Scope**: Contexto de organización/local y shell responsive (US-002, US-004)
   - Layout `(app)/l/[locationId]/…` que valida el `locationId` contra las membresías (sin acceso → `notFound()`, sin filtrar su existencia); selector de local para `owner` y usuarios con varios locales; el local activo va en la URL (DD-24)
   - `features/tenancy`: contexto org/local/rol/usuario en RSC y guardas espejo de la matriz de 03 (`requireRole` y afines); nombre del usuario activo siempre visible
@@ -505,6 +505,28 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
     - **Limpieza al cerrar sesión:** punto único de registro en `src/app/logout-cleanups.tsx` (`registerLogoutCleanup(name, task)` de `@/features/auth/logout-cleanup`, ver el comentario del archivo); C-06 registra ahí el estado del local activo.
     - **E2E:** hoy cada spec ingresa por la UI con los usuarios del seed (`tests/e2e/support/auth-ui.ts`); con muchas pantallas protegidas, sumar un proyecto de setup con `storageState` por rol (D14).
     - **Endurecimientos que quedaron como INFO de la revisión doble:** (1) `React.cache` para `getAuthState` antes de que haya varias llamadas por request (hoy es una consulta por request y `getClaims()` verifica el JWT local); (2) `safeNextPath` acepta formas con segmentos punto como `/.//host` (hoy Next normaliza los paths con `//` con un 308): rechazar cuando el pathname resuelto difiere o empieza con `//`; (3) un `getClaims()` que lanza (cookie de sesión adulterada) hoy da un 500 en todas las rutas desde el proxy: `try/catch` que lo trate como `none` (ver la distinción "no se pudo verificar" en la nota de C-11); (4) el guardia de `getSession(` solo ve llamadas literales: evaluar una regla de ESLint; (5) `src/shared/db/browser.ts` no tiene restricción de uso: evaluar `no-restricted-imports`; (6) mostrar el email de la cuenta en `/actualizar-contrasena`.
+  - **Notas de C-06 (para los changes siguientes)**:
+    - **C-07:** cambiar la rama `platform-admin` de `decideHome` (hoy dibuja la pantalla provisoria `PlatformAdminHome`) por `redirect("/admin")` y usar `requirePlatformAdmin()` de `@/features/tenancy/server` en `/admin/*`; decidir la restricción de imports de `@/shared/db/admin` (hoy sin regla de lint); el alta y la baja de membresías cambian el contexto de tenant (se lee en cada request: la membresía deshabilitada saca a la persona en su próximo toque).
+    - **C-09:** `/org/[orgId]/catalogo` con `requireOrgContext(orgId, roles)` (ruta con id de organización: T1, KB 03 y DD-24 actualizados); marcar `catalogo` como `built: true` en `SECTIONS` (`src/features/tenancy/domain/navigation.ts`).
+    - **C-11:** registrar la limpieza de IndexedDB y del carrito con `registerLogoutCleanup` (C-06 no registra nada: el local va en la URL y el marco no guarda estado); distinguir "no se pudo verificar la sesión" de "sin sesión".
+    - **C-19, C-22, C-46:** marcar `built: true` en el registro (`vender`, `caja`, `estadisticas`) en el mismo PR que la página; el menú y la redirección de inicio (`decideHome`) la toman sola.
+    - **Acciones de escritura:** toda Server Action que escribe chequea `writable` del contexto (organización `suspended` = solo lectura, RN-TE-06) además de su guarda de rol.
+    - **D8 terminó en el plan B:** la salida por falta de acceso es una página `/auth/sin-acceso` + Server Action `signOutNoAccess` (verificado en la tarea 0.3b: un Route Handler que redirige con 303 no da una navegación completa en una navegación del cliente).
+    - **`membership_locations` no tiene `DELETE`, ni siquiera con la secret key (`service_role`):** un futuro "quitar un local a un empleado" necesita una columna de estado o una RPC (hoy solo se deshabilita la membresía entera o se desactiva el local).
+    - **Next 16.3.8 → 16.4.x queda pendiente como un change aparte (seguridad):** `16.4.1` corrige un DoS de App Router con Server Actions (alto) y dos RCE críticos (`use cache` con typed arrays e Image Optimization con SVG; el proyecto no usa ninguno); conviene subir a `16.4.2` (tarea 0.3j).
+    - **E2E:** sesiones guardadas por rol (proyecto `setup`, solo lectura), tenant descartable (`tests/e2e/support/tenant-fixture.ts`) y `workers: 3` en local; ver el README.
+    - **INFO de la revisión doble (no se corrigieron, teóricos):**
+      - Las sesiones compartidas por `storageState` (proyecto `setup`, solo lectura) chocan con la rotación del refresh token si una corrida de E2E supera el `jwt_expiry` (1 h): una corrida más larga necesitaría ingresar de nuevo.
+      - Un `getClaims()` que falla solo en el servidor (y no en el proxy) podría armar un bucle con el proxy; tiene relación con la distinción "no se pudo verificar la sesión" de la nota de C-11.
+      - `buildTenantContext` falla cerrado ante un valor de enum desconocido (rol o estado nuevo en la base): es intencional, la app muestra la pantalla de error en lugar de adivinar.
+      - La barra inferior del celular se desborda con más de 4 secciones: C-19 y C-46 tienen que limitarla o agregar "Más".
+      - Ronda 2 (teóricos): el test de convención de guardas no comprueba que la guarda sea alcanzable ni con qué argumento se llama, y no cubre las rutas de metadatos ni `generateMetadata`, las rutas `.js`/`.jsx`, ni las Server Actions de `src/features/*/actions.ts` que reciban un `locationId`: **C-19 tiene que guardar sus acciones con `requireLocationContext`/`requireLocationRole`**.
+      - Ronda 2: la regla de ESLint del dominio todavía permite importar `@/features/*/server` y `@/features/*/components`, y los relativos `../queries` / `../server`; endurecerla cuando haya más features.
+      - Ronda 2: `AutoSubmit` podría entrar en bucle si `signOut` tiene éxito pero las cookies sobreviven; considerar llamar siempre a `clearSessionCookies()` en `signOutThisDevice`.
+      - Ronda 2: un `owner` cuya organización no tiene ningún local activo cuenta como "sin acceso" (`hasTenantAccess`): decisión de producto para C-07/C-09 (abrir una PQ: ¿ve igual el área de la organización?).
+      - Ronda 2: nada comprueba que no haya un `<Suspense>` alrededor de los `children` de un layout de local (convertiría el 404 en 200); hoy el test de `loading.tsx` cubre solo ese archivo.
+      - Ronda 2: el E2E de uniformidad del 404 no compara los encabezados de las respuestas, solo el contenido.
+      - Ronda 2: los restos `e2e-*` de la base local crecen con cada corrida: correr `supabase db reset` de vez en cuando.
 - **Dependencias**: C-05
 - **Governance**: ALTO
 - **Leer antes**:

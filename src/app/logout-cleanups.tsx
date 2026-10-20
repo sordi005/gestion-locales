@@ -6,14 +6,18 @@
 // así que las tareas existen también en una carga fresca de `/login` (a donde
 // vuelve la persona cuando se le venció la sesión).
 //
-// Vacío en C-05. Cada change suma su línea al lado de este comentario:
+// Vacío en C-05 y en C-06. Cada change que guarda datos en el navegador suma su
+// línea al lado de este comentario:
 //
 //   import { registerLogoutCleanup } from "@/features/auth/logout-cleanup";
 //   import { clearOfflineCache } from "@/features/offline";
 //
 //   registerLogoutCleanup("offline-cache", clearOfflineCache);
 //
-// - C-06: el estado del local activo (selector de local, rol).
+// - C-06: NO registra nada, a propósito: el local activo va en la URL (`/l/<id>`,
+//   DD-24), el rol y el contexto se leen del servidor en cada pedido, y el marco
+//   (`AppShell`) no guarda estado en el navegador (sin cookie ni `localStorage`
+//   del menú lateral: ver `shared/ui/sidebar.tsx`). No hay nada que limpiar.
 // - C-11: la base local de IndexedDB (catálogo en caché y cola de ventas).
 // - C-19: el carrito y el borrador de la venta en curso.
 //

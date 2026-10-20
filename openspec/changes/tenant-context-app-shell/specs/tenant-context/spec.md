@@ -132,19 +132,19 @@ Si la organización del contexto tiene `status = 'suspended'`, el contexto SHALL
 - **THEN** es verdadero para la primera y falso para la segunda
 
 ### Requirement: Salida por falta de acceso
-Cuando una guarda detecta que la persona tiene sesión pero ningún acceso (todas sus membresías deshabilitadas, ninguna membresía, o solo membresías de `manager`/`employee` sin locales asignados) y no es super-admin, SHALL redirigir a `/auth/sin-acceso`. Ese Route Handler (GET) MUST volver a cargar el contexto en el servidor: si la persona sí tiene acceso, redirige a `/` sin cerrar nada (un enlace malicioso a esa ruta no desloguea a nadie); si no, cierra la sesión **solo en este dispositivo** (`signOut({ scope: "local" })`) y redirige a `/login?aviso=sin-acceso`, que muestra "Tu usuario no tiene acceso a ningún local. Si creés que es un error, hablá con el dueño del comercio." (rol `status`). La limpieza de datos locales corre al abrir `/login` (C-05). Toda redirección de esa ruta MUST llevar los headers anti-caché.
+Cuando una guarda detecta que la persona tiene sesión pero ningún acceso (todas sus membresías deshabilitadas, ninguna membresía, o solo membresías de `manager`/`employee` sin locales asignados) y no es super-admin, SHALL redirigir a `/auth/sin-acceso`. Esa ruta es una página (Server Component) con una Server Action de cierre (`signOutNoAccess`). La página MUST volver a cargar el contexto en el servidor: si la persona sí tiene acceso (o es super-admin), redirige a `/` sin cerrar nada; si no, dibuja un texto de estado y un formulario con un botón visible "Volver al ingreso" que funciona sin JavaScript, y un componente cliente lo envía una sola vez al montarse. La acción MUST volver a verificar el contexto: con acceso, redirige a `/` sin cerrar nada (un enlace malicioso a esa ruta no desloguea a nadie: un GET solo dibuja la página); sin acceso, cierra la sesión **solo en este dispositivo** (`signOut({ scope: "local" })`) y redirige a `/login?aviso=sin-acceso`, que muestra "Tu usuario no tiene acceso a ningún local. Si creés que es un error, hablá con el dueño del comercio." (rol `status`). Como la acción borra las cookies de sesión, el router del cliente descarta su caché: el botón "Atrás" MUST NOT mostrar la pantalla protegida anterior. La limpieza de datos locales corre al abrir `/login` (C-05).
 
 #### Scenario: Membresía deshabilitada en medio de la sesión
 - **WHEN** una persona del tenant descartable está en el inicio de su local, el super-admin deshabilita su membresía y ella vuelve a navegar
-- **THEN** termina en `/login` con el aviso de sin acceso, sin cookies de sesión, y abrir `/` la vuelve a llevar a `/login`
+- **THEN** termina en `/login` con el aviso de sin acceso, sin cookies de sesión, y abrir `/` la vuelve a llevar a `/login`; "Atrás" no muestra la pantalla anterior
 
 #### Scenario: Pierde un local pero conserva otro
 - **WHEN** una persona con acceso a dos locales pierde la asignación de uno y lo abre
 - **THEN** recibe un 404 y su sesión sigue abierta
 
 #### Scenario: Enlace a la salida con acceso
-- **WHEN** `employee.norte@demo.test`, con acceso, abre `/auth/sin-acceso`
-- **THEN** es redirigido a `/` y su sesión sigue abierta
+- **WHEN** `employee.norte@demo.test`, con acceso, abre `/auth/sin-acceso` (o ejecuta la acción de cierre, por ejemplo enviando el formulario desde otra pestaña)
+- **THEN** es redirigido a `/` y su sesión sigue abierta (no se llama a `signOut`)
 
 #### Scenario: Sin sesión
 - **WHEN** alguien sin sesión abre `/auth/sin-acceso`

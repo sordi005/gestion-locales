@@ -120,6 +120,49 @@ export async function deleteUser(
   }
 }
 
+/** Bloqueo "para siempre" (100 años) que se le pone a un usuario que ya no se puede borrar. */
+export const BAN_FOREVER = "876000h";
+
+/** Bloquea a un usuario: no puede ingresar ni renovar su sesión (GoTrue `ban_duration`). */
+export async function banUser(
+  admin: SupabaseClient,
+  id: string,
+): Promise<void> {
+  const { error } = await admin.auth.admin.updateUserById(id, {
+    ban_duration: BAN_FOREVER,
+  });
+  if (error !== null) {
+    throw new Error(`No se pudo bloquear al usuario ${id}: ${error.message}.`);
+  }
+}
+
+/**
+ * Da de baja a un usuario de prueba al terminar: lo borra, salvo que tenga una
+ * membresía (`memberships.user_id` es `on delete restrict` y no hay DELETE sobre
+ * `memberships`): en ese caso no se puede borrar y se lo bloquea. Es lo que usan
+ * las fixtures de usuario aislado e invitado, para que a un usuario que un test
+ * metió en un tenant descartable se lo bloquee en lugar de fallar el borrado.
+ */
+export async function retireUser(
+  admin: SupabaseClient,
+  id: string,
+): Promise<void> {
+  const { count, error } = await admin
+    .from("memberships")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", id);
+  if (error !== null) {
+    throw new Error(
+      `No se pudieron consultar las membresías de ${id}: ${error.message}.`,
+    );
+  }
+  if ((count ?? 0) > 0) {
+    await banUser(admin, id);
+    return;
+  }
+  await deleteUser(admin, id);
+}
+
 /** URL y clave publicable del Supabase local, para los tests que hablan HTTP directo. */
 export function supabaseEnv(env: NodeJS.ProcessEnv = process.env): {
   url: string;

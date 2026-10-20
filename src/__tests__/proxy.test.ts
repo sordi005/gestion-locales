@@ -57,6 +57,8 @@ type Scenario = {
   refresh?: boolean;
   /** `getClaims()` responde con un error en lugar de claims. */
   claimsError?: boolean;
+  /** `getClaims()` LANZA (cookie adulterada, JWKS inalcanzable...). */
+  claimsThrows?: Error;
 };
 
 /**
@@ -95,6 +97,7 @@ function simulateSupabase(scenario: Scenario) {
               { name: SESSION_COOKIE, value: "refrescada", options: REFRESHED },
             ]);
           }
+          if (scenario.claimsThrows) throw scenario.claimsThrows;
           if (scenario.claimsError) {
             return { data: null, error: new Error("invalid JWT") };
           }
@@ -292,6 +295,91 @@ describe("proxy", () => {
       const response = await proxy(request("/"));
 
       expect(redirectOf(response)).toBe(`${ORIGIN}/login?next=%2F`);
+    });
+
+    describe("getClaims() que lanza (cookie adulterada)", () => {
+      // El mensaje del error a propósito contiene el valor de la cookie de la
+      // request (`viejo`): el log no puede repetirlo.
+      const BOOM = new Error("Unexpected token en la cookie viejo");
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it("en / redirige a /login?next=%2F (303), sin lanzar ni dar un 500", async () => {
+        simulateSupabase({ claims: null, claimsThrows: BOOM });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        const response = await proxy(request("/"));
+
+        expect(redirectOf(response)).toBe(`${ORIGIN}/login?next=%2F`);
+        expect(response.status).toBe(303);
+      });
+
+      it("en /login deja pasar la pantalla", async () => {
+        simulateSupabase({ claims: null, claimsThrows: BOOM });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        const response = await proxy(request("/login"));
+
+        expect(continues(response)).toBe(true);
+        expect(redirectOf(response)).toBeNull();
+      });
+
+      it("en una ruta con la ruta y la query conserva el next", async () => {
+        simulateSupabase({ claims: null, claimsThrows: BOOM });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        const response = await proxy(request("/l/123/vender?tab=1"));
+
+        expect(redirectOf(response)).toBe(
+          `${ORIGIN}/login?next=%2Fl%2F123%2Fvender%3Ftab%3D1`,
+        );
+      });
+
+      it("no intenta cerrar la sesión (sin claims no hay sesión que cerrar)", async () => {
+        const { calls } = simulateSupabase({
+          claims: null,
+          claimsThrows: BOOM,
+        });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        await proxy(request("/"));
+
+        expect(calls).toEqual(["getClaims"]);
+      });
+
+      it("registra el problema con console.error y nunca incluye el valor de la cookie", async () => {
+        simulateSupabase({ claims: null, claimsThrows: BOOM });
+        const errorLog = vi
+          .spyOn(console, "error")
+          .mockImplementation(() => {});
+
+        await proxy(request("/"));
+
+        expect(errorLog).toHaveBeenCalledTimes(1);
+        const logged = JSON.stringify(
+          errorLog.mock.calls.map((args) =>
+            args.map((arg) =>
+              arg instanceof Error
+                ? { name: arg.name, message: arg.message, stack: arg.stack }
+                : arg,
+            ),
+          ),
+        );
+        expect(logged).not.toContain("viejo");
+        expect(logged).not.toContain(SESSION_COOKIE);
+      });
+
+      it("una Server Action (POST con Next-Action) tampoco rompe: sin lanzar", async () => {
+        simulateSupabase({ claims: null, claimsThrows: BOOM });
+        vi.spyOn(console, "error").mockImplementation(() => {});
+
+        const response = await proxy(serverAction("/l/123/vender"));
+
+        expect(response.status).toBeLessThan(500);
+        expect(redirectOf(response)).toBeNull();
+      });
     });
 
     it("claims con un método que la app no ofrece no dan acceso", async () => {

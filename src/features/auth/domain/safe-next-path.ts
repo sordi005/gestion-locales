@@ -43,6 +43,8 @@ function isAuthPath(pathname: string): boolean {
  *   navegador elimina tab y salto de línea, así que `/\t/host` se convertiría
  *   en `//host`), espacios y letras fuera de ASCII (`/€`, `/ñ`), que rompen el
  *   header de la redirección (falla cerrado);
+ * - los segmentos punto que resuelven a `//host` (`/.//host`, `/a/..//host`,
+ *   `/./%2F/host`): se mira el pathname resuelto y su versión decodificada;
  * - las rutas de auth, también escondidas con `..` o con `%xx`, para no armar
  *   bucles ni redirigir a la pantalla de ingreso desde el ingreso.
  */
@@ -53,7 +55,11 @@ export function safeNextPath(value: unknown): string {
 
   try {
     const { pathname } = new URL(value, RESOLUTION_BASE);
-    if (isAuthPath(decodeURIComponent(pathname))) return FALLBACK;
+    const decoded = decodeURIComponent(pathname);
+    // Los segmentos punto se resuelven: `/.//host` y `/a/..//host` quedan en
+    // `//host`; `/./%2F/host` queda en `/%2F/host`, que decodificado es `//host`.
+    if (pathname.startsWith("//") || decoded.startsWith("//")) return FALLBACK;
+    if (isAuthPath(decoded)) return FALLBACK;
   } catch {
     // URL imposible de resolver o `%xx` mal formado: no es un destino confiable.
     return FALLBACK;

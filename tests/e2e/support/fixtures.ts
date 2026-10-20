@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   createAdminClient,
   createIsolatedUser,
-  deleteUser,
+  retireUser,
   isolatedEmail,
   inviteUser,
   type IsolatedUser,
@@ -16,7 +16,10 @@ export const INVITED_FULL_NAME = "Invitada E2E";
 export type InvitedUser = { id: string; email: string; fullName: string };
 
 type TestFixtures = {
-  /** Un usuario `e2e-<aleatorio>@e2e.test` creado para este test y borrado al terminar. */
+  /**
+   * Un usuario `e2e-<aleatorio>@e2e.test` creado para este test y borrado al terminar
+   * (o bloqueado, si el test le dio una membresía en un tenant descartable).
+   */
   isolatedUser: IsolatedUser;
   /**
    * Un `e2e-<aleatorio>@e2e.test` invitado como lo hará C-07 (secret key, `data.full_name`
@@ -43,7 +46,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     const user = await createIsolatedUser(admin);
     // Lo que sigue a `provide` corre aunque el test falle: el usuario siempre se borra.
     await provide(user);
-    await deleteUser(admin, user.id);
+    await retireUser(admin, user.id);
   },
 
   invitedUser: async ({ admin, baseURL }, provide) => {
@@ -55,7 +58,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     });
     // Como en `isolatedUser`: lo que sigue a `provide` corre aunque el test falle.
     await provide({ id, email, fullName: INVITED_FULL_NAME });
-    await deleteUser(admin, id);
+    await retireUser(admin, id);
   },
 });
 

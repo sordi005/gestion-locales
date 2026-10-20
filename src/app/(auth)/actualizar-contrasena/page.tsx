@@ -5,7 +5,7 @@ import { requirePasswordSetup } from "@/features/auth/server";
 // La identidad se verifica acá, en el servidor, sin depender de que el proxy haya
 // corrido: sin sesión → `/login`; con sesión normal → `/`; vencida → pedir otro link.
 export default async function UpdatePasswordPage() {
-  await requirePasswordSetup();
+  const { email } = await requirePasswordSetup();
 
-  return <UpdatePasswordForm />;
+  return <UpdatePasswordForm email={email} />;
 }

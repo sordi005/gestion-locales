@@ -10,12 +10,15 @@ const TEXT = {
 /**
  * Pantalla de "página inexistente" de toda la app, en castellano (regla dura 4:
  * sin este archivo Next muestra su 404 en inglés). Pensada para el teclado de la
- * PC del mostrador: el único elemento interactivo es el enlace al inicio. No crea
- * otro `<main>`: el landmark es el del layout raíz.
+ * PC del mostrador: el único elemento interactivo es el enlace al inicio. Dibuja su
+ * propio `<main id="contenido">` (el layout raíz ya no lo hace).
  */
 export default function NotFound() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-16 text-center">
+    <main
+      id="contenido"
+      className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-16 text-center"
+    >
       <h1 className="text-3xl font-semibold tracking-tight">{TEXT.title}</h1>
       <p className="max-w-sm text-lg text-muted-foreground">
         {TEXT.description}
@@ -26,6 +29,6 @@ export default function NotFound() {
       >
         {TEXT.home}
       </Link>
-    </div>
+    </main>
   );
 }

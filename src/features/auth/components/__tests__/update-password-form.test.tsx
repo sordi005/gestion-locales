@@ -13,6 +13,7 @@ import { UpdatePasswordForm } from "../update-password-form";
 vi.mock("../../actions", () => ({ updatePassword: vi.fn(), logout: vi.fn() }));
 
 const MISMATCH = "Las contraseñas no coinciden.";
+const EMAIL = "duena@e2e.test";
 
 function respondWith(state: UpdatePasswordState) {
   vi.mocked(updatePassword).mockResolvedValueOnce(state);
@@ -40,7 +41,7 @@ beforeEach(() => {
 
 describe("UpdatePasswordForm: estructura", () => {
   it("tiene los dos campos de contraseña nueva con su etiqueta y autocomplete", () => {
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     const password = screen.getByLabelText("Contraseña nueva");
     expect(password).toHaveAttribute("type", "password");
@@ -54,7 +55,7 @@ describe("UpdatePasswordForm: estructura", () => {
   });
 
   it("tiene los botones Guardar contraseña y Cancelar", () => {
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     expect(
       screen.getByRole("button", { name: "Guardar contraseña" }),
@@ -62,14 +63,76 @@ describe("UpdatePasswordForm: estructura", () => {
     expect(screen.getByRole("button", { name: "Cancelar" })).toBeEnabled();
   });
 
+  it('muestra de qué cuenta es la contraseña: "Cuenta: {email}"', () => {
+    render(<UpdatePasswordForm email={EMAIL} />);
+
+    expect(screen.getByText(`Cuenta: ${EMAIL}`)).toBeInTheDocument();
+  });
+
+  it("muestra el email que recibe, no uno fijo", () => {
+    render(<UpdatePasswordForm email="otra.persona@e2e.test" />);
+
+    expect(
+      screen.getByText("Cuenta: otra.persona@e2e.test"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(`Cuenta: ${EMAIL}`)).not.toBeInTheDocument();
+  });
+
+  describe("campo username para el gestor de contraseñas", () => {
+    const usernameField = (container: HTMLElement) =>
+      container.querySelector<HTMLInputElement>('input[name="username"]');
+
+    it("el formulario lleva el email como campo username de solo lectura", () => {
+      const { container } = render(<UpdatePasswordForm email={EMAIL} />);
+
+      const field = usernameField(container);
+      expect(field).not.toBeNull();
+      expect(field).toHaveValue(EMAIL);
+      expect(field).toHaveAttribute("autocomplete", "username");
+      expect(field).toHaveAttribute("readonly");
+      expect(field?.form).toBe(
+        screen.getByLabelText("Contraseña nueva").closest("form"),
+      );
+    });
+
+    it("está oculto a la vista y a los lectores de pantalla, y fuera del orden de tabulación", () => {
+      const { container } = render(<UpdatePasswordForm email={EMAIL} />);
+
+      const field = usernameField(container);
+      expect(field).toHaveClass("sr-only");
+      expect(field).toHaveAttribute("aria-hidden", "true");
+      expect(field).toHaveAttribute("tabindex", "-1");
+    });
+
+    it("sigue el email que recibe", () => {
+      const { container } = render(
+        <UpdatePasswordForm email="otra.persona@e2e.test" />,
+      );
+
+      expect(usernameField(container)).toHaveValue("otra.persona@e2e.test");
+    });
+
+    it("viaja en el envío junto con las contraseñas", async () => {
+      respondWith({});
+      const { container } = render(<UpdatePasswordForm email={EMAIL} />);
+
+      await fillAndSubmit("Contrasena-larga-1", "Contrasena-larga-1");
+
+      await waitFor(() => expect(updatePassword).toHaveBeenCalledTimes(1));
+      const formData = vi.mocked(updatePassword).mock.calls[0]?.[1];
+      expect(formData?.get("username")).toBe(EMAIL);
+      expect(usernameField(container)).toHaveValue(EMAIL);
+    });
+  });
+
   it("dice cuál es el mínimo de la contraseña", () => {
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     expect(screen.getByText(/al menos 8 caracteres/i)).toBeInTheDocument();
   });
 
   it("no muestra ningún aviso ni error al abrirse", () => {
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
@@ -79,7 +142,7 @@ describe("UpdatePasswordForm: estructura", () => {
 describe("UpdatePasswordForm: envío", () => {
   it("manda las dos contraseñas a la acción", async () => {
     respondWith({});
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     await fillAndSubmit("una clave larga", "una clave larga");
 
@@ -97,7 +160,7 @@ describe("UpdatePasswordForm: envío", () => {
         finish = resolve;
       }),
     );
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     await fillAndSubmit("una clave larga", "una clave larga");
 
@@ -117,7 +180,7 @@ describe("UpdatePasswordForm: envío", () => {
 
 describe("UpdatePasswordForm: Cancelar", () => {
   it("llama a la acción de cerrar sesión y no guarda ninguna contraseña", async () => {
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     // Aunque haya algo escrito, Cancelar no manda las contraseñas a ningún lado.
     const user = userEvent.setup();
@@ -132,7 +195,7 @@ describe("UpdatePasswordForm: Cancelar", () => {
   });
 
   it("no manda el contenido de los campos de contraseña a la acción de cerrar sesión", async () => {
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     const user = userEvent.setup();
     await user.type(screen.getByLabelText("Contraseña nueva"), "secreta-12345");
@@ -150,7 +213,7 @@ describe("UpdatePasswordForm: errores", () => {
     respondWith({
       formError: "Elegí una contraseña distinta de la anterior.",
     });
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     await fillAndSubmit("una clave larga", "una clave larga");
 
@@ -169,7 +232,7 @@ describe("UpdatePasswordForm: errores", () => {
         confirmPassword: MISMATCH,
       },
     });
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     await fillAndSubmit("corta", "otra");
 
@@ -186,7 +249,7 @@ describe("UpdatePasswordForm: errores", () => {
 
   it("si solo la repetición tiene error, enfoca ese campo", async () => {
     respondWith({ fieldErrors: { confirmPassword: MISMATCH } });
-    render(<UpdatePasswordForm />);
+    render(<UpdatePasswordForm email={EMAIL} />);
 
     await fillAndSubmit("una clave larga", "otra distinta");
 

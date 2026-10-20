@@ -33,9 +33,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           Saltar al contenido
         </a>
-        <main id="contenido" className="flex flex-1 flex-col">
-          {children}
-        </main>
+        {/* Sin <main> acá: cada marco dibuja el suyo (`<main id="contenido">`), así su menú queda fuera del contenido principal. */}
+        {children}
       </body>
     </html>
   );
