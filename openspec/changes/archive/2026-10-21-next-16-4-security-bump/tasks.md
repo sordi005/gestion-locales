@@ -36,6 +36,9 @@
 ## 5. Checkpoint del fundador y cierre
 
 - [x] 5.1 **[CHECKPOINT — fundador]** Mostrar el resumen (versiones, avisos cerrados, resultados de la DoD) y pedir el OK para commit `chore(deps): ...`, push y PR. OK del fundador el 2026-10-20 ("commiteá, pusheá y abrí el PR").
-- [ ] 5.2 Merge del PR solo con el OK del fundador.
-- [ ] 5.3 Después del merge, verificar que el workflow `deploy-staging` desplegó y probar en staging el ingreso, el cierre de sesión y una ruta protegida.
-- [ ] 5.4 Archivar el change con `/opsx:archive next-16-4-security-bump`.
+- [x] 5.2 Merge del PR solo con el OK del fundador.
+  - Mergeado el 2026-10-21 con el OK del fundador (PR #10, merge commit 9f52589). Antes del merge se trajo main con C-06 a la rama (1a69c05) y el CI corrió en verde sobre el código combinado (lint, typecheck, unit, db, e2e). Localmente pasaron `pnpm check` (86 archivos, 1769 tests), `format:check` y `build`; `test:db` y E2E locales no corrieron porque Docker Desktop quedó trabado (los cubrió el CI).
+- [x] 5.3 Después del merge, verificar que el workflow `deploy-staging` desplegó y probar en staging el ingreso, el cierre de sesión y una ruta protegida.
+  - `deploy-staging` sobre 9f52589 en verde ("Remote database is up to date", sin migraciones). Preview del código combinado (rama `chore/next-16-4-security`) revisada sin sesión: `/`, `/locales` y `/l/<id>` llevan a `/login?next=…` y `/recuperar-contrasena` carga. Ingreso y cierre de sesión con usuario real los cubren los E2E del CI; la prueba manual con la cuenta del fundador queda opcional. El deploy de Production de Vercel en main falla desde antes de este change (492e4a7 en adelante) a propósito: producción no tiene variables de Supabase hasta C-36 (README, Despliegue).
+- [x] 5.4 Archivar el change con `/opsx:archive next-16-4-security-bump`.
+  - Archivado el 2026-10-21.
