@@ -33,6 +33,9 @@ test.describe("navegación con teclado", () => {
       await page.keyboard.press("Enter");
 
       await expect(page).toHaveURL(/#contenido$/);
+      // El destino del salto es el único <main> de la pantalla (lo dibuja el marco).
+      await expect(page.locator("main#contenido")).toHaveCount(1);
+      await expect(page.getByRole("main")).toHaveCount(1);
     },
   );
 });

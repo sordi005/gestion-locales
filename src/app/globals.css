@@ -80,7 +80,8 @@
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Más oscuro que el original de shadcn (0.708): el foco del menú tiene que verse (>= 3:1). */
+  --sidebar-ring: oklch(0.439 0 0);
 }
 
 .dark {
@@ -126,5 +127,12 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Con teclado, un enlace enfocado no puede quedar tapado por el encabezado o la
+     barra inferior fijos del celular (alto de cada uno + margen). */
+  @media (max-width: 767.98px) {
+    html {
+      scroll-padding-block: 5rem;
+    }
   }
 }

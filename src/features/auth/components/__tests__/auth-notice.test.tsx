@@ -26,6 +26,15 @@ describe("AuthNotice", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("no-access: se anuncia como estado, sin nombrar al comercio", () => {
+    render(<AuthNotice kind="no-access" />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Tu usuario no tiene acceso a ningún local. Si creés que es un error, hablá con el dueño del comercio.",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it.each([
     "Si ese email tiene una cuenta, te mandamos un link.",
     "Otro texto que decide el servidor.",

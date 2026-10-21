@@ -7,7 +7,7 @@ import { createClient } from "@/shared/db/server";
 
 import { updatePassword } from "../actions";
 import type { UpdatePasswordState } from "../form-state";
-import { requirePasswordSetup } from "../session";
+import { requirePasswordSetup } from "../server";
 
 // Spec auth-password-links "Definir la contraseña": la acción valida con Zod, vuelve
 // a verificar la sesión en el servidor, guarda con `updateUser`, cierra TODAS las
@@ -15,6 +15,7 @@ import { requirePasswordSetup } from "../session";
 // Solo se simulan los bordes: Supabase, la sesión (`requirePasswordSetup`, probada
 // en `session.test.ts`), las cookies de Next y `redirect`.
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/shared/db/server");
 vi.mock("next/headers");
 vi.mock("next/navigation", () => ({
@@ -23,7 +24,7 @@ vi.mock("next/navigation", () => ({
     throw new Error(`NEXT_REDIRECT:${url}`);
   }),
 }));
-vi.mock("../session", () => ({ requirePasswordSetup: vi.fn() }));
+vi.mock("../server", () => ({ requirePasswordSetup: vi.fn() }));
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 type CookieStore = Awaited<ReturnType<typeof cookies>>;

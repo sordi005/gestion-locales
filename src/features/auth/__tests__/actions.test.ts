@@ -13,10 +13,11 @@ import type { LoginState, RecoveryState } from "../form-state";
 // respuesta neutra". Solo se simulan los bordes: el cliente de servidor de
 // Supabase, las cookies y los headers de Next y `redirect`.
 
+vi.mock("server-only", () => ({}));
 vi.mock("@/shared/db/server");
 vi.mock("next/headers");
-// `session.ts` es `server-only` y lo usa `updatePassword` (probada en su propio archivo).
-vi.mock("../session", () => ({ requirePasswordSetup: vi.fn() }));
+// `server.ts` (la entrada de guardas, `server-only`) la usa `updatePassword` (probada en su propio archivo).
+vi.mock("../server", () => ({ requirePasswordSetup: vi.fn() }));
 vi.mock("next/navigation", () => ({
   // Como el real, `redirect` no vuelve: lanza para cortar la acción.
   redirect: vi.fn((url: string) => {

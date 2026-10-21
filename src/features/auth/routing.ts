@@ -9,10 +9,14 @@ export {
   HOME_PATH,
   INVALID_LINK_PATH,
   LOGIN_PATH,
+  NO_ACCESS_NOTICE_PATH,
+  NO_ACCESS_PATH,
   PASSWORD_SETUP_PATH,
   RECOVERY_PATH,
 } from "./domain/auth-paths";
 export { firstParam } from "./domain/first-param";
+export { loginNoticeFromAviso } from "./domain/login-notice";
+export type { LoginNotice } from "./domain/login-notice";
 export { decideAccess, routeKindOf } from "./domain/route-access";
 export type {
   AccessDecision,

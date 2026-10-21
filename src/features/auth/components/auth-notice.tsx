@@ -11,9 +11,16 @@ const NOTICES = {
     role: "status",
     text: "Listo, guardamos tu contraseña. Ingresá con la nueva.",
   },
+  // Estado: la persona ya está afuera (la salida de `/auth/sin-acceso` le cerró la
+  // sesión). El mismo texto sirve para membresía deshabilitada, sin membresías o
+  // sin locales asignados: no revela qué pasó con la cuenta ni nombra el comercio.
+  "no-access": {
+    role: "status",
+    text: "Tu usuario no tiene acceso a ningún local. Si creés que es un error, hablá con el dueño del comercio.",
+  },
 } as const;
 
-/** Avisos que llegan por la URL (`?error=link`, `?aviso=contrasena-actualizada`). */
+/** Avisos que llegan por la URL (`?error=link`, `?aviso=contrasena-actualizada`, `?aviso=sin-acceso`). */
 export type PageNoticeKind = keyof typeof NOTICES;
 
 type AuthNoticeProps =

@@ -13,9 +13,10 @@ import {
   submitLogin,
   submitNewPassword,
 } from "./support/auth-ui";
-import { expect, test } from "./support/fixtures";
 import { toBaseURL } from "./support/links";
 import { extractLink, findEmails, waitForEmail } from "./support/mailpit";
+import { shellText } from "./support/shell-ui";
+import { expect, giveHome, test } from "./support/tenant-fixture";
 import {
   createPublishableClient,
   isolatedEmail,
@@ -26,7 +27,9 @@ import {
 // "Confirmación del link en dos pasos", "Intercambio de código PKCE", "Link
 // vencido, usado o adulterado" y "Definir la contraseña"; spec auth-session
 // "Sesión de definir contraseña". Cada test usa su propio usuario aislado
-// (`e2e-<aleatorio>@e2e.test`): nunca los del seed ni un recupero para ellos.
+// (`e2e-<aleatorio>@e2e.test`): nunca los del seed ni un recupero para ellos. Los tests
+// que terminan ingresando le dan a esa persona un local en el tenant descartable
+// (`giveHome`): sin membresía, `/` la mandaría a la salida por falta de acceso.
 
 const INVALID_CREDENTIALS = "El email o la contraseña no son correctos.";
 const PASSWORD_SAVED = "Listo, guardamos tu contraseña. Ingresá con la nueva.";
@@ -136,8 +139,10 @@ test.describe("recupero completo", () => {
     request,
     context,
     baseURL,
+    tenant,
     isolatedUser,
   }) => {
+    const { location } = await giveHome(tenant, isolatedUser);
     await requestRecoveryThroughUi(page, isolatedUser.email);
     await expect(recoveryNotices(page).neutral).toHaveText(
       NEUTRAL_RECOVERY_MESSAGE,
@@ -160,6 +165,10 @@ test.describe("recupero completo", () => {
     ).toEqual([]);
     await page.getByRole("button", { name: "Continuar", exact: true }).click();
     await expect(page).toHaveURL("/actualizar-contrasena");
+    // Spec auth-password-links "Se ve la cuenta": de qué cuenta es la contraseña.
+    await expect(
+      page.getByText(`Cuenta: ${isolatedUser.email}`, { exact: true }),
+    ).toBeVisible();
 
     // Con esa sesión temporal no se puede operar: cualquier pantalla lleva acá.
     await page.goto("/");
@@ -193,13 +202,8 @@ test.describe("recupero completo", () => {
     await expect(invalidCredentials).toHaveText(INVALID_CREDENTIALS);
 
     await submitLogin(page, { email: isolatedUser.email, password });
-    await expect(page).toHaveURL("/");
-    await expect(
-      page.getByRole("heading", {
-        level: 1,
-        name: `Hola, ${isolatedUser.email}`,
-      }),
-    ).toBeVisible();
+    await expect(page).toHaveURL(`/l/${location.id}`);
+    await expect(shellText(page, isolatedUser.email)).toBeVisible();
   });
 
   test("las contraseñas fuera de la política se rechazan en la pantalla sin guardar nada", async ({
@@ -257,19 +261,21 @@ test.describe("recupero completo", () => {
     await expect(page).toHaveURL("/login");
   });
 
-  test("una persona con sesión normal que abre /actualizar-contrasena es llevada a /", async ({
+  test("una persona con sesión normal que abre /actualizar-contrasena es llevada a /, que la manda a su local", async ({
     page,
+    tenant,
     isolatedUser,
   }) => {
+    const { location } = await giveHome(tenant, isolatedUser);
     await signInThroughUi(page, {
       email: isolatedUser.email,
       password: isolatedUser.password,
     });
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL(`/l/${location.id}`);
 
     await page.goto("/actualizar-contrasena");
 
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL(`/l/${location.id}`);
   });
 
   test("sin sesión, /actualizar-contrasena lleva a /login", async ({
@@ -431,8 +437,10 @@ test.describe("canje de código PKCE en /auth/callback (emails de staging)", () 
     page,
     context,
     baseURL,
+    tenant,
     isolatedUser,
   }) => {
+    const { location } = await giveHome(tenant, isolatedUser);
     // El pedido desde la app deja en este navegador la cookie del verificador PKCE.
     await requestRecoveryThroughUi(page, isolatedUser.email);
     await expect(recoveryNotices(page).neutral).toHaveText(
@@ -457,7 +465,7 @@ test.describe("canje de código PKCE en /auth/callback (emails de staging)", () 
     await submitNewPassword(page, { password });
     await expect(page).toHaveURL("/login?aviso=contrasena-actualizada");
     await submitLogin(page, { email: isolatedUser.email, password });
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL(`/l/${location.id}`);
   });
 
   test("abierto en otro navegador (sin la cookie del verificador): muestra el aviso de link inválido", async ({

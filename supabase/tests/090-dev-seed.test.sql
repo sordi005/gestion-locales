@@ -381,6 +381,25 @@ begin
 end;
 $$;$guard$, true);
 
+-- Precondición de los casos de abajo: una base local con SOLO usuarios @demo.test.
+-- Los E2E (tenant descartable) dejan en la base local usuarios `%@e2e.test`
+-- bloqueados que no se pueden borrar desde afuera (tienen membresía y
+-- `memberships.user_id` es `on delete restrict`), y la guardia los rechazaría. En
+-- lugar de aflojar la guardia (protege a staging y producción), el test arma la
+-- precondición acá adentro: como `postgres` borra esos restos, y la transacción se
+-- revierte al terminar, así que la base no cambia. Las organizaciones y los locales
+-- `e2e-*` se dejan: la auditoría los referencia y no admite cambios, y la guardia
+-- solo mira `auth.users`. Con una base limpia (CI, `supabase db reset`) no borra nada.
+delete from public.membership_locations
+ where membership_id in (
+   select m.id from public.memberships m
+     join auth.users u on u.id = m.user_id
+    where u.email like '%@e2e.test'
+ );
+delete from public.memberships
+ where user_id in (select id from auth.users where email like '%@e2e.test');
+delete from auth.users where email like '%@e2e.test';
+
 -- JWT secret real de esta base (local o de CI), para restaurarlo entre casos.
 select set_config('tests.local_jwt_secret', current_setting('app.settings.jwt_secret', true), true);
 

@@ -1,5 +1,9 @@
 import { LoginForm } from "@/features/auth/components";
-import { firstParam, safeNextPath } from "@/features/auth/routing";
+import {
+  firstParam,
+  loginNoticeFromAviso,
+  safeNextPath,
+} from "@/features/auth/routing";
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const { next, aviso } = await searchParams;
@@ -11,11 +15,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
       next={
         requestedNext === undefined ? undefined : safeNextPath(requestedNext)
       }
-      notice={
-        firstParam(aviso) === "contrasena-actualizada"
-          ? "password-saved"
-          : undefined
-      }
+      notice={loginNoticeFromAviso(firstParam(aviso))}
     />
   );
 }

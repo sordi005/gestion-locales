@@ -1,6 +1,7 @@
 import "server-only";
 
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 import { createClient } from "@/shared/db/server";
 
@@ -29,12 +30,36 @@ export type AuthState = ReadSession;
  * validación es la misma que usa el proxy (`readSession`), así los dos siempre
  * coinciden sobre si hay sesión.
  */
-export async function getAuthState(): Promise<AuthState> {
+async function readAuthState(): Promise<AuthState> {
+  // Fuera del `try`: `createClient()` espera `cookies()`, y ahí Next corta el
+  // prerender estático con un error de uso dinámico que no hay que tragarse.
   const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
 
-  return readSession(data?.claims, new Date());
+  try {
+    const { data } = await supabase.auth.getClaims();
+
+    return readSession(data?.claims, new Date());
+  } catch (error) {
+    // Cookie adulterada o claves no disponibles: sin sesión, no un 500 (igual
+    // que el proxy). Solo el tipo de error: el mensaje podría repetir la cookie.
+    console.error(
+      "getAuthState: getClaims() lanzó; se trata como sin sesión",
+      error instanceof Error ? error.name : typeof error,
+    );
+
+    return readSession(null, new Date());
+  }
 }
+
+/**
+ * Memoizado por request con `React.cache`: el layout, la página y las guardas de
+ * un mismo render comparten UNA verificación. Es seguro porque un Server
+ * Component no puede escribir cookies: la sesión no cambia dentro de su render.
+ * En una Server Action o un Route Handler `cache` no memoiza (solo lo hace
+ * dentro del render de React), así que una acción que cierra la sesión y vuelve
+ * a preguntar ve el estado nuevo.
+ */
+export const getAuthState = cache(readAuthState);
 
 /**
  * Para páginas y acciones protegidas: devuelve la identidad si hay sesión

@@ -54,6 +54,31 @@ describe("safeNextPath", () => {
       expect(safeNextPath("/ruta\u007fx")).toBe("/");
     });
 
+    // `new URL` normaliza los segmentos punto: el pathname RESUELTO puede empezar
+    // con `//` aunque el valor original empiece con una sola `/`. Hoy Next
+    // responde un 308 que lo corrige, pero no hay que depender de eso.
+    it.each([
+      ["/.//evil.example", "punto y barra doble"],
+      ["/./%2F/evil.example", "punto y barra codificada"],
+      ["/a/..//evil.example", "subir un nivel y barra doble"],
+      ["/a/b/../..//evil.example/x?y=1", "subir dos niveles, con query"],
+      ["/%2E//evil.example", "punto codificado y barra doble"],
+      ["/%2e%2e//evil.example", "dos puntos codificados y barra doble"],
+    ])("%s → / (%s)", (value) => {
+      expect(safeNextPath(value)).toBe("/");
+    });
+
+    it("acepta los segmentos punto que no terminan en `//` y devuelve el valor original", () => {
+      expect(safeNextPath("/a/../l/1")).toBe("/a/../l/1");
+      expect(safeNextPath("/./l/1")).toBe("/./l/1");
+      expect(safeNextPath("/l/./1?x=%2F%2F")).toBe("/l/./1?x=%2F%2F");
+    });
+
+    it("`/auth/sin-acceso` (la salida por falta de acceso) vuelve a /", () => {
+      expect(safeNextPath("/auth/sin-acceso")).toBe("/");
+      expect(safeNextPath("/l/../auth/sin-acceso")).toBe("/");
+    });
+
     it("rechaza barras invertidas en cualquier posición", () => {
       expect(safeNextPath("/l/123\\vender")).toBe("/");
       expect(safeNextPath("/l/123/vender?x=\\evil")).toBe("/");

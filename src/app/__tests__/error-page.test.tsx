@@ -43,6 +43,17 @@ describe("error.tsx", () => {
     ).toBeInTheDocument();
   });
 
+  it('dibuja un único <main id="contenido"> con todo adentro', () => {
+    renderError();
+
+    const mains = screen.getAllByRole("main");
+    expect(mains).toHaveLength(1);
+    expect(mains[0]).toHaveAttribute("id", "contenido");
+    expect(mains[0]).toContainElement(
+      screen.getByRole("button", { name: "Cerrar sesión" }),
+    );
+  });
+
   it("no muestra el mensaje técnico del error ni su digest", () => {
     renderError(
       Object.assign(new Error("password=secreto relation profiles"), {
