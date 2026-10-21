@@ -29,10 +29,27 @@ describe("página /actualizar-contrasena", () => {
     render(await UpdatePasswordPage());
 
     expect(requirePasswordSetup).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Cuenta: duena@e2e.test")).toBeInTheDocument();
     expect(screen.getByLabelText("Contraseña nueva")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Guardar contraseña" }),
     ).toBeInTheDocument();
+  });
+
+  it("el email sale de la sesión verificada en el servidor y llega al formulario como username", async () => {
+    vi.mocked(requirePasswordSetup).mockResolvedValue({
+      id: "11111111-user",
+      email: "otra.persona@e2e.test",
+    });
+
+    const { container } = render(await UpdatePasswordPage());
+
+    expect(
+      screen.getByText("Cuenta: otra.persona@e2e.test"),
+    ).toBeInTheDocument();
+    expect(container.querySelector('input[name="username"]')).toHaveValue(
+      "otra.persona@e2e.test",
+    );
   });
 
   it("sin sesión vigente no muestra el formulario: deja pasar la redirección", async () => {

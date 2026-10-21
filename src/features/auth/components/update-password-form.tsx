@@ -12,6 +12,7 @@ import { useFocusOnError } from "./use-focus-on-error";
 
 const TEXT = {
   title: "Elegí tu contraseña",
+  account: "Cuenta:",
   hint: "Tiene que tener al menos 8 caracteres.",
   password: "Contraseña nueva",
   confirmPassword: "Repetir contraseña",
@@ -21,14 +22,21 @@ const TEXT = {
 
 const INITIAL_STATE: UpdatePasswordState = {};
 
+type UpdatePasswordFormProps = {
+  /** Email de la cuenta, de la sesión verificada en el servidor. */
+  email: string;
+};
+
 /**
  * Definir la contraseña con la sesión temporal de un link de email (D9). Los
  * campos no se conservan después de un error (React vacía el formulario): las
  * contraseñas nunca vuelven del servidor. "Cancelar" es otro formulario, aparte,
  * que cierra la sesión de este dispositivo y vuelve a `/login` sin mandar lo
- * escrito.
+ * escrito. Muestra de qué cuenta es la contraseña y la pone como campo
+ * `username` oculto, para que el gestor de contraseñas del navegador guarde la
+ * nueva con la cuenta correcta (la acción solo lee las dos contraseñas).
  */
-export function UpdatePasswordForm() {
+export function UpdatePasswordForm({ email }: UpdatePasswordFormProps) {
   const [state, formAction, pending] = useActionState(
     updatePassword,
     INITIAL_STATE,
@@ -41,6 +49,9 @@ export function UpdatePasswordForm() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h2 className="text-xl font-semibold">{TEXT.title}</h2>
+        <p className="text-sm text-muted-foreground">
+          {TEXT.account} {email}
+        </p>
         <p className="text-sm text-muted-foreground">{TEXT.hint}</p>
       </div>
 
@@ -51,6 +62,19 @@ export function UpdatePasswordForm() {
         className="flex flex-col gap-4"
       >
         {state.formError ? <FormAlert>{state.formError}</FormAlert> : null}
+
+        {/* Solo para el gestor de contraseñas: fuera de la vista, de los
+            lectores de pantalla y del orden de tabulación. */}
+        <input
+          type="text"
+          name="username"
+          value={email}
+          autoComplete="username"
+          readOnly
+          tabIndex={-1}
+          aria-hidden="true"
+          className="sr-only"
+        />
 
         <FormField
           label={TEXT.password}

@@ -32,9 +32,23 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   // Lo primero y sin nada en el medio: `getClaims()` refresca la sesión y
   // dispara la escritura de las cookies nuevas (y de los headers anti-caché).
-  const { data } = await supabase.auth.getClaims();
+  // Si LANZA (cookie adulterada, claves no disponibles) se trata como "sin
+  // sesión": un 500 acá dejaría sin ingreso a quien tiene una cookie rota,
+  // incluso en `/login`. No se intenta cerrar la sesión (sin claims no hay
+  // nada que cerrar; el ingreso siguiente pisa la cookie).
+  let claims: unknown = null;
+  try {
+    const { data } = await supabase.auth.getClaims();
+    claims = data?.claims;
+  } catch (error) {
+    // Solo el tipo de error: el mensaje podría repetir la cookie o un token.
+    console.error(
+      "proxy: getClaims() lanzó; se trata como sin sesión",
+      error instanceof Error ? error.name : typeof error,
+    );
+  }
 
-  const session = classifySession(data?.claims, new Date());
+  const session = classifySession(claims, new Date());
   const { pathname, search } = request.nextUrl;
   const decision = decideAccess(routeKindOf(pathname), session, {
     method: request.method,

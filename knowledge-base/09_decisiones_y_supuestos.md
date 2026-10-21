@@ -99,6 +99,7 @@ El cajero puede marcar mal el medio (por ejemplo, un QR como efectivo). El arque
 
 ### DD-24 — El contexto de local va en la URL (`/l/[locationId]`) — **Propuesta (KB)**
 **Alternativas:** cookie de "local activo" (estado oculto, problemas con varias pestañas).
+**Extensión (C-06):** la organización también va en la URL, `/org/[orgId]/…`, validada con `requireOrgContext` (mismo 404 uniforme que un local ajeno): una persona puede ser `owner` de A y `employee` de B, y un "organización activa" en una cookie sería el mismo estado oculto que esta decisión descarta.
 
 ### DD-25 — Documentos inmutables con anulación, sin borrado físico — **Propuesta (KB)**
 **Alcance:** ventas, pagos, movimientos de caja, compras, mermas, conteos, importaciones. **Trade-offs:** corregir = anular y rehacer.

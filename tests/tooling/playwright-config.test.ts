@@ -113,10 +113,11 @@ describe("playwright.config.ts: proyectos", () => {
     return { projects, byName };
   }
 
-  it("tiene exactamente los proyectos desktop-keyboard, mobile y api", async () => {
+  it("tiene exactamente los proyectos setup, desktop-keyboard, mobile y api", async () => {
     const { projects } = await loadProjects();
 
     expect(projects.map((project) => project.name)).toEqual([
+      "setup",
       "desktop-keyboard",
       "mobile",
       "api",
@@ -129,21 +130,43 @@ describe("playwright.config.ts: proyectos", () => {
 
     expect(matchesFile(api.testMatch, "auth.api.spec.ts")).toBe(true);
     expect(matchesFile(api.testMatch, "data-api.api.spec.ts")).toBe(true);
+    expect(matchesFile(api.testMatch, "tenant.api.spec.ts")).toBe(true);
     expect(matchesFile(api.testMatch, "smoke.spec.ts")).toBe(false);
     expect(matchesFile(api.testMatch, "auth-login.spec.ts")).toBe(false);
+    expect(matchesFile(api.testMatch, "auth.setup.ts")).toBe(false);
+  });
+
+  it("setup toma solo los *.setup.ts y no abre ningún spec", async () => {
+    const { byName } = await loadProjects();
+    const setup = byName("setup");
+
+    expect(matchesFile(setup.testMatch, "auth.setup.ts")).toBe(true);
+    expect(matchesFile(setup.testMatch, "otro.setup.ts")).toBe(true);
+    expect(matchesFile(setup.testMatch, "smoke.spec.ts")).toBe(false);
+    expect(matchesFile(setup.testMatch, "auth.api.spec.ts")).toBe(false);
+    expect(matchesFile(setup.testMatch, "setup.spec.ts")).toBe(false);
   });
 
   it.each(["desktop-keyboard", "mobile"])(
-    "%s ignora los *.api.spec.ts y corre el resto",
+    "%s ignora los *.api.spec.ts y los *.setup.ts, corre el resto y depende de setup",
     async (name) => {
       const { byName } = await loadProjects();
       const project = byName(name);
 
       expect(matchesFile(project.testIgnore, "auth.api.spec.ts")).toBe(true);
+      expect(matchesFile(project.testIgnore, "auth.setup.ts")).toBe(true);
       expect(matchesFile(project.testIgnore, "smoke.spec.ts")).toBe(false);
       expect(matchesFile(project.testIgnore, "auth-login.spec.ts")).toBe(false);
+      expect(project.dependencies).toEqual(["setup"]);
     },
   );
+
+  it("api y setup no dependen de otros proyectos", async () => {
+    const { byName } = await loadProjects();
+
+    expect(byName("api").dependencies ?? []).toEqual([]);
+    expect(byName("setup").dependencies ?? []).toEqual([]);
+  });
 
   it("el proyecto api no abre navegador (sin dispositivo ni viewport)", async () => {
     const { byName } = await loadProjects();
@@ -151,6 +174,12 @@ describe("playwright.config.ts: proyectos", () => {
 
     expect(api.use?.viewport).toBeUndefined();
     expect(api.use?.userAgent).toBeUndefined();
+  });
+
+  it("el proyecto api tampoco usa storageState: no hay sesión de navegador", async () => {
+    const { byName } = await loadProjects();
+
+    expect(byName("api").use?.storageState).toBeUndefined();
   });
 
   it("declara el globalSetup que corta la corrida si Supabase no responde", async () => {

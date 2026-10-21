@@ -1,12 +1,8 @@
 "use server";
 
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import {
-  isSessionCookieName,
-  sessionCookieOptions,
-} from "@/shared/db/cookie-options";
 import { createClient } from "@/shared/db/server";
 import { readPublicEnv } from "@/shared/lib/env";
 
@@ -37,7 +33,8 @@ import {
   newPasswordSchema,
   passwordResetRequestSchema,
 } from "./schemas";
-import { requirePasswordSetup } from "./session";
+import { requirePasswordSetup } from "./server";
+import { clearSessionCookies, signOutThisDevice } from "./sign-out";
 
 /**
  * El email escrito (es texto, no secreto) para volver a mostrarlo en el campo
@@ -225,43 +222,12 @@ export async function updatePassword(
 }
 
 /**
- * Borra a mano las cookies de sesión de este dispositivo. `signOut` las borra
- * solo cuando puede hablar con Supabase; si falla, la sesión quedaría abierta en
- * la PC compartida aunque la persona crea haber salido.
- */
-async function clearSessionCookies(): Promise<void> {
-  const cookieStore = await cookies();
-  for (const { name } of cookieStore.getAll()) {
-    if (isSessionCookieName(name)) {
-      cookieStore.set(name, "", { ...sessionCookieOptions(), maxAge: 0 });
-    }
-  }
-}
-
-/**
  * Cerrar sesión SOLO en este dispositivo (D10): `scope: "local"`, porque el
  * valor por defecto de Supabase (`global`) también sacaría a la persona del
  * celular. Si Supabase falla, igual se borran las cookies locales y se redirige.
  */
 export async function logout(): Promise<never> {
-  const supabase = await createClient();
-
-  let signOutFailed = false;
-  try {
-    const { error } = await supabase.auth.signOut({ scope: "local" });
-    if (error) {
-      signOutFailed = true;
-      console.error("[logout] signOut devolvió un error.", {
-        code: error.code ?? "unknown",
-        status: error.status ?? null,
-      });
-    }
-  } catch {
-    signOutFailed = true;
-    console.error("[logout] signOut no pudo comunicarse con Supabase.");
-  }
-
-  if (signOutFailed) await clearSessionCookies();
+  await signOutThisDevice();
 
   redirect(LOGIN_PATH);
 }

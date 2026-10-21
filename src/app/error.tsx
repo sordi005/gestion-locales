@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-import { logout } from "@/features/auth/actions";
+import { logout } from "@/features/auth/components";
 import { Button } from "@/shared/ui/button";
 
 const TEXT = {
@@ -35,7 +35,10 @@ export default function ErrorPage({
   }, [error]);
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-16 text-center">
+    <main
+      id="contenido"
+      className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-16 text-center"
+    >
       <h1 className="text-3xl font-semibold tracking-tight">{TEXT.title}</h1>
       <p className="max-w-sm text-lg text-muted-foreground">
         {TEXT.description}
@@ -50,6 +53,6 @@ export default function ErrorPage({
           </Button>
         </form>
       </div>
-    </div>
+    </main>
   );
 }
