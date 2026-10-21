@@ -39,7 +39,7 @@ El código SHALL organizarse según KB 08: `src/app` (solo ruteo y composición)
 - **THEN** existen `src/app`, `src/features`, `src/shared/db`, `src/shared/ui`, `src/shared/lib`, `tests/e2e` y `tests/fixtures/imports`
 
 ### Requirement: Reglas de dependencia entre capas verificadas por lint
-El lint SHALL hacer cumplir la dirección `app → features → shared`: `shared/` MUST NOT importar de `features/` ni de `app/`; `features/` MUST NOT importar de `app/`; una feature MUST NOT importar carpetas internas de otra feature (solo su `index.ts` público); y `features/*/domain/` MUST NOT importar módulos de I/O (`@supabase/*`, `next/*`, `react`, `react-dom`, `@/shared/db/*`).
+El lint SHALL hacer cumplir la dirección `app → features → shared`: `shared/` MUST NOT importar de `features/` ni de `app/`; `features/` MUST NOT importar de `app/`; una feature MUST NOT importar el interior de otra feature, solo sus entradas públicas de primer nivel: `index.ts` (tipos y funciones puras), `server.ts` (guardas y lecturas `server-only`), `components.ts` (componentes) y `routing.ts` (lo puro que usa el proxy); y `features/*/domain/` MUST NOT importar módulos de I/O (`@supabase/*`, `next/*`, `react`, `react-dom`, `@/shared/db/*`).
 
 #### Scenario: shared importa de features
 - **WHEN** un archivo en `src/shared/lib/` importa `@/features/pos`
@@ -50,8 +50,12 @@ El lint SHALL hacer cumplir la dirección `app → features → shared`: `shared
 - **THEN** `pnpm lint` reporta un error de dependencia prohibida
 
 #### Scenario: Importar el interior de otra feature
-- **WHEN** un archivo en `src/features/pos/` importa `@/features/payments/domain/change`
+- **WHEN** un archivo en `src/features/pos/` importa `@/features/payments/domain/change` o `@/features/auth/session`
 - **THEN** `pnpm lint` reporta un error; importar `@/features/payments` no lo reporta
+
+#### Scenario: Entradas públicas de otra feature
+- **WHEN** un archivo en `src/features/tenancy/` importa `@/features/auth/server` y `@/features/auth/components`
+- **THEN** `pnpm lint` no reporta errores de dependencia
 
 #### Scenario: domain con I/O
 - **WHEN** un archivo en `src/features/pos/domain/` importa `@supabase/supabase-js` o `next/headers`
@@ -104,4 +108,3 @@ El repo SHALL incluir un README en español con requisitos (Node, pnpm, y Docker
 #### Scenario: Ver los emails locales
 - **WHEN** alguien pide un recupero contra Supabase local y sigue el README
 - **THEN** encuentra el email en la interfaz de Mailpit (`http://127.0.0.1:54324`)
-

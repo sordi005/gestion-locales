@@ -172,5 +172,7 @@
   - **Verificado por Santiago el 2026-10-21** (preview en la PC): ingresó y llegó directo a "Local Prueba" de "Kiosco Prueba Staging" con su cuenta visible (email: la cuenta no tiene nombre cargado) y el menú a la izquierda; "Cerrar sesión" lo llevó al ingreso y "Atrás" lo dejó en `/login?next=%2F`, sin mostrar la pantalla anterior. El celular no se probó por separado (el marco de celular está cubierto por el proyecto E2E `mobile`).
 - [x] 11.5 **[CHECKPOINT — fundador]** Con su aprobación, mergear a `main`
   - **Aprobado por Santiago el 2026-10-21**: merge del PR #9 a `main`.
-- [ ] 11.6 Verificar en **Actions** que `deploy-staging` corrió en verde ("Remote database is up to date": este change no trae migraciones)
-- [ ] 11.7 Proponer `/opsx:archive tenant-context-app-shell`
+- [x] 11.6 Verificar en **Actions** que `deploy-staging` corrió en verde ("Remote database is up to date": este change no trae migraciones)
+  - **2026-10-21**: el primer intento de `deploy-staging` (run 39541839569) falló en la guardia de destino con `Invalid access token` (el secret `SUPABASE_ACCESS_TOKEN` estaba vencido); Santiago generó un token nuevo y actualizó el secret; el reintento corrió en verde con "Remote database is up to date".
+- [x] 11.7 Proponer `/opsx:archive tenant-context-app-shell`
+  - Archivado el 2026-10-21 con sincronización de specs (PR de documentación `docs/C-06-archive`).
