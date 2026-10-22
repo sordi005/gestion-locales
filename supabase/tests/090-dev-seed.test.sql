@@ -4,7 +4,7 @@
 -- revierte.
 begin;
 
-select plan(38);
+select plan(65);
 
 -- ---------------------------------------------------------------------------
 -- Organizaciones y locales
@@ -353,6 +353,269 @@ select results_eq(
   $$ values (3) $$,
   'los tres locales demo tienen ids fijos'
 );
+
+-- ---------------------------------------------------------------------------
+-- Catálogo demo (C-08): categorías, proveedores, productos, códigos, stock mínimo e
+-- historial de precios. Todo se consulta como `postgres` (sin RLS) salvo el último grupo.
+-- ---------------------------------------------------------------------------
+
+-- Validador de GTIN INDEPENDIENTE del seed: lo vuelve a calcular con otra formulación
+-- (suma ponderada 1,3,1,3... de los 13 dígitos, verificador incluido, múltiplo de 10).
+-- Acepta 12 dígitos (UPC-A) rellenando con un `0` a la izquierda.
+create function pg_temp.gtin_valid(p_code text) returns boolean
+language sql immutable as $$
+  select p_code ~ '^[0-9]{12,13}$'
+     and (select sum(substr(lpad(p_code, 13, '0'), i, 1)::int * case when i % 2 = 0 then 3 else 1 end)
+            from generate_series(1, 13) i) % 10 = 0
+$$;
+
+select results_eq(
+  $$ select (count(*) filter (where organization_id = '00000000-0000-4000-a000-000000000001') between 35 and 45),
+            (count(*) filter (where organization_id = '00000000-0000-4000-a000-000000000002') between 5 and 12)
+       from public.products $$,
+  $$ values (true, true) $$,
+  'catálogo demo: Kiosco Demo Norte tiene entre 35 y 45 productos y Almacén Demo Sur entre 5 y 12'
+);
+
+select results_eq(
+  $$ select (select count(*)::int from public.categories where organization_id = '00000000-0000-4000-a000-000000000001'),
+            (select count(*)::int from public.categories where organization_id = '00000000-0000-4000-a000-000000000002'),
+            (select count(*)::int from public.suppliers  where organization_id = '00000000-0000-4000-a000-000000000001'),
+            (select count(*)::int from public.suppliers  where organization_id = '00000000-0000-4000-a000-000000000002') $$,
+  $$ values (7, 2, 4, 0) $$,
+  'catálogo demo: 7 categorías y 4 proveedores en Norte, 2 categorías y ningún proveedor en Sur'
+);
+
+select results_eq(
+  $$ select (select count(*)::int from public.categories where id::text like '00000000-0000-4000-e000-%'),
+            (select count(*)::int from public.suppliers  where id::text like '00000000-0000-4000-e100-%'),
+            (select count(*)::int from public.products   where id::text like '00000000-0000-4000-f000-%') $$,
+  $$ values (9, 4, 48) $$,
+  'catálogo demo: categorías (e000), proveedores (e100) y productos (f000) tienen ids fijos'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.product_barcodes
+      where organization_id in ('00000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000002')
+        and not pg_temp.gtin_valid(barcode_norm) $$,
+  $$ values (0) $$,
+  'códigos demo: el dígito verificador de todos (12 y 13 dígitos) recalculado en SQL es válido'
+);
+
+select results_eq(
+  $$ select count(*) filter (where length(barcode_norm) = 13)::int >= 30,
+            count(*) filter (where length(barcode_norm) not in (12, 13))::int
+       from public.product_barcodes
+      where organization_id = '00000000-0000-4000-a000-000000000001' $$,
+  $$ values (true, 0) $$,
+  'códigos demo de Norte: la mayoría son EAN-13 (al menos 30) y no hay otros largos que 12 o 13'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.product_barcodes
+      where organization_id = '00000000-0000-4000-a000-000000000001' and length(barcode_norm) = 12 $$,
+  $$ values (1) $$,
+  'códigos demo de Norte: exactamente uno está guardado como UPC-A de 12 dígitos'
+);
+
+select results_eq(
+  $$ select count(distinct b.product_id)::int
+       from public.product_barcodes b
+      where b.organization_id = '00000000-0000-4000-a000-000000000001'
+        and b.barcode_key = ltrim('0' || (select barcode_norm from public.product_barcodes
+                                           where organization_id = '00000000-0000-4000-a000-000000000001'
+                                             and length(barcode_norm) = 12), '0') $$,
+  $$ values (1) $$,
+  'códigos demo: la variante EAN-13 con 0 inicial del UPC-A encuentra un único producto por barcode_key'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.product_barcodes
+      where organization_id = '00000000-0000-4000-a000-000000000001'
+        and length(barcode_norm) = 13 and left(barcode_norm, 1) = '0' $$,
+  $$ values (1) $$,
+  'códigos demo de Norte: exactamente un EAN-13 empieza con 0'
+);
+
+select results_eq(
+  $$ select count(*)::int from (
+       select product_id from public.product_barcodes
+        where organization_id = '00000000-0000-4000-a000-000000000001'
+        group by product_id having count(*) = 2
+     ) t $$,
+  $$ values (1) $$,
+  'productos demo de Norte: exactamente uno tiene dos códigos'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.products p
+      where p.organization_id = '00000000-0000-4000-a000-000000000001'
+        and p.status = 'active' and p.quick_sale_position is not null
+        and not exists (select 1 from public.product_barcodes b where b.product_id = p.id) $$,
+  $$ values (6) $$,
+  'productos demo de Norte: seis sin código y con botón de venta rápida'
+);
+
+select results_eq(
+  $$ select count(*)::int, min(quick_sale_label)
+       from public.products
+      where organization_id = '00000000-0000-4000-a000-000000000001'
+        and tracks_stock = false and quick_sale_position is not null $$,
+  $$ values (1, 'Carga') $$,
+  'productos demo de Norte: un servicio sin control de stock, con botón'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.products
+      where organization_id = '00000000-0000-4000-a000-000000000001'
+        and unit = 'kg' and quick_sale_position is not null and tracks_stock $$,
+  $$ values (2) $$,
+  'productos demo de Norte: dos productos por peso (kg) con botón'
+);
+
+select results_eq(
+  $$ select count(*)::int >= 8
+       from public.products
+      where organization_id = '00000000-0000-4000-a000-000000000001' and not tracks_expiry $$,
+  $$ values (true) $$,
+  'productos demo de Norte: varios sin control de vencimiento'
+);
+
+select results_eq(
+  $$ select count(*)::int, count(*) filter (where status = 'inactive')::int
+       from public.products
+      where organization_id = '00000000-0000-4000-a000-000000000001' and sale_price is null $$,
+  $$ values (1, 0) $$,
+  'productos demo de Norte: uno solo sin precio, y está activo (camino del precio inicial)'
+);
+
+select results_eq(
+  $$ select count(*) filter (where status = 'inactive')::int,
+            count(*) filter (where status = 'inactive' and quick_sale_position is not null)::int
+       from public.products
+      where organization_id = '00000000-0000-4000-a000-000000000001' $$,
+  $$ values (1, 0) $$,
+  'productos demo de Norte: uno inactivo, y ningún inactivo tiene botón'
+);
+
+select results_eq(
+  $$ select (count(*) filter (where reference_cost is not null)) * 2 > count(*),
+            count(*) filter (where preferred_supplier_id is not null)::int >= 8
+       from public.products
+      where organization_id = '00000000-0000-4000-a000-000000000001' $$,
+  $$ values (true, true) $$,
+  'productos demo de Norte: costo de referencia en la mayoría y proveedor habitual en varios'
+);
+
+select results_eq(
+  $$ select count(*)::int >= 6
+       from public.product_location_settings
+      where organization_id = '00000000-0000-4000-a000-000000000001'
+        and location_id = '00000000-0000-4000-b000-000000000001' and min_stock is not null $$,
+  $$ values (true) $$,
+  'stock mínimo demo: algunos productos de Norte tienen mínimo en Local Centro'
+);
+
+select results_eq(
+  $$ select count(*)::int >= 1
+       from public.product_location_settings c
+       join public.product_location_settings e on e.product_id = c.product_id
+      where c.location_id = '00000000-0000-4000-b000-000000000002'
+        and e.location_id = '00000000-0000-4000-b000-000000000003'
+        and c.min_stock is distinct from e.min_stock $$,
+  $$ values (true) $$,
+  'stock mínimo demo: en Almacén Demo Sur hay productos con mínimo distinto en Local Centro y Local Este'
+);
+
+select results_eq(
+  $$ select count(*)::int >= 1
+       from public.product_barcodes n
+       join public.product_barcodes s on s.barcode_norm = n.barcode_norm
+      where n.organization_id = '00000000-0000-4000-a000-000000000001'
+        and s.organization_id = '00000000-0000-4000-a000-000000000002'
+        and n.product_id <> s.product_id $$,
+  $$ values (true) $$,
+  'códigos demo: un mismo código está en un producto de Norte y en otro distinto de Sur'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.products p
+      where p.organization_id in ('00000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000002')
+        and p.sale_price is not null
+        and not exists (select 1 from public.price_changes h where h.product_id = p.id) $$,
+  $$ values (0) $$,
+  'historial demo: todo producto con precio tiene al menos una fila de historial'
+);
+
+select results_eq(
+  $$ select count(distinct product_id)::int from public.price_changes
+      where organization_id in ('00000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000002')
+        and old_price is not null $$,
+  $$ values (2) $$,
+  'historial demo: dos productos tienen un cambio de precio con precio anterior'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.price_changes
+      where organization_id in ('00000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000002')
+        and not (source = 'manual' and changed_by is null) $$,
+  $$ values (0) $$,
+  'historial demo: sin sesión, todas las filas son source = manual y sin actor'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.price_changes h
+       join public.products p on p.id = h.product_id
+      where p.sale_price is null $$,
+  $$ values (0) $$,
+  'historial demo: el producto sin precio no tiene filas de historial'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.products
+      where organization_id in ('00000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000002')
+        and (name || ' ' || coalesce(brand, '') || ' ' || coalesce(quick_sale_label, '')) ~* '\myes\M' $$,
+  $$ values (0) $$,
+  'catálogo demo: ningún nombre ni marca usa "YES" (el nombre del producto está pendiente)'
+);
+
+-- Vista del employee y del owner de Norte con RLS puesta.
+select pg_temp.act_as_demo('employee.norte@demo.test');
+set local role authenticated;
+
+select results_eq(
+  $$ select count(*) filter (where organization_id = '00000000-0000-4000-a000-000000000002')::int,
+            count(*) filter (where organization_id = '00000000-0000-4000-a000-000000000001')::int >= 35
+       from public.products $$,
+  $$ values (0, true) $$,
+  'employee.norte@demo.test ve los productos de Norte y ninguno de Sur'
+);
+
+select results_eq(
+  $$ select (select count(*)::int from public.price_changes),
+            (select count(*)::int from public.product_barcodes where organization_id = '00000000-0000-4000-a000-000000000002') $$,
+  $$ values (0, 0) $$,
+  'employee.norte@demo.test no ve el historial de precios ni los códigos de Sur'
+);
+
+reset role;
+select pg_temp.act_as_demo('owner.norte@demo.test');
+set local role authenticated;
+
+select results_eq(
+  $$ select (select count(*)::int > 0 from public.categories),
+            (select count(*)::int > 0 from public.suppliers),
+            (select count(*)::int > 0 from public.products),
+            (select count(*)::int > 0 from public.product_barcodes),
+            (select count(*)::int > 0 from public.product_location_settings),
+            (select count(*)::int > 0 from public.price_changes),
+            (select count(*)::int from public.products where organization_id <> '00000000-0000-4000-a000-000000000001') $$,
+  $$ values (true, true, true, true, true, true, 0) $$,
+  'owner.norte@demo.test ve filas en las seis tablas del catálogo y ninguna de otra organización'
+);
+
+reset role;
+select set_config('request.jwt.claims', '', true);
 
 -- ---------------------------------------------------------------------------
 -- Guardia del seed (R3): se EJECUTA, en transacciones que se revierten, contra una

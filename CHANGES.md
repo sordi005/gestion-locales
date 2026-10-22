@@ -426,6 +426,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - `barcode.ts`: `normalizeBarcode` (solo dígitos; sin espacios, guiones ni apóstrofos), variantes con y sin cero a la izquierda (UPC-A ↔ EAN-13), dígito verificador EAN-8/13 y UPC-A (inválido = advertencia), detección de notación científica
   - `ids.ts`: UUID v7 generado en el cliente (id de venta, RN-OF-01)
   - Tests: RN-CA-03, RN-VE-02, RN-GL-03, gotchas 1 y 16; cada función con al menos 2 casos (feliz + borde)
+  - **Notas de C-08 (contrato de `normalizeBarcode`)**: la base valida `barcode_norm ~ '^[0-9]{1,14}$'` con al menos un dígito distinto de cero y **no transforma nada** (lo que no cumple da `23514`). La app tiene que entregar solo dígitos: sin espacios, guiones ni apóstrofo inicial, sin notación científica, nada de 15 dígitos o más. Un código de solo ceros es inválido. El dígito verificador no lo mira la base (la advertencia es de la app). La clave de comparación es `barcode_key = ltrim(barcode_norm, '0')`: `012345678905`, `0012345678905` y `12345678905` son el mismo código. Copiar al test la tabla de casos válidos e inválidos de la tarea 3.4 de `openspec/changes/catalog-schema-rls/tasks.md`.
 - **Dependencias**: C-01
 - **Governance**: MEDIO
 - **Leer antes**:
@@ -572,12 +573,13 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 > C-09, C-11 y C-35 pueden proponerse en paralelo una vez archivados C-06 y C-08. C-10 solo necesita C-03 y puede hacerse antes.
 
 ### [C-08] `catalog-schema-rls`
-- **Estado**: `[ ]` pendiente · Prioridad **D1**
+- **Estado**: `[ ]` implementado en la rama `feat/C-08-catalog-schema-rls` (2026-10-22), pendiente de revisión del fundador, commit/PR y archivo · Prioridad **D1**
 - **Scope**: Esquema del catálogo con RLS (base de US-010 a US-016)
   - Migración: `categories`, `products` (`unit` unit/kg, `tracks_stock`, `tracks_expiry`, `CHECK (NOT tracks_expiry OR tracks_stock)`, `sale_price`, `reference_cost`, `preferred_supplier_id`, `quick_sale_position`/`quick_sale_label` únicos por organización, `updated_at` con índice `(organization_id, updated_at)` para el delta), `product_barcodes` (`UNIQUE (organization_id, barcode_norm)`), `product_location_settings` (`min_stock`), `suppliers` (`UNIQUE (organization_id, lower(name))`), `price_changes` (append-only; trigger sobre `products.sale_price` con `source`)
   - FKs compuestas con `organization_id`; sin DELETE (se desactiva); RLS según 04 §RLS (el `employee` hace alta rápida y fija el precio **solo si era NULL**, vía RPC)
   - Seed: ~40 productos con EAN-13 válidos (incluye UPC-A ↔ EAN-13), productos sin código con botón de venta rápida, un servicio con `tracks_stock = false`, un producto por peso, productos sin vencimiento; proveedores
   - Tests pgTAP: RLS A↔B por tabla, unicidad de código por organización, el `employee` no edita precios salvo el inicial, `price_changes` registra cada cambio, FK compuesta contra productos ajenos
+  - **Resultado de C-08 (2026-10-22)**: una sola migración `20261021150913_catalog_schema_rls.sql` con las seis tablas (`categories`, `suppliers`, `products`, `product_barcodes`, `product_location_settings`, `price_changes`), 16 políticas `<tabla>_<select|insert|update>`, privilegios por columna, sin `DELETE` y 8 funciones nuevas de `private` (la única `security definer` es la del historial). La unicidad de un código es por `barcode_key` (el código sin ceros a la izquierda, columna generada): el UPC-A y su EAN-13 con `0` son el mismo código. Pública solo la RPC `set_initial_sale_price`. Seed: Norte con 40 productos, 7 categorías y 4 proveedores; Sur con 8 productos y 2 categorías. Verificación: pgTAP 13 archivos / 1376 tests, RLS con 3.000 productos por debajo de 35 ms (umbral 100 ms), `db advisors` sin hallazgos propios. Respuestas del fundador (tarea 0.1): el `employee` puede leer `reference_cost` en la base (la app lo oculta: C-09 y C-11); en C-08 no se borran códigos de barras; un producto con precio no vuelve a NULL (se desactiva); los ceros a la izquierda no distinguen códigos. Detalle, tabla de casos de códigos y mediciones en `openspec/changes/catalog-schema-rls/` (design.md y tasks.md).
 - **Dependencias**: C-04
 - **Governance**: MEDIO
 - **Leer antes**:
@@ -598,6 +600,12 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - `shared/ui/<MoneyInput/>` (centavos; teclado numérico en celular)
   - Productos sin precio claramente indicados; los botones de venta rápida los configura C-26
   - Tests: Vitest (esquemas Zod, margen y aviso), Testing Library (`<MoneyInput/>`), Playwright (código duplicado → error amable; `employee` no edita)
+  - **Notas de C-08**:
+    - **Guardia del `employee` en la base** (`private.guard_employee_product_write`, trigger `BEFORE` en `products`): el `employee` da de alta sin costo, origen del costo, proveedor habitual ni botón de venta rápida, y en un `UPDATE` solo puede cambiar `sale_price` de NULL a un valor. La app debe reflejarlo (ocultar y no enviar esos campos) y mapear el `42501`. `owner` y `manager` escriben todo.
+    - **Un precio no vuelve a NULL** (`23514`): para sacar un producto de la venta se **desactiva** (`status = 'inactive'`). Un inactivo no puede tener botón (`CHECK`): al desactivar, en el **mismo** `UPDATE` poner `quick_sale_position` y `quick_sale_label` en NULL (la UI saca el botón).
+    - **Códigos de barras:** no hay `DELETE` en `product_barcodes` (respuesta 2 del fundador). Un código mal cargado se corrige con `UPDATE` o se pasa a otro producto; si C-09 necesita **quitar** códigos, hace falta una migración nueva (`GRANT DELETE`, política y test pgTAP). Duplicados: `23505` sobre `product_barcodes_organization_id_barcode_key_key` (mismo código en otra variante de ceros) o `..._barcode_norm_key`; nombres repetidos: `categories_organization_id_lower_name_key` y `suppliers_organization_id_lower_name_key`.
+    - **Costo:** `reference_cost` y `reference_cost_source` (`import` o `manual`) van juntos (los dos NULL o los dos con valor); las fechas `sale_price_updated_at` y `reference_cost_updated_at` las estampa un trigger (no se escriben desde la app). Los textos los normaliza un trigger (espacios, Unicode); marca y etiqueta en blanco quedan NULL.
+    - **El `employee` puede LEER `reference_cost` en la base** (respuesta 1 del fundador): la app no debe mostrárselo ni mandarlo al cliente. El historial (`price_changes`) lo ven solo `owner`, `manager` y super-admin.
 - **Dependencias**: C-08, C-06, C-03
 - **Governance**: BAJO
 - **Leer antes**:
@@ -616,6 +624,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Feedback sonoro y háptico; normalización con `normalizeBarcode` (C-03); lectura parcial con dígito verificador inválido → pide re-escanear
   - Un solo componente reutilizado por venta, compras, mermas y conteos
   - Tests: Vitest + Testing Library (ráfagas rápidas vs. tipeo humano, `Enter`, foco en otro input), Playwright con cámara falsa (`--use-fake-device-for-media-stream`) en el viewport mobile
+  - **Notas de C-08**: buscar un código escaneado es una igualdad `barcode_key = ltrim(<código normalizado>, '0')` dentro de la organización (índice del UNIQUE `(organization_id, barcode_key)`); el contrato de `normalizeBarcode` está en las notas de C-03.
 - **Dependencias**: C-01, C-03
 - **Governance**: MEDIO
 - **Leer antes**:
@@ -640,6 +649,11 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
     - **Registrar la limpieza:** en `src/app/logout-cleanups.tsx` (punto único, montado en el layout raíz; ver el comentario del archivo) con `registerLogoutCleanup("<nombre>", tarea)` de `@/features/auth/logout-cleanup`. `LogoutButton` corre `runLogoutCleanups()` antes de la acción `logout`, y `LoginForm` la corre al montarse. Cada tarea tiene un tope de 3 s; una que falla o se cuelga no frena a las demás ni el cierre de sesión.
     - **Cookies `httpOnly` (D2):** el navegador no ve la sesión de Supabase, así que no se puede usar `browser.ts` ni Realtime directo desde el cliente. La sincronización (`GET /api/catalog/delta`) y todo dato del usuario pasan por Route Handlers o Server Actions con la sesión de la cookie.
     - **Contrato `getClaims()` / limpieza (hay que resolverlo ANTES de registrar una limpieza que toque datos sin sincronizar, DD-31):** hoy un `getClaims()` con error se trata como "sin sesión" y `LoginForm` corre `runLogoutCleanups()` al montarse; es inofensivo en C-05 (no hay tareas registradas), pero con la cola de ventas offline sería pérdida de datos. Hay que: (1) distinguir "no se pudo verificar la sesión" (red, Supabase caído) de "no hay sesión"; (2) no borrar datos solo porque se montó `/login`; (3) permitir que una limpieza pueda **vetar o conservar** lo que todavía no se sincronizó. Además `src/app/error.tsx` cierra sesión con un `<form action={logout}>` común, sin pasar por `LogoutButton`: las limpiezas no corren antes, corren al llegar a `/login`.
+  - **Notas de C-08**:
+    - **Delta:** `products`, `product_barcodes` y `categories` tienen `updated_at` (lo mueve un trigger solo si cambia algún valor) e índice `(organization_id, updated_at)` para el delta; `suppliers` y `product_location_settings` también tienen `updated_at`, pero sin ese índice (si hiciera falta sincronizarlas por delta, se agrega). Desactivar un producto mueve `updated_at`, así que la desactivación viaja en el delta; no hay borrados. `updated_at = now()` es la hora de **inicio** de la transacción: pedir el delta con un solape de unos segundos (`since − 5 s`) y deduplicar por `id`.
+    - **Filtrar para el `employee`:** la base le deja leer `reference_cost`, `reference_cost_source` y `reference_cost_updated_at`; el Route Handler del delta tiene que sacarlos de lo que le manda (y no cachear `price_changes`).
+    - **Búsqueda por código:** la caché guarda `barcode_key` (el código sin ceros a la izquierda) y compara contra `ltrim(<escaneado>, '0')`, igual que la base.
+    - **Medición:** con 3.000 productos la lista completa tarda unos 30 ms y el delta unos 15 ms bajo RLS (mediciones de la tarea 9.3 de C-08).
 - **Dependencias**: C-08, C-06, C-03
 - **Governance**: MEDIO
 - **Leer antes**:
@@ -659,6 +673,10 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Resolución: caché local y, ante un fallo, confirmación contra la DB por si la caché está desactualizada (F-03 paso 3)
   - Actualiza la caché local (C-11) y vuelve al flujo de origen; reutilizable por venta, compras, mermas y conteos
   - Tests: Vitest + Testing Library (flujo, duplicado), Playwright (escanear código desconocido → alta → producto agregado), pgTAP (el `employee` inserta pero no edita)
+  - **Notas de C-08**:
+    - **RPC `set_initial_sale_price(p_product_id uuid, p_sale_price numeric)`** (devuelve la fila de `products`; sirve a cualquier rol de la organización y solo para el **primer** precio; origen `quick_create`). Errores: `23514` (precio vacío, negativo o con más de 2 decimales), `P0002` (el producto no existe o no es visible), `55000` (ya tiene precio: lo cambia el dueño o el encargado), `42501` (sin permiso, por ejemplo organización suspendida). Un `numeric` fuera de rango sube como `22003`.
+    - **Alta del `employee`:** inserta el producto con nombre, unidad y, si ya tiene el precio, `sale_price`; sin costo, proveedor ni botón. Después agrega el código en `product_barcodes` (puede agregar, no cambiar ni mover códigos).
+    - **Carrera por el mismo código:** si dos usuarios crean el mismo código, el segundo recibe `23505` sobre `product_barcodes_organization_id_barcode_key_key` (o `..._barcode_norm_key` si es idéntico): buscar el producto por `barcode_key = ltrim(código, '0')` y devolver ese.
 - **Dependencias**: C-09, C-10, C-11
 - **Governance**: BAJO
 - **Leer antes**:
@@ -944,6 +962,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Botones de venta rápida: desde el catálogo, asignar posición y etiqueta corta y reordenar (`quick_sale_position`); en la PC, tecla de acceso por botón; grilla en la pantalla de venta (`F4` + tecla, o toque) para productos con o sin stock (RN-CA-08)
   - La caché local toma botones y medios en la siguiente sincronización
   - Tests: Vitest, Playwright: configurar un medio y verlo en el cobro, botón de venta rápida con tecla, el efectivo no se desactiva
+  - **Notas de C-08**: `quick_sale_position` va de 1 a 99 y es único por organización (índice único parcial); la etiqueta (hasta 24 caracteres) es única sin distinguir mayúsculas (`products_organization_id_lower_quick_sale_label_key`) y no existe sin posición. Un producto inactivo no puede tener botón. Los índices únicos no se difieren: intercambiar dos posiciones en un solo `UPDATE` choca (`23505`), así que reordenar pasa por una posición libre o por una RPC. Escribir el botón es de `owner` y `manager`; el `employee` no puede.
 - **Dependencias**: C-19, C-15, C-09
 - **Governance**: BAJO
 - **Leer antes**:
@@ -966,6 +985,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Preset genérico "Genérico catálogo (Excel/CSV)" como datos
   - Fixtures en `tests/fixtures/imports/`: Excel armado a mano, CSV Windows-1252, lista de proveedor, con códigos científicos, decimales con coma y filas de totales
   - Tests: tablas por módulo (11 §9); cada código `IMP-*` con un caso positivo y uno negativo; umbral del 5 % de errores (RN-IM-09)
+  - **Notas de C-08**: para la base, el UPC-A y el EAN-13 con `0` inicial son el mismo código (`barcode_key`): dentro de una organización no pueden estar en dos productos ni repetirse en el mismo (`23505` sobre `product_barcodes_organization_id_barcode_key_key`); `resolve.ts` tiene que tratar los ceros a la izquierda como equivalentes. `normalize.ts` entrega solo dígitos (1 a 14, con algún distinto de cero): lo demás lo rechaza la base con `23514`.
 - **Dependencias**: C-03
 - **Governance**: MEDIO
 - **Leer antes**:
@@ -985,6 +1005,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - RPC `commit_catalog_import(import_id, update_fields)` en una sola transacción: verifica el SHA-256 (IMP-E10), *upsert* de `products` y `product_barcodes` por `barcode_norm`, crea categoría y proveedor si faltan (IMP-W06), `preferred_supplier_id` solo si estaba vacío, **nunca** pisa campos locales (`tracks_*`, botón de venta rápida, códigos manuales, stock mínimo, proveedor habitual), nunca borra ni desactiva, registra `price_changes` con `source = catalog_import` e `import_id`
   - Server Actions `createImport`, `validateImport` (lotes de 1.000-2.000 filas) y `commitImport`
   - Tests pgTAP: atómica (falla a mitad → nada cambia), hash, respeta los campos elegidos, no pisa campos locales, registra `price_changes`, RLS A↔B (la org A no confirma sobre la B), storage por prefijo
+  - **Notas de C-08 (historial de precios)**: `private.record_price_change()` toma el origen de `app.price_change_source` y los ids de `app.price_import_id` / `app.price_bulk_update_id`. La RPC de confirmación los fija con `set_config(..., true)` (alcance de transacción) **antes** de escribir los precios (`catalog_import` exige `import_id`; ningún otro origen admite ids; incoherencia = `23514` y no se escribe el precio) y los vacía al terminar. Al crear `imports` hay que **agregar la FK compuesta** `(import_id, organization_id)` en `price_changes` (la columna y un índice parcial sobre `import_id` ya existen). Los costos importados llevan `reference_cost_source = 'import'`.
 - **Dependencias**: C-08
 - **Governance**: ALTO
 - **Leer antes**:
@@ -1435,6 +1456,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - `features/pricing/domain` (puro): `nuevo = precio × (1 + p / 100)`, redondeo hacia arriba a $10 / $50 / $100, margen resultante, omitir productos sin precio, aviso por debajo del costo
   - UI `/org/precios`: alcance (categoría, proveedor habitual, selección o todo), porcentaje, redondeo y **previsualización obligatoria** con precio actual, nuevo y margen; excluir productos; los dispositivos toman los precios en la siguiente sincronización y los carritos abiertos conservan el precio con el que se agregó cada línea (RN-PC-06)
   - Tests: Vitest de tabla (redondeos, porcentajes negativos, −100 % rechazado), pgTAP (atómica, RLS, rol), Playwright
+  - **Notas de C-08 (historial de precios)**: `apply_price_bulk_update` fija `app.price_change_source` (`bulk_update`, o `bulk_revert` para C-53) y `app.price_bulk_update_id` con `set_config(..., true)` (alcance de transacción) antes de actualizar `products.sale_price`, y los vacía al terminar; el `CHECK` de `price_changes` exige el id de lote en esos dos orígenes y lo prohíbe en los demás. Al crear `price_bulk_updates` hay que **agregar la FK compuesta** `(bulk_update_id, organization_id)` en `price_changes` (la columna y un índice parcial sobre `bulk_update_id` ya existen). Productos sin precio: el trigger no registra nada.
 - **Dependencias**: C-09, C-11
 - **Governance**: ALTO
 - **Leer antes**:
