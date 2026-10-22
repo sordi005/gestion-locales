@@ -19,6 +19,10 @@
 --                  tests.create_location(org, name) -> uuid
 --                  tests.assign_location(identifier, location)
 --                  tests.make_platform_admin(identifier)
+--   Catálogo       tests.create_category(org, name) -> uuid   (idempotente por nombre, sin distinguir mayúsculas)
+--                  tests.create_supplier(org, name) -> uuid   (idempotente por nombre)
+--                  tests.create_product(org, name, sale_price default null) -> uuid   (siempre un producto nuevo)
+--                  tests.add_barcode(product, barcode_norm, is_primary default false) -> uuid   (toma la organización del producto)
 --   Aislamiento    tests.cross_tenant_leaks(...) -> text[]   (función pura)
 --                  tests.assert_cross_tenant_denied(...) -> text   (aserción pgTAP)
 --   Guardias       tests.tables_without_rls(schema) / tests.views_without_security_invoker(schema)
@@ -193,6 +197,100 @@ begin
   insert into public.platform_admins (user_id)
   values (tests.get_user_id(identifier))
   on conflict (user_id) do nothing;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- Fixtures de catálogo (C-08). Llamar como `postgres`; escriben con INSERT comunes, así
+-- que corren los triggers reales (normalización, guardia del `employee`, historial de precios).
+-- ---------------------------------------------------------------------------
+
+-- Categoría de la organización con ese nombre (sin distinguir mayúsculas ni espacios raros).
+-- Idempotente: si ya existe devuelve su id.
+create or replace function tests.create_category(org uuid, name text)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_id uuid;
+begin
+  insert into public.categories (organization_id, name)
+  values (org, name)
+  on conflict do nothing;
+
+  select c.id into v_id
+    from public.categories c
+   where c.organization_id = org
+     and lower(c.name) = lower(private.normalize_text(create_category.name));
+  return v_id;
+end;
+$$;
+
+-- Proveedor de la organización con ese nombre. Idempotente igual que create_category.
+create or replace function tests.create_supplier(org uuid, name text)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_id uuid;
+begin
+  insert into public.suppliers (organization_id, name)
+  values (org, name)
+  on conflict do nothing;
+
+  select s.id into v_id
+    from public.suppliers s
+   where s.organization_id = org
+     and lower(s.name) = lower(private.normalize_text(create_supplier.name));
+  return v_id;
+end;
+$$;
+
+-- Producto NUEVO y activo (por unidad, controla stock y vencimiento), con precio si se
+-- pasa. Cada llamada crea otro producto: los nombres de producto no son únicos.
+create or replace function tests.create_product(
+  org uuid,
+  name text,
+  sale_price numeric default null
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_id uuid;
+begin
+  insert into public.products (organization_id, name, sale_price)
+  values (org, name, sale_price)
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+
+-- Agrega un código de barras al producto, con la organización del producto. NO normaliza ni
+-- corrige: el CHECK de formato y las unicidades de la base responden como en producción.
+-- Falla con un mensaje que nombra el producto si no existe.
+create or replace function tests.add_barcode(
+  product uuid,
+  barcode_norm text,
+  is_primary boolean default false
+)
+returns uuid
+language plpgsql
+as $$
+declare
+  v_org uuid;
+  v_id uuid;
+begin
+  select p.organization_id into v_org from public.products p where p.id = product;
+  if v_org is null then
+    raise exception 'tests.add_barcode: el producto % no existe', product
+      using errcode = 'P0002';
+  end if;
+
+  insert into public.product_barcodes (organization_id, product_id, barcode_norm, is_primary)
+  values (v_org, product, barcode_norm, is_primary)
+  returning id into v_id;
+  return v_id;
 end;
 $$;
 
@@ -591,7 +689,7 @@ grant execute on all functions in schema tests to anon, authenticated;
 -- Verificación del propio setup: falla si algún helper no se creó.
 -- ---------------------------------------------------------------------------
 
-select plan(16);
+select plan(20);
 
 select has_function('tests', 'create_user', 'tests.create_user existe');
 select has_function('tests', 'get_user_id', 'tests.get_user_id existe');
@@ -612,5 +710,9 @@ select has_function('tests', 'create_org', 'tests.create_org existe');
 select has_function('tests', 'create_location', 'tests.create_location existe');
 select has_function('tests', 'assign_location', 'tests.assign_location existe');
 select has_function('tests', 'make_platform_admin', 'tests.make_platform_admin existe');
+select has_function('tests', 'create_category', 'tests.create_category existe');
+select has_function('tests', 'create_supplier', 'tests.create_supplier existe');
+select has_function('tests', 'create_product', 'tests.create_product existe');
+select has_function('tests', 'add_barcode', 'tests.add_barcode existe');
 
 select * from finish();

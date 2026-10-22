@@ -2,7 +2,7 @@
 -- Corre dentro de una transacción que se revierte: nada de lo que crea sobrevive.
 begin;
 
-select plan(68);
+select plan(86);
 
 -- ---------------------------------------------------------------------------
 -- Identidad: create_user / as_user / as_anon / as_postgres
@@ -726,6 +726,176 @@ select is(
 );
 
 select tests.as_postgres();
+
+-- ---------------------------------------------------------------------------
+-- Fixtures de catálogo: create_category / create_supplier / create_product
+-- (tests.add_barcode se prueba más abajo, desde 3.2 de C-08).
+-- ---------------------------------------------------------------------------
+
+select set_config('tests.cat_org_a', tests.create_org('helpers-cat-a')::text, true);
+select set_config('tests.cat_org_b', tests.create_org('helpers-cat-b')::text, true);
+
+-- create_category
+select set_config(
+  'tests.cat_1',
+  tests.create_category(current_setting('tests.cat_org_a')::uuid, 'Bebidas')::text,
+  true
+);
+
+select is(
+  (select (organization_id = current_setting('tests.cat_org_a')::uuid, name)::text
+     from public.categories where id = current_setting('tests.cat_1')::uuid),
+  '(t,Bebidas)',
+  'create_category: crea la categoría en la organización con ese nombre'
+);
+
+select is(
+  tests.create_category(current_setting('tests.cat_org_a')::uuid, 'Bebidas'),
+  current_setting('tests.cat_1')::uuid,
+  'create_category: llamada repetida devuelve el mismo id'
+);
+
+select is(
+  tests.create_category(current_setting('tests.cat_org_a')::uuid, 'BEBIDAS'),
+  current_setting('tests.cat_1')::uuid,
+  'create_category: el nombre no distingue mayúsculas'
+);
+
+select is(
+  (select count(*) from public.categories
+    where organization_id = current_setting('tests.cat_org_a')::uuid),
+  1::bigint,
+  'create_category: la organización tiene una sola categoría "Bebidas"'
+);
+
+select isnt(
+  tests.create_category(current_setting('tests.cat_org_b')::uuid, 'Bebidas'),
+  current_setting('tests.cat_1')::uuid,
+  'create_category: la misma categoría en otra organización es otra fila'
+);
+
+-- create_supplier
+select set_config(
+  'tests.sup_1',
+  tests.create_supplier(current_setting('tests.cat_org_a')::uuid, 'Distribuidora Andes')::text,
+  true
+);
+
+select is(
+  (select (organization_id = current_setting('tests.cat_org_a')::uuid, name)::text
+     from public.suppliers where id = current_setting('tests.sup_1')::uuid),
+  '(t,"Distribuidora Andes")',
+  'create_supplier: crea el proveedor en la organización con ese nombre'
+);
+
+select is(
+  tests.create_supplier(current_setting('tests.cat_org_a')::uuid, 'distribuidora andes'),
+  current_setting('tests.sup_1')::uuid,
+  'create_supplier: llamada repetida (sin distinguir mayúsculas) devuelve el mismo id'
+);
+
+select is(
+  (select count(*) from public.suppliers
+    where organization_id = current_setting('tests.cat_org_a')::uuid),
+  1::bigint,
+  'create_supplier: la organización tiene un solo proveedor con ese nombre'
+);
+
+select isnt(
+  tests.create_supplier(current_setting('tests.cat_org_b')::uuid, 'Distribuidora Andes'),
+  current_setting('tests.sup_1')::uuid,
+  'create_supplier: el mismo proveedor en otra organización es otra fila'
+);
+
+-- create_product
+select set_config(
+  'tests.prod_1',
+  tests.create_product(current_setting('tests.cat_org_a')::uuid, 'Alfajor')::text,
+  true
+);
+
+select is(
+  (select (organization_id = current_setting('tests.cat_org_a')::uuid, name, status, unit,
+           tracks_stock, tracks_expiry, sale_price is null)::text
+     from public.products where id = current_setting('tests.prod_1')::uuid),
+  '(t,Alfajor,active,unit,t,t,t)',
+  'create_product: crea un producto activo, por unidad, que controla stock y vencimiento y sin precio'
+);
+
+select set_config(
+  'tests.prod_2',
+  tests.create_product(current_setting('tests.cat_org_a')::uuid, 'Gaseosa', 1500)::text,
+  true
+);
+
+select is(
+  (select sale_price from public.products where id = current_setting('tests.prod_2')::uuid),
+  1500.00::numeric,
+  'create_product: con precio lo guarda'
+);
+
+select isnt(
+  tests.create_product(current_setting('tests.cat_org_a')::uuid, 'Alfajor'),
+  current_setting('tests.prod_1')::uuid,
+  'create_product: llamada repetida con el mismo nombre crea otro producto (los nombres no son únicos)'
+);
+
+select is(
+  (select count(*) from public.products
+    where organization_id = current_setting('tests.cat_org_a')::uuid and name = 'Alfajor'),
+  2::bigint,
+  'create_product: quedan dos productos "Alfajor"'
+);
+
+-- ---------------------------------------------------------------------------
+-- Fixtures de catálogo: add_barcode (C-08, 3.2)
+-- ---------------------------------------------------------------------------
+
+select set_config(
+  'tests.bc_1',
+  tests.add_barcode(current_setting('tests.prod_1')::uuid, '7790001000019')::text,
+  true
+);
+
+select is(
+  (select (organization_id = current_setting('tests.cat_org_a')::uuid,
+           product_id = current_setting('tests.prod_1')::uuid,
+           barcode_norm, is_primary)::text
+     from public.product_barcodes where id = current_setting('tests.bc_1')::uuid),
+  '(t,t,7790001000019,f)',
+  'add_barcode: agrega el código al producto, con la organización del producto y sin marcarlo principal'
+);
+
+select set_config(
+  'tests.bc_2',
+  tests.add_barcode(current_setting('tests.prod_2')::uuid, '7790001000026', true)::text,
+  true
+);
+
+select is(
+  (select is_primary from public.product_barcodes where id = current_setting('tests.bc_2')::uuid),
+  true,
+  'add_barcode: con is_primary = true lo deja como código principal'
+);
+
+select throws_ok(
+  $$select tests.add_barcode('00000000-0000-0000-0000-0000000000ff'::uuid, '123')$$,
+  'P0002',
+  'tests.add_barcode: el producto 00000000-0000-0000-0000-0000000000ff no existe',
+  'add_barcode: un producto inexistente falla con un error que nombra el producto'
+);
+
+select throws_ok(
+  format($$select tests.add_barcode(%L::uuid, 'abc')$$, current_setting('tests.prod_1')),
+  '23514', null,
+  'add_barcode: un código mal formado falla con el CHECK de la base (no lo corrige)'
+);
+
+select throws_ok(
+  format($$select tests.add_barcode(%L::uuid, '7790001000019')$$, current_setting('tests.prod_2')),
+  '23505', null,
+  'add_barcode: el mismo código en otro producto de la misma organización falla (unicidad real)'
+);
 
 select * from finish();
 

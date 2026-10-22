@@ -24,6 +24,25 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"categories": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"expiry_warning_days": number | null,"id": string,"name": string,"organization_id": string,"updated_at": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"expiry_warning_days"?: number | null,"id"?: string,"name": string,"organization_id": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"expiry_warning_days"?: number | null,"id"?: string,"name"?: string,"organization_id"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "categories_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"locations": {
                   Row: {
                     "address": string | null,"created_at": string,"created_by": string | null,"id": string,"last_sale_number": number,"name": string,"organization_id": string,"status": string,"timezone": string | null
@@ -113,6 +132,118 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"price_changes": {
+                  Row: {
+                    "bulk_update_id": string | null,"changed_at": string,"changed_by": string | null,"id": string,"import_id": string | null,"new_price": number,"old_price": number | null,"organization_id": string,"product_id": string,"source": string
+                  }
+                  Insert: {
+                    "bulk_update_id"?: string | null,"changed_at"?: string,"changed_by"?: string | null,"id"?: string,"import_id"?: string | null,"new_price": number,"old_price"?: number | null,"organization_id": string,"product_id": string,"source": string
+                  }
+                  Update: {
+                    "bulk_update_id"?: string | null,"changed_at"?: string,"changed_by"?: string | null,"id"?: string,"import_id"?: string | null,"new_price"?: number,"old_price"?: number | null,"organization_id"?: string,"product_id"?: string,"source"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "price_changes_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "price_changes_product_id_organization_id_fkey"
+      columns: ["product_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "products"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"product_barcodes": {
+                  Row: {
+                    "barcode_key": string | null,"barcode_norm": string,"barcode_raw": string | null,"created_at": string,"created_by": string | null,"id": string,"is_primary": boolean,"organization_id": string,"product_id": string,"updated_at": string
+                  }
+                  Insert: {
+                    "barcode_key"?: never,"barcode_norm": string,"barcode_raw"?: string | null,"created_at"?: string,"created_by"?: string | null,"id"?: string,"is_primary"?: boolean,"organization_id": string,"product_id": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "barcode_key"?: never,"barcode_norm"?: string,"barcode_raw"?: string | null,"created_at"?: string,"created_by"?: string | null,"id"?: string,"is_primary"?: boolean,"organization_id"?: string,"product_id"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "product_barcodes_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "product_barcodes_product_id_organization_id_fkey"
+      columns: ["product_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "products"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"product_location_settings": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"location_id": string,"min_stock": number | null,"organization_id": string,"product_id": string,"updated_at": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"location_id": string,"min_stock"?: number | null,"organization_id": string,"product_id": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"location_id"?: string,"min_stock"?: number | null,"organization_id"?: string,"product_id"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "product_location_settings_location_id_organization_id_fkey"
+      columns: ["location_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "locations"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "product_location_settings_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "product_location_settings_product_id_organization_id_fkey"
+      columns: ["product_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "products"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
+                },"products": {
+                  Row: {
+                    "brand": string | null,"category_id": string | null,"created_at": string,"created_by": string | null,"id": string,"name": string,"organization_id": string,"preferred_supplier_id": string | null,"quick_sale_label": string | null,"quick_sale_position": number | null,"reference_cost": number | null,"reference_cost_source": string | null,"reference_cost_updated_at": string | null,"sale_price": number | null,"sale_price_updated_at": string | null,"status": string,"tracks_expiry": boolean,"tracks_stock": boolean,"unit": string,"updated_at": string
+                  }
+                  Insert: {
+                    "brand"?: string | null,"category_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"id"?: string,"name": string,"organization_id": string,"preferred_supplier_id"?: string | null,"quick_sale_label"?: string | null,"quick_sale_position"?: number | null,"reference_cost"?: number | null,"reference_cost_source"?: string | null,"reference_cost_updated_at"?: string | null,"sale_price"?: number | null,"sale_price_updated_at"?: string | null,"status"?: string,"tracks_expiry"?: boolean,"tracks_stock"?: boolean,"unit"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "brand"?: string | null,"category_id"?: string | null,"created_at"?: string,"created_by"?: string | null,"id"?: string,"name"?: string,"organization_id"?: string,"preferred_supplier_id"?: string | null,"quick_sale_label"?: string | null,"quick_sale_position"?: number | null,"reference_cost"?: number | null,"reference_cost_source"?: string | null,"reference_cost_updated_at"?: string | null,"sale_price"?: number | null,"sale_price_updated_at"?: string | null,"status"?: string,"tracks_expiry"?: boolean,"tracks_stock"?: boolean,"unit"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "products_category_id_organization_id_fkey"
+      columns: ["category_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "categories"
+      referencedColumns: ["id","organization_id"]
+    },{
+      foreignKeyName: "products_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "products_preferred_supplier_id_organization_id_fkey"
+      columns: ["preferred_supplier_id","organization_id"]
+isOneToOne: false
+      referencedRelation: "suppliers"
+      referencedColumns: ["id","organization_id"]
+    }
+                  ]
                 },"profiles": {
                   Row: {
                     "created_at": string,"full_name": string | null,"id": string
@@ -125,6 +256,25 @@ isOneToOne: false
                   }
                   Relationships: [
                     
+                  ]
+                },"suppliers": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"id": string,"name": string,"notes": string | null,"organization_id": string,"phone": string | null,"updated_at": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"name": string,"notes"?: string | null,"organization_id": string,"phone"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"name"?: string,"notes"?: string | null,"organization_id"?: string,"phone"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "suppliers_organization_id_fkey"
+      columns: ["organization_id"]
+isOneToOne: false
+      referencedRelation: "organizations"
+      referencedColumns: ["id"]
+    }
                   ]
                 }
           }
@@ -168,6 +318,35 @@ isOneToOne: false
                           SetofOptions: {
         from: "*"
         to: "organizations"
+        isOneToOne: true
+        isSetofReturn: false
+      } },
+"set_initial_sale_price":
+{ Args: { "p_product_id": string,"p_sale_price": number }; Returns: {
+              "brand": string | null,
+"category_id": string | null,
+"created_at": string,
+"created_by": string | null,
+"id": string,
+"name": string,
+"organization_id": string,
+"preferred_supplier_id": string | null,
+"quick_sale_label": string | null,
+"quick_sale_position": number | null,
+"reference_cost": number | null,
+"reference_cost_source": string | null,
+"reference_cost_updated_at": string | null,
+"sale_price": number | null,
+"sale_price_updated_at": string | null,
+"status": string,
+"tracks_expiry": boolean,
+"tracks_stock": boolean,
+"unit": string,
+"updated_at": string
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "products"
         isOneToOne: true
         isSetofReturn: false
       } }

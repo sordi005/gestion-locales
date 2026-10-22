@@ -9,6 +9,10 @@ import { createPublishableClient } from "./support/supabase-admin";
 // pasa por PostgREST con sesiones reales de Auth: el rol `authenticated` tiene que
 // poder leer las siete tablas de tenencia (privilegios + RLS) y `anon`, ninguna.
 // Usa los usuarios del seed solo para ingresar y leer.
+//
+// Spec catalog-access-control "Catálogo accesible por la Data API con una sesión real" (C-08):
+// lo mismo para las seis tablas de catálogo, con las filas del seed de catálogo (Norte tiene
+// filas en las seis, así que una lectura vacía sería un fallo y no un falso verde).
 
 const TENANCY_TABLES = [
   "organizations",
@@ -18,6 +22,15 @@ const TENANCY_TABLES = [
   "memberships",
   "membership_locations",
   "audit_events",
+] as const;
+
+const CATALOG_TABLES = [
+  "categories",
+  "suppliers",
+  "products",
+  "product_barcodes",
+  "product_location_settings",
+  "price_changes",
 ] as const;
 
 // Tablas que traen `organization_id`: todas las filas que ve una persona tienen que ser de su organización.
@@ -137,8 +150,52 @@ test.describe("Data API con sesión real (authenticated)", () => {
   });
 });
 
+test.describe("Data API del catálogo con sesión real (authenticated)", () => {
+  for (const table of CATALOG_TABLES) {
+    test(`owner.norte recibe filas de ${table} y todas son de Norte`, async ({
+      admin,
+    }) => {
+      const { norte } = await organizationIds(admin);
+      expect(norte).toBeTruthy();
+      const client = await signedInAs("owner.norte@demo.test");
+
+      const { data, error } = await client
+        .from(table)
+        .select("organization_id");
+
+      expect(error, `lectura de ${table}`).toBeNull();
+      expect(data?.length ?? 0, `filas de ${table} para Norte`).toBeGreaterThan(
+        0,
+      );
+      expect(
+        (data ?? []).every((row) => row.organization_id === norte),
+        `todas las filas de ${table} son de Norte`,
+      ).toBe(true);
+    });
+  }
+
+  test("employee.norte recibe productos de Norte y 0 filas de price_changes", async ({
+    admin,
+  }) => {
+    const { norte } = await organizationIds(admin);
+    const client = await signedInAs("employee.norte@demo.test");
+
+    const products = await client.from("products").select("organization_id");
+    const history = await client.from("price_changes").select("id");
+
+    expect(products.error).toBeNull();
+    expect(products.data?.length ?? 0).toBeGreaterThan(0);
+    expect(
+      (products.data ?? []).every((row) => row.organization_id === norte),
+    ).toBe(true);
+    // El historial de precios es de dueño y encargado: el employee no ve ninguna fila.
+    expect(history.error).toBeNull();
+    expect(history.data).toEqual([]);
+  });
+});
+
 test.describe("Data API sin sesión (anon)", () => {
-  for (const table of TENANCY_TABLES) {
+  for (const table of [...TENANCY_TABLES, ...CATALOG_TABLES]) {
     test(`la clave publicable sin sesión no lee ${table}: 42501`, async () => {
       const { data, error } = await readAll(createPublishableClient(), table);
 
