@@ -151,8 +151,13 @@
   - **apply:** `CHANGES.md`: estado de C-08 (implementado en la rama, pendiente de revisión del fundador / commit / archivo; NO archivado), bloque `Resultado de C-08` y notas `Notas de C-08` en C-03 (contrato de `normalizeBarcode`), C-09, C-10, C-11, C-12, C-26, C-27, C-28 y C-52. Decisiones y hallazgos del apply guardados en engram (topic_key `opsx/catalog-schema-rls/apply`).
 - [x] 10.3 **[CHECKPOINT — fundador]** Mostrarle a Santiago qué quedó hecho (en lenguaje llano), los tiempos de 9.3, los hallazgos de los advisors y lo que falta; con su OK, commit (`feat(C-08): ...`) y push de la rama, y abrir el PR
   - **2026-10-22:** Santiago vio el resumen (tiempos de 15 a 34 ms con 3.000 productos; advisors sin hallazgos nuevos) y aprobó el commit, el push y el PR
-- [ ] 10.4 Esperar los checks en verde; revisar en el log del job `db` la salida de los advisors y anotarla
-- [ ] 10.5 **[CHECKPOINT — fundador]** Con su aprobación, mergear a `main`
-- [ ] 10.6 Verificar en **Actions** que `deploy-staging` aplicó la migración (`migration list` local = remoto)
-- [ ] 10.7 **[MANUAL — fundador]** Con guía paso a paso: en el panel de Supabase de `staging`, **Database → Migrations** muestra `catalog_schema_rls` y **Table Editor** muestra las seis tablas de catálogo con RLS activado, las 16 políticas `<tabla>_<comando>` y sin filas
-- [ ] 10.8 Proponer `/opsx:archive catalog-schema-rls`
+- [x] 10.4 Esperar los checks en verde; revisar en el log del job `db` la salida de los advisors y anotarla
+  - **2026-10-22:** PR #13 con los 7 checks en verde y `MERGEABLE`/`CLEAN` (run CI 39840164316). Advisors del job `db`: 16 `function_search_path_mutable` (WARN), todos sobre funciones `tests.*`, incluidos los 4 helpers nuevos de catálogo. Se aceptan con el mismo motivo que en C-04: el schema `tests` es del setup de pgTAP, no está en las migraciones y nunca llega a staging ni a producción. Ningún hallazgo sobre objetos de `public` ni de `private`
+- [x] 10.5 **[CHECKPOINT — fundador]** Con su aprobación, mergear a `main`
+  - **2026-10-22:** Santiago aprobó el merge; PR #13 mergeado a `main` (merge commit 5450242)
+- [x] 10.6 Verificar en **Actions** que `deploy-staging` aplicó la migración (`migration list` local = remoto)
+  - **2026-10-22:** CI en `main` en verde (run 39866013759) y `Deploy staging` en verde (run 39867574618): `Applying migration 20261021150913_catalog_schema_rls.sql`, y `migration list` muestra `20261021150913` igual en local y remoto
+- [x] 10.7 **[MANUAL — fundador]** Con guía paso a paso: en el panel de Supabase de `staging`, **Database → Migrations** muestra `catalog_schema_rls` y **Table Editor** muestra las seis tablas de catálogo con RLS activado, las 16 políticas `<tabla>_<comando>` y sin filas
+  - **2026-10-22:** Santiago verificó en el panel de staging la migración `catalog_schema_rls` y las seis tablas de catálogo con RLS activado y sin filas
+- [x] 10.8 Proponer `/opsx:archive catalog-schema-rls`
+  - **2026-10-22:** Santiago pidió el cierre; se archiva en la rama `docs/C-08-archive`
