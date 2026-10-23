@@ -573,7 +573,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 > C-09, C-11 y C-35 pueden proponerse en paralelo una vez archivados C-06 y C-08. C-10 solo necesita C-03 y puede hacerse antes.
 
 ### [C-08] `catalog-schema-rls`
-- **Estado**: `[ ]` implementado en la rama `feat/C-08-catalog-schema-rls` (2026-10-22), pendiente de revisión del fundador, commit/PR y archivo · Prioridad **D1**
+- **Estado**: `[x]` completado (archivado 2026-10-22, PR #13, en `openspec/changes/archive/2026-10-22-catalog-schema-rls/`) · Prioridad **D1**
 - **Scope**: Esquema del catálogo con RLS (base de US-010 a US-016)
   - Migración: `categories`, `products` (`unit` unit/kg, `tracks_stock`, `tracks_expiry`, `CHECK (NOT tracks_expiry OR tracks_stock)`, `sale_price`, `reference_cost`, `preferred_supplier_id`, `quick_sale_position`/`quick_sale_label` únicos por organización, `updated_at` con índice `(organization_id, updated_at)` para el delta), `product_barcodes` (`UNIQUE (organization_id, barcode_norm)`), `product_location_settings` (`min_stock`), `suppliers` (`UNIQUE (organization_id, lower(name))`), `price_changes` (append-only; trigger sobre `products.sale_price` con `source`)
   - FKs compuestas con `organization_id`; sin DELETE (se desactiva); RLS según 04 §RLS (el `employee` hace alta rápida y fija el precio **solo si era NULL**, vía RPC)
