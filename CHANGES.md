@@ -418,7 +418,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 ---
 
 ### [C-03] `shared-domain-primitives`
-- **Estado**: `[ ]` implementado en la rama `claude/shared-domain-primitives-f920ef` (apply completo, DoD en verde); pendiente de revisión del fundador, commit/PR y archivo (`/opsx:archive shared-domain-primitives`). Cambiar a `[x]` al archivar · Prioridad **D1**
+- **Estado**: `[x]` completado (archivado 2026-10-26, PR #16, en `openspec/changes/archive/2026-10-26-shared-domain-primitives/`) · Prioridad **D1**
 - **Scope**: Utilidades puras de `src/shared/lib` (sin I/O), con tests de tabla
   - `result.ts`: `Result<T, E>` con `ok`/`err` para las Server Actions (códigos de dominio `VT-E*`, `PA-E*`, `CJ-E*`)
   - `money.ts`: montos en **centavos enteros** (`toCents`/`fromCents`), parseo de entrada AR (`1.234,56`), formateo ARS, suma y multiplicación sin coma flotante, redondeo de línea `round(quantity × unit_price, 2)`; la conversión ocurre solo en los bordes (gotcha 1)
@@ -427,7 +427,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - `ids.ts`: UUID v7 generado en el cliente (id de venta, RN-OF-01)
   - Tests: RN-CA-03, RN-VE-02, RN-GL-03, gotchas 1 y 16; cada función con al menos 2 casos (feliz + borde)
   - **Notas de C-08 (contrato de `normalizeBarcode`)**: la base valida `barcode_norm ~ '^[0-9]{1,14}$'` con al menos un dígito distinto de cero y **no transforma nada** (lo que no cumple da `23514`). La app tiene que entregar solo dígitos: sin espacios, guiones ni apóstrofo inicial, sin notación científica, nada de 15 dígitos o más. Un código de solo ceros es inválido. El dígito verificador no lo mira la base (la advertencia es de la app). La clave de comparación es `barcode_key = ltrim(barcode_norm, '0')`: `012345678905`, `0012345678905` y `12345678905` son el mismo código. Copiar al test la tabla de casos válidos e inválidos de la tarea 3.4 de `openspec/changes/archive/2026-10-22-catalog-schema-rls/tasks.md` (hecho: `barcode.test.ts` la copia tal cual).
-  - **Notas para los consumidores (API final de C-03, `src/shared/lib/`; specs en `openspec/changes/shared-domain-primitives/specs/`)**:
+  - **Notas para los consumidores (API final de C-03, `src/shared/lib/`; specs en `openspec/specs/` (`domain-result`, `money-cents`, `local-dates`, `barcode-normalization`, `client-ids`))**:
     - **Convenciones**: todo es puro y sin I/O; las fallas esperables vuelven como `Result` (`ok`/`err`/`isOk`/`isErr`) y los bugs de programación lanzan `RangeError`. Los instantes se pasan por parámetro (`now: Date`); nada lee el reloj salvo `newSaleId`. `uuid` solo se importa en `ids.ts`.
     - **C-10 (escáner)**: `normalizeBarcode(raw)` -> `Result<{ norm, key, warnings }, BarcodeRejection>`, nunca lanza. Si `warnings` incluye `"invalid_check_digit"` -> pedir re-escanear (el código es válido para la base, la decisión es de la UI). Rechazos: `empty`, `scientific_notation`, `decimal`, `invalid_characters`, `too_long`, `all_zeros`.
     - **C-11 y C-12 (caché y alta rápida)**: comparar y buscar con `barcodeKey(norm)` / `isSameBarcode(a, b)` (igual a la columna `barcode_key = ltrim(barcode_norm, '0')`), nunca con `ltrim` a mano ni con una lista de variantes. Una Server Action que escribe en `product_barcodes` puede exigir el tipo `BarcodeNorm` y revalidar con `isBarcodeNorm` (cruza JSON como `string`).
