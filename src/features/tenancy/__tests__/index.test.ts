@@ -9,6 +9,7 @@ describe("@/features/tenancy (entrada pública)", () => {
     expect(Object.keys(tenancy).sort()).toEqual([
       "LOCATIONS_PATH",
       "SECTIONS",
+      "buildOrgShellModel",
       "buildShellModel",
       "buildTenantContext",
       "currentSectionKey",

@@ -319,3 +319,116 @@ describe("AppShell — aviso de organización suspendida", () => {
     ).toBeTruthy();
   });
 });
+
+// Spec app-shell "Marco del área de organización": bajo `/org/[orgId]` no hay local
+// activo (`location: null`). El encabezado muestra la organización (una sola vez,
+// no "local + organización"), la cuenta no tiene fila de local y el aviso de
+// suspensión se ve igual que en el marco del local.
+describe("AppShell — sin local (área de organización)", () => {
+  const ORG_SECTIONS = [
+    { key: "inicio", label: "Inicio", href: "/l/loc-1" },
+    { key: "catalogo", label: "Catálogo", href: "/org/org-1/catalogo" },
+  ] as const;
+
+  function makeOrgModel(overrides: Partial<ShellModel> = {}): ShellModel {
+    return makeModel({
+      userName: "Dueño Demo Norte",
+      location: null,
+      role: "owner",
+      sections: ORG_SECTIONS,
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    route.pathname = "/org/org-1/catalogo";
+  });
+
+  it("el menú lateral muestra la organización (una sola vez) y la persona, sin ningún local", () => {
+    const { sidebar } = renderShell(makeOrgModel());
+
+    expect(within(sidebar).getAllByText("Kiosco Demo Norte")).toHaveLength(1);
+    expect(within(sidebar).getByText("Dueño Demo Norte")).toBeVisible();
+    expect(within(sidebar).queryByText("Local Centro")).not.toBeInTheDocument();
+    expect(
+      within(sidebar).getByRole("button", { name: "Cerrar sesión" }),
+    ).toBeEnabled();
+  });
+
+  it("el encabezado del celular muestra la organización y la persona", () => {
+    const { header } = renderShell(makeOrgModel());
+
+    expect(within(header).getByText("Kiosco Demo Norte")).toBeVisible();
+    expect(within(header).getByText("Dueño Demo Norte")).toBeVisible();
+  });
+
+  it("marca Catálogo como sección actual y no Inicio", () => {
+    const { sideNav, bottomNav } = renderShell(makeOrgModel());
+
+    for (const nav of [sideNav, bottomNav]) {
+      expect(
+        within(nav).getByRole("link", { name: "Catálogo" }),
+      ).toHaveAttribute("aria-current", "page");
+      expect(
+        within(nav).getByRole("link", { name: "Inicio" }),
+      ).not.toHaveAttribute("aria-current");
+    }
+  });
+
+  it("Cuenta muestra la organización y no tiene fila de local", async () => {
+    const { bottomNav } = renderShell(makeOrgModel());
+
+    await userEvent
+      .setup()
+      .click(within(bottomNav).getByRole("button", { name: "Cuenta" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Cuenta" });
+    expect(within(dialog).getByText("Kiosco Demo Norte")).toBeVisible();
+    expect(within(dialog).getByText("Organización")).toBeVisible();
+    expect(within(dialog).queryByText("Local")).not.toBeInTheDocument();
+  });
+
+  it("con más de un local ofrece Cambiar de local (a /locales) en el menú y en Cuenta", async () => {
+    const { sidebar, bottomNav } = renderShell(
+      makeOrgModel({ canSwitchLocation: true, sections: [ORG_SECTIONS[1]] }),
+    );
+
+    expect(
+      within(sidebar).getByRole("link", { name: "Cambiar de local" }),
+    ).toHaveAttribute("href", "/locales");
+
+    await userEvent
+      .setup()
+      .click(within(bottomNav).getByRole("button", { name: "Cuenta" }));
+    const dialog = await screen.findByRole("dialog", { name: "Cuenta" });
+    expect(
+      within(dialog).getByRole("link", { name: "Cambiar de local" }),
+    ).toHaveAttribute("href", "/locales");
+  });
+
+  it("organización suspendida: el mismo aviso, adentro de <main> y antes de la página", () => {
+    renderShell(
+      makeOrgModel({
+        organization: {
+          id: "org-1",
+          name: "Kiosco Demo Norte",
+          writable: false,
+        },
+      }),
+      <h1>Catálogo</h1>,
+    );
+
+    const main = screen.getByRole("main");
+    const banner = screen.getByRole("status");
+    expect(banner).toHaveTextContent(
+      "La cuenta de Kiosco Demo Norte está suspendida: podés consultar tus datos, pero no cargar ventas ni cambios. Para reactivarla, comunicate con [NOMBRE-PRODUCTO].",
+    );
+    expect(main.firstElementChild).toBe(banner);
+  });
+
+  it("organización activa: sin aviso", () => {
+    renderShell(makeOrgModel());
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});

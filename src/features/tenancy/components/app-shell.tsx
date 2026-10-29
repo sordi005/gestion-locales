@@ -35,11 +35,13 @@ type AppShellProps = {
 };
 
 /**
- * Marco de las pantallas de un local (D10, D11). Es un componente de servidor:
+ * Marco de las pantallas de un local y del área de organización (D10, D11). Es
+ * un componente de servidor:
  * solo las partes que necesitan el navegador (la sección actual, el panel de
  * "Cuenta" y el botón de cerrar sesión) son componentes cliente chicos.
  *
- * - **PC (`md` y más):** menú lateral con el producto, el local y la organización,
+ * - **PC (`md` y más):** menú lateral con el producto, el local y la organización
+ *   (sin local, solo la organización),
  *   las secciones, "Cambiar de local" (si hay más de un local) y, abajo, la
  *   persona y "Cerrar sesión".
  * - **Celular:** encabezado con el local y la persona, y barra inferior con las
@@ -54,6 +56,8 @@ type AppShellProps = {
  */
 export function AppShell({ model, children }: AppShellProps) {
   const { userName, location, organization, sections } = model;
+  // Bajo `/org/[orgId]` no hay local activo: la organización pasa a ser el título.
+  const title = location?.name ?? organization.name;
 
   return (
     <SidebarProvider>
@@ -69,12 +73,12 @@ export function AppShell({ model, children }: AppShellProps) {
             >
               {PRODUCT_NAME}
             </p>
-            <p className="text-base font-semibold break-words">
-              {location.name}
-            </p>
-            <p className="text-sm break-words text-muted-foreground">
-              {organization.name}
-            </p>
+            <p className="text-base font-semibold break-words">{title}</p>
+            {location ? (
+              <p className="text-sm break-words text-muted-foreground">
+                {organization.name}
+              </p>
+            ) : null}
           </SidebarHeader>
           <SidebarContent>
             <SidebarNav sections={sections} />
@@ -103,11 +107,15 @@ export function AppShell({ model, children }: AppShellProps) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex flex-col gap-0.5 border-b bg-background px-4 py-3 md:hidden">
-          <p className="truncate text-base font-semibold">{location.name}</p>
+          <p className="truncate text-base font-semibold">{title}</p>
           <p className="truncate text-sm text-muted-foreground">
             <span>{userName}</span>
-            <span aria-hidden="true"> · </span>
-            <span>{organization.name}</span>
+            {location ? (
+              <>
+                <span aria-hidden="true"> · </span>
+                <span>{organization.name}</span>
+              </>
+            ) : null}
           </p>
         </header>
 
@@ -121,7 +129,7 @@ export function AppShell({ model, children }: AppShellProps) {
         <BottomNav sections={sections}>
           <AccountSheet
             userName={userName}
-            locationName={location.name}
+            locationName={location?.name ?? null}
             organizationName={organization.name}
             canSwitchLocation={model.canSwitchLocation}
           />

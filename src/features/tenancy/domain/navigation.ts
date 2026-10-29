@@ -61,7 +61,8 @@ const org = (
   key: SectionKey,
   label: string,
   roles: readonly Role[] = OWNER_AND_MANAGER,
-): Section => ({ key, label, scope: "org", segment: key, roles, built: false });
+  built = false,
+): Section => ({ key, label, scope: "org", segment: key, roles, built });
 
 export const SECTIONS: readonly Section[] = [
   location("inicio", "Inicio", true, ""),
@@ -73,7 +74,7 @@ export const SECTIONS: readonly Section[] = [
   location("mermas", "Mermas"),
   location("conteos", "Conteos"),
   location("stock", "Stock"),
-  org("catalogo", "Catálogo"),
+  org("catalogo", "Catálogo", OWNER_AND_MANAGER, true),
   org("precios", "Precios"),
   org("proveedores", "Proveedores"),
   org("medios-de-pago", "Medios de pago"),

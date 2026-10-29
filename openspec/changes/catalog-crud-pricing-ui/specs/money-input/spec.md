@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Entrada de dinero en centavos sobre las primitivas de C-03
-`src/shared/ui/money-input.tsx` SHALL exportar `<MoneyInput/>`, un componente cliente que envuelve el `Input` del proyecto y trabaja en centavos: recibe `value: Cents | null` y llama a `onValueChange(cents: Cents | null)` en cada cambio con el resultado de `parseArsAmount` (`null` si el texto está vacío o es inválido). MUST NOT reimplementar parseo ni formato: usa `parseArsAmount` para leer y `formatArs(cents, { symbol: false })` para mostrar. Al perder el foco, un texto válido MUST reescribirse con el formato canónico (`1234,5` → `1.234,50`); uno inválido MUST quedar como lo escribió la persona. Con un `name`, MUST incluir un `<input type="hidden">` con los centavos como entero (vacío si no hay valor válido), para formularios que se envían sin JavaScript del cliente.
+`src/shared/ui/money-input.tsx` SHALL exportar `<MoneyInput/>`, un componente cliente que envuelve el `Input` del proyecto y trabaja en centavos: recibe `value: Cents | null` y llama a `onValueChange(cents: Cents | null, { valid, message })` en cada cambio con el resultado de `parseArsAmount` (`cents` es `null` si el texto está vacío o es inválido). Como `null` no distingue "sin monto" de "texto que no es un monto", el segundo argumento informa la validez: un texto no vacío que no es un monto MUST reportar `valid: false` (con el `message` en castellano del motivo); un campo vacío (opcional) y un monto válido reportan `valid: true` (sin `message`). Quien consume el componente MUST NOT guardar mientras haya un texto inválido (no puede tratarlo como "sin monto"). MUST NOT reimplementar parseo ni formato: usa `parseArsAmount` para leer y `formatArs(cents, { symbol: false })` para mostrar. Al perder el foco, un texto válido MUST reescribirse con el formato canónico (`1234,5` → `1.234,50`); uno inválido MUST quedar como lo escribió la persona. Con un `name`, MUST incluir un `<input type="hidden">` con los centavos como entero (vacío si no hay valor válido), para formularios que se envían sin JavaScript del cliente.
 
 #### Scenario: Escribir y formatear
 - **WHEN** se escribe `1234,5` y se sale del campo
@@ -13,7 +13,11 @@
 
 #### Scenario: Vaciar
 - **WHEN** se borra todo el texto
-- **THEN** `onValueChange` recibe `null` y el input oculto queda vacío
+- **THEN** `onValueChange` recibe `null` con `valid: true` y el input oculto queda vacío
+
+#### Scenario: Texto inválido no se confunde con vacío
+- **WHEN** se escribe `8oo` en un campo de costo
+- **THEN** `onValueChange` recibe `null` con `valid: false` y el motivo en `message`, y el formulario no guarda hasta que se corrija (vaciarlo a propósito, en cambio, es válido y guarda "sin costo")
 
 ### Requirement: Teclado numérico y accesibilidad
 `<MoneyInput/>` SHALL usar `type="text"`, `inputMode="decimal"` (teclado numérico con coma en el celular), `autoComplete="off"` y el prefijo visual `$` fuera del valor editable. MUST asociarse a su `<Label>` y, con error, marcar `aria-invalid="true"` y vincular el mensaje con `aria-describedby`.

@@ -16,7 +16,7 @@ Las pantallas bajo `/org/[orgId]/catalogo` (listado, `nuevo`, `[productId]` y `c
 - **THEN** recibe el mismo 404 que con un id inexistente o mal formado
 
 ### Requirement: Listado con búsqueda y filtros
-El listado SHALL mostrar los productos de la organización ordenados por nombre, paginados de a 50, con nombre, marca, categoría, unidad, precio (o la marca "Sin precio"), estado y, si tiene, el código principal. MUST permitir buscar por texto parcial del nombre (sin distinguir mayúsculas) y por código de barras: un texto que `normalizeBarcode` acepta MUST buscarse por `barcodeKey` (con o sin ceros a la izquierda da lo mismo). Los filtros (texto, estado activos/inactivos, categoría, "sin precio" y página) MUST vivir en la URL. Por defecto se muestran solo los activos. El texto de búsqueda MUST NOT interpolarse en un filtro compuesto de PostgREST (`or=`): los comodines `%` y `_` se escapan y la búsqueda por código va en una consulta aparte.
+El listado SHALL mostrar los productos de la organización ordenados por nombre, paginados de a 50, con nombre, marca, categoría, unidad, precio (o la marca "Sin precio"), estado y, si tiene, el código principal. MUST permitir buscar por texto parcial del nombre (sin distinguir mayúsculas) y por código de barras: un texto que `normalizeBarcode` acepta MUST buscarse por `barcodeKey` (con o sin ceros a la izquierda da lo mismo). Los filtros (texto, estado activos/inactivos, categoría, "sin precio" y página) MUST vivir en la URL. Por defecto se muestran solo los activos. El texto de búsqueda MUST NOT interpolarse en un filtro compuesto de PostgREST (`or=`): los comodines `%` y `_` se escapan, el `*` se descarta (PostgREST lo convierte en `%` y no se puede escapar) y la búsqueda por código va en una consulta aparte. Cuando el texto buscado es un código que existe en la organización, MUST listarse solamente los productos que tienen ese código (el código exacto manda; no se mezcla con la búsqueda por nombre, porque unir ambos exigiría un `or=` con texto de la persona). El listado MUST pedir siempre el conjunto básico de columnas, para cualquier rol (no lee costo, proveedor ni venta rápida porque la tabla no los muestra) y mostrar el código principal de cada producto. Una página pedida más allá del final MUST redirigir a la última página que existe (el error `PGRST103` de rango no es un fallo).
 
 #### Scenario: Buscar por nombre
 - **WHEN** se busca `coca` en el catálogo de Norte
@@ -27,8 +27,16 @@ El listado SHALL mostrar los productos de la organización ordenados por nombre,
 - **THEN** las dos búsquedas devuelven el mismo producto
 
 #### Scenario: Texto con comodines o caracteres de filtro
-- **WHEN** se busca `50%`, `a_b` o `x,name.eq.y`
-- **THEN** se buscan literalmente y no cambian el filtro de la consulta
+- **WHEN** se busca `50%`, `a_b`, `x,name.eq.y` o `a*b`
+- **THEN** se buscan literalmente (el `*` se ignora) y no cambian el filtro de la consulta
+
+#### Scenario: Un código exacto manda sobre el nombre
+- **WHEN** se busca un texto que es un código existente (por ejemplo `7790895000782`)
+- **THEN** el listado muestra solo los productos con ese código, aunque otros productos tengan ese número en el nombre
+
+#### Scenario: Página más allá del final
+- **WHEN** se abre `?pagina=9` y el listado filtrado tiene 2 páginas
+- **THEN** la pantalla redirige a `?pagina=2` en lugar de mostrar un error o una lista vacía sin salida
 
 #### Scenario: Filtros en la URL
 - **WHEN** se elige "Inactivos" y la categoría "Bebidas" y se recarga la página
@@ -46,7 +54,7 @@ Un producto con `sale_price` NULL SHALL mostrarse con una marca visible "Sin pre
 - **THEN** solo aparecen productos con `sale_price` NULL
 
 ### Requirement: Alta de producto por dueño o encargado
-`createProduct` SHALL validar con Zod y dar de alta un producto con: nombre (obligatorio, hasta 200), marca (hasta 80), categoría (opcional, de la organización), unidad (`unit` o `kg`), `tracks_stock`, `tracks_expiry` (por defecto `true`, RN-CA-06; si `tracks_stock` es falso, `tracks_expiry` MUST quedar falso, RN-CA-09), precio de venta opcional (centavos), costo de referencia opcional (centavos; con valor, el origen MUST ser `manual`), proveedor habitual opcional (solo uno existente de la organización), códigos de barras (cero o más, normalizados con `normalizeBarcode`, sin repetir `barcodeKey` dentro del formulario; el primero queda como principal) y stock mínimo por cada local al que la persona tiene acceso (opcional; entero para `unit`, hasta 3 decimales para `kg`). Antes de escribir, la acción MUST verificar que ningún código ya exista en la organización (por `barcode_key`) y, si existe, responder `CA-E02` sin crear nada. Al terminar MUST devolver el producto creado (vista según el rol) y la pantalla MUST ir a la ficha del producto.
+`createProduct` SHALL validar con Zod y dar de alta un producto con: nombre (obligatorio, hasta 200), marca (hasta 80), categoría (opcional, de la organización), unidad (`unit` o `kg`), `tracks_stock`, `tracks_expiry` (por defecto `true`, RN-CA-06; si `tracks_stock` es falso, `tracks_expiry` MUST quedar falso, RN-CA-09), precio de venta opcional (centavos), costo de referencia opcional (centavos; con valor, el origen MUST ser `manual`), proveedor habitual opcional (solo uno existente de la organización), códigos de barras (cero o más, normalizados con `normalizeBarcode`, sin repetir `barcodeKey` dentro del formulario; el primero queda como principal) y stock mínimo por cada local al que la persona tiene acceso (opcional; entero para `unit`, hasta 3 decimales para `kg`). Antes de escribir, la acción MUST verificar que ningún código ya exista en la organización (por `barcode_key`) y, si existe, responder `CA-E02` sin crear nada. Al terminar MUST devolver el producto creado (vista según el rol) y la pantalla MUST ir a la ficha del producto. Los avisos que no impiden el alta (un código que no se cargó por una carrera, `CA-E02`, o un dígito verificador dudoso, `invalid_check_digit`) MUST mostrarse en esa ficha: viajan en la URL en un parámetro `avisos` que lleva SOLO el código del aviso y el código de barras (nunca un texto); la ficha MUST validarlo con Zod, ignorar lo que no calza (texto libre, avisos inventados, códigos no válidos) y armar ella misma el mensaje en castellano, que nombra el código al que se refiere (`El código {código}: …`).
 
 #### Scenario: Alta completa
 - **WHEN** el `manager` da de alta "Agua Mineral 2 L" con precio `$ 1.200,00`, costo `$ 800,00`, un EAN-13 nuevo y stock mínimo `6` en su local
@@ -59,6 +67,10 @@ Un producto con `sale_price` NULL SHALL mostrarse con una marca visible "Sin pre
 #### Scenario: Carrera por el mismo código
 - **WHEN** el chequeo previo no encuentra el código pero otra persona lo carga antes del `INSERT` de los códigos
 - **THEN** el producto queda creado sin ese código, la acción devuelve `ok` con un aviso `CA-E02` y la ficha lo muestra
+
+#### Scenario: Avisos en la ficha tras el alta
+- **WHEN** el alta devuelve un aviso `CA-E02` y otro `invalid_check_digit` y la pantalla va a la ficha
+- **THEN** la URL lleva `?avisos=CA-E02:<código>,invalid_check_digit:<código>` y la ficha muestra los dos mensajes, cada uno con su código; un `avisos` con texto libre o un aviso inventado no muestra nada
 
 #### Scenario: Vencimiento sin stock
 - **WHEN** se envía `tracks_stock = false` y `tracks_expiry = true`
@@ -73,7 +85,7 @@ Un producto con `sale_price` NULL SHALL mostrarse con una marca visible "Sin pre
 - **THEN** Zod lo rechaza (`CA-E01`): son el mismo código
 
 ### Requirement: Alta de producto por el empleado con campos acotados
-`createProduct` SHALL aceptar también a un `employee` de la organización (lo reutiliza el alta rápida de C-12). Para ese rol, la acción MUST armar el `INSERT` solo con nombre, marca, categoría, unidad, `tracks_stock`, `tracks_expiry`, precio de venta y códigos, y MUST NOT enviar costo, origen del costo, proveedor habitual, botón de venta rápida ni stock mínimo aunque vengan en el pedido (la guardia `private.guard_employee_product_write` es el respaldo: si igual llegara un `42501`, se traduce a `CA-E04`). El resultado devuelto a un `employee` MUST NOT incluir costo, origen ni fecha del costo, proveedor habitual ni campos de venta rápida.
+`createProduct` SHALL aceptar también a un `employee` de la organización (lo reutiliza el alta rápida de C-12). Para ese rol, la acción MUST armar el `INSERT` solo con nombre, marca, categoría, unidad, `tracks_stock`, `tracks_expiry`, precio de venta y códigos, y MUST NOT enviar costo, origen del costo, proveedor habitual, botón de venta rápida ni stock mínimo aunque vengan en el pedido (la guardia `private.guard_employee_product_write` es el respaldo: si igual llegara un `42501`, se traduce a `CA-E04`). Esos campos MUST descartarse en silencio ANTES de validar con Zod (decisión del fundador, pregunta 15): un valor inválido en `referenceCostCents`, `preferredSupplierId` o `minStocks` (o en cualquier clave de venta rápida) no puede hacer fallar el alta de quien no tiene esos campos; la lista blanca al armar el `INSERT` queda como segunda capa. El resultado devuelto a un `employee` MUST NOT incluir costo, origen ni fecha del costo, proveedor habitual ni campos de venta rápida.
 
 #### Scenario: Empleado da de alta con precio
 - **WHEN** `employee.norte@demo.test` llama a `createProduct` con nombre, precio y un código nuevo
@@ -83,12 +95,24 @@ Un producto con `sale_price` NULL SHALL mostrarse con una marca visible "Sin pre
 - **WHEN** el pedido del `employee` incluye costo, proveedor habitual y stock mínimo
 - **THEN** esos campos no se envían a la base y el producto queda sin costo, sin proveedor y sin stock mínimo
 
+#### Scenario: Campos de administración inválidos del empleado
+- **WHEN** el pedido del `employee` trae `referenceCostCents` negativo o con decimales, un `preferredSupplierId` que no es un id o un stock mínimo fraccionario en un producto por unidad
+- **THEN** el alta sale bien (se descartaron antes de validar), no se escribe ningún mínimo y el resultado no lleva claves de administración; un error en un campo que el empleado sí tiene (por ejemplo el nombre) sigue dando `CA-E01`
+
 ### Requirement: Edición de producto
-`updateProduct` SHALL ser solo de `owner` y `manager` y MUST enviar a la base únicamente las columnas que cambiaron respecto de la versión cargada (nombre, marca, categoría, unidad, `tracks_stock`, `tracks_expiry`, costo de referencia, proveedor habitual) y el stock mínimo por local que cambió. MUST NOT escribir `sale_price` (lo cambia `changeSalePrice`), `status` (desactivar/reactivar) ni los campos de venta rápida (C-26). Si el costo cambia, MUST enviarse con origen `manual`; si se borra, costo y origen MUST quedar los dos en NULL; si no cambia, MUST NOT enviarse (se conserva un origen `import`). Un `employee` que llama la acción MUST recibir `CA-E04` sin que se escriba nada.
+`updateProduct` SHALL ser solo de `owner` y `manager` y MUST enviar a la base únicamente las columnas que cambiaron respecto de la versión cargada (nombre, marca, categoría, unidad, `tracks_stock`, `tracks_expiry`, costo de referencia, proveedor habitual) y el stock mínimo por local que cambió. MUST NOT escribir `sale_price` (lo cambia `changeSalePrice`), `status` (desactivar/reactivar) ni los campos de venta rápida (C-26). El servidor MUST comparar contra lo que la persona vio al abrir la ficha (el snapshot `loaded` que manda el formulario), no contra lo que hay hoy en la base: así un valor viejo del formulario no pisa lo que otra persona editó mientras tanto, y los campos que la persona no tocó no se escriben. Apagar `tracks_stock` MUST escribir siempre también `tracks_expiry = false`, aunque el snapshot ya lo tuviera apagado. Tras guardar, el formulario MUST mostrar y tomar como nuevo `loaded` el producto que devolvió el servidor (no lo que la persona escribió), de modo que los cambios ajenos se vean y el próximo guardado compare contra eso. Si el costo cambia respecto de `loaded`, MUST enviarse con origen `manual`; si se borra, costo y origen MUST quedar los dos en NULL; si no cambia, MUST NOT enviarse (se conserva un origen `import`). Un `employee` que llama la acción MUST recibir `CA-E04` sin que se escriba nada.
 
 #### Scenario: Cambiar solo el nombre
 - **WHEN** el `owner` cambia el nombre de un producto con costo importado
 - **THEN** el `UPDATE` solo lleva `name` y el costo conserva el origen `import`
+
+#### Scenario: Cambios de otra persona se conservan
+- **WHEN** el `owner` abre la ficha, otra persona cambia la marca y el `owner` guarda solo un cambio de nombre
+- **THEN** el `UPDATE` lleva únicamente `name`, la marca de la otra persona no se pisa y, al guardar, el formulario muestra la marca que devolvió el servidor
+
+#### Scenario: Apagar el stock con un snapshot viejo
+- **WHEN** el formulario cargó el producto con el vencimiento apagado y la persona apaga el control de stock
+- **THEN** el `UPDATE` lleva `tracks_stock = false` y `tracks_expiry = false`
 
 #### Scenario: Borrar el costo
 - **WHEN** el `manager` vacía el costo de referencia
@@ -151,7 +175,11 @@ La pantalla `/org/[orgId]/catalogo/categorias` SHALL listar las categorías de l
 - **THEN** los productos de esa categoría muestran el nombre nuevo
 
 ### Requirement: Proveedor habitual: solo elegir uno existente
-El formulario SHALL ofrecer el proveedor habitual como una lista de los proveedores existentes de la organización, con la opción "Sin proveedor" (RN-CA-11). C-09 MUST NOT crear, editar ni unificar proveedores (alta rápida en C-33; edición y unificación en C-56). Un id de proveedor que no es de la organización MUST rechazarse (`CA-E01`; respaldo: `23503` de la FK compuesta).
+La lectura de proveedores (`listSuppliers`) MUST devolver una lista vacía sin consultar la base cuando el rol es `employee` (la función no confía en que la página ya lo filtró). El formulario SHALL ofrecer el proveedor habitual como una lista de los proveedores existentes de la organización, con la opción "Sin proveedor" (RN-CA-11). C-09 MUST NOT crear, editar ni unificar proveedores (alta rápida en C-33; edición y unificación en C-56). Un id de proveedor que no es de la organización MUST rechazarse (`CA-E01`; respaldo: `23503` de la FK compuesta).
+
+#### Scenario: Un empleado no recibe proveedores
+- **WHEN** se llama a `listSuppliers` con un contexto de rol `employee`
+- **THEN** devuelve `[]` y no se hace ninguna consulta a `suppliers`
 
 #### Scenario: Elegir y quitar el proveedor
 - **WHEN** el `owner` elige "Distribuidora del Norte" y luego "Sin proveedor"
@@ -176,7 +204,7 @@ Si `writable` del contexto es falso (organización `suspended`, RN-TE-06), las p
 - **THEN** ve el listado sin el botón "Nuevo producto" y la acción responde `CA-E05` sin escribir
 
 ### Requirement: Errores de la base traducidos a mensajes en castellano
-Las acciones SHALL devolver `Result<T, CatalogError>` (`ok`/`err` de `src/shared/lib/result.ts`), con `CatalogError = { code, message, fieldErrors?, details? }` y un catálogo cerrado `CA-E01`…`CA-E10` definido en `features/catalog/domain` (como los `IMP-*` de C-27; el catálogo `DomainErrorCode` de `ActionResult` es solo de ventas, pagos y caja). Una función pura MUST traducir los errores de PostgREST: `23505` sobre `product_barcodes_organization_id_barcode_key_key` o `product_barcodes_organization_id_barcode_norm_key` → `CA-E02`; `23505` sobre `categories_organization_id_lower_name_key` → `CA-E03`; `42501` → `CA-E04`; `23514` por precio vaciado → `CA-E07`; otros `23514` y `23503` → `CA-E01`; ninguna fila afectada en un `UPDATE` (RLS o producto inexistente) → `CA-E06`; cualquier otro → `CA-E10` con un log que lleva solo código y nombre de restricción (nunca datos del producto ni del usuario).
+Las acciones SHALL devolver `Result<T, CatalogError>` (`ok`/`err` de `src/shared/lib/result.ts`), con `CatalogError = { code, message, fieldErrors?, details? }` y un catálogo cerrado `CA-E01`…`CA-E10` definido en `features/catalog/domain` (como los `IMP-*` de C-27; el catálogo `DomainErrorCode` de `ActionResult` es solo de ventas, pagos y caja). Una función pura MUST traducir los errores de PostgREST: `23505` sobre `product_barcodes_organization_id_barcode_key_key` o `product_barcodes_organization_id_barcode_norm_key` → `CA-E02`; `23505` sobre `categories_organization_id_lower_name_key` → `CA-E03`; `42501` → `CA-E04`; `23514` por precio vaciado → `CA-E07`; otros `23514` y `23503` → `CA-E01`; ninguna fila afectada en un `UPDATE` (RLS o producto inexistente) → `CA-E06`; cualquier otro → `CA-E10` con un log que lleva solo el nombre de la acción, el tipo del error (el nombre de su constructor), el código y el nombre de restricción (nunca el mensaje, `details` ni `hint` de Postgres, ni datos del producto o del usuario).
 
 #### Scenario: Tabla de traducción
 - **WHEN** se traducen errores con esos códigos y restricciones, y uno desconocido (`XX000`)

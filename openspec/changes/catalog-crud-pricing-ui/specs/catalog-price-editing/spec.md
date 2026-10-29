@@ -23,7 +23,7 @@ La pantalla de cambio de precio y el formulario del producto SHALL mostrar el ma
 - **THEN** se muestra "Sin costo: no se puede calcular el margen" y ningún aviso
 
 ### Requirement: Cambio de precio individual solo para dueño y encargado
-`changeSalePrice(orgId, productId, newPriceCents, expectedPriceCents)` SHALL ser solo de `owner` y `manager` (un `employee` recibe `CA-E04`). MUST validar el precio con Zod (entero de centavos, `0 ≤ precio ≤ MAX_CENTS`; un precio vacío para un producto que ya tenía precio da `CA-E07`) y actualizar `sale_price` con la condición de que el precio actual siga siendo `expectedPriceCents` (`IS NULL` si no tenía). Si ninguna fila cambia, MUST releer: si el producto existe con otro precio, responder `CA-E08` con el precio actual ("El precio cambió mientras lo editabas: ahora es $ …"); si no es visible, `CA-E06`. El historial lo registra el trigger de la base con origen `manual`; la acción MUST NOT escribir en `price_changes`. Un precio igual al actual MUST responder `ok` sin escribir.
+`changeSalePrice(orgId, productId, newPriceCents, expectedPriceCents)` SHALL ser solo de `owner` y `manager` (un `employee` recibe `CA-E04`). MUST validar el precio con Zod (entero de centavos, `0 ≤ precio ≤ MAX_CENTS`; un precio vacío para un producto que ya tenía precio da `CA-E07`) y actualizar `sale_price` con la condición de que el precio actual siga siendo `expectedPriceCents` (`IS NULL` si no tenía). Si ninguna fila cambia, MUST releer: si el producto existe con otro precio, responder `CA-E08` con el precio actual ("El precio cambió mientras lo editabas: ahora es $ …"); si no es visible, `CA-E06`. El historial lo registra el trigger de la base con origen `manual`; la acción MUST NOT escribir en `price_changes`. Cuando el precio pedido es igual al que la persona vio (`newPriceCents === expectedPriceCents`) no hay nada que escribir, pero la acción MUST igualmente releer el precio actual (filtrado por `id` y `organization_id`) antes de responder: si el producto no es visible, `CA-E06`; si otra persona ya lo cambió (el precio actual difiere del visto), `CA-E08` con el precio actual en `details.currentPriceCents`; solo si el precio actual sigue siendo ese, `ok` con `changed: false`, sin escribir y sin revalidar. Tras un `CA-E08` la pantalla MUST volver a leer la ficha (`router.refresh()`) para no quedar con el precio viejo.
 
 #### Scenario: Cambio de precio
 - **WHEN** el `manager` cambia un precio de `$ 1.000,00` a `$ 1.150,00`
@@ -32,6 +32,14 @@ La pantalla de cambio de precio y el formulario del producto SHALL mostrar el ma
 #### Scenario: Cambio concurrente
 - **WHEN** dos encargados abren la misma ficha con `$ 1.000,00`, el primero guarda `$ 1.100,00` y el segundo intenta `$ 1.200,00`
 - **THEN** el segundo recibe `CA-E08` con el precio actual `$ 1.100,00` y nada se pisa
+
+#### Scenario: Reconfirmar el precio visto después de un cambio ajeno
+- **WHEN** dos encargados abren la ficha con `$ 1.000,00`, el primero guarda `$ 1.100,00` y el segundo vuelve a guardar `$ 1.000,00` (el precio que vio)
+- **THEN** el segundo recibe `CA-E08` con el precio actual `$ 1.100,00` (no un falso "ya estaba así") y la ficha se vuelve a leer
+
+#### Scenario: Mismo precio real o producto ajeno
+- **WHEN** se guarda el precio que el producto efectivamente tiene, o el `productId` es de otra organización o no existe
+- **THEN** en el primer caso la acción responde `ok` con `changed: false` sin escribir ni revalidar, y en el segundo `CA-E06`
 
 #### Scenario: Primer precio desde la ficha
 - **WHEN** el `owner` le pone precio a un producto sin precio

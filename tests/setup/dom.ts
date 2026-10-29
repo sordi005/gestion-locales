@@ -23,6 +23,32 @@ if (typeof window !== "undefined" && typeof window.matchMedia !== "function") {
   });
 }
 
+// jsdom tampoco trae lo que usan los componentes de Radix (Checkbox, Select,
+// Dialog): `ResizeObserver`, la captura del puntero y `scrollIntoView`. Son
+// no-ops: los tests prueban comportamiento, no medidas ni foco del puntero.
+if (typeof window !== "undefined") {
+  if (typeof window.ResizeObserver !== "function") {
+    window.ResizeObserver = class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  }
+  const elementPrototype = window.Element.prototype;
+  if (typeof elementPrototype.hasPointerCapture !== "function") {
+    elementPrototype.hasPointerCapture = () => false;
+  }
+  if (typeof elementPrototype.setPointerCapture !== "function") {
+    elementPrototype.setPointerCapture = () => {};
+  }
+  if (typeof elementPrototype.releasePointerCapture !== "function") {
+    elementPrototype.releasePointerCapture = () => {};
+  }
+  if (typeof elementPrototype.scrollIntoView !== "function") {
+    elementPrototype.scrollIntoView = () => {};
+  }
+}
+
 afterEach(() => {
   cleanup();
 });
