@@ -25,6 +25,9 @@ export const MAX_CENTS = 99_999_999_999_999;
 /** Máximo de `numeric(12,3)`: 999.999.999,999. */
 export const MAX_QUANTITY_MILLI = 999_999_999_999;
 
+/** Piso del margen: -10.000 % (precio $ 0,01 con un costo enorme). */
+export const MIN_MARGIN_BASIS_POINTS = -1_000_000;
+
 const CENTS_SCALE = 2;
 const MILLI_SCALE = 3;
 
@@ -71,6 +74,11 @@ function scaleDecimalParts(
     Number(whole === "" ? "0" : whole) * 10 ** scale +
     Number(fraction.padEnd(scale, "0"));
   return scaled > max ? err("out_of_range") : ok(scaled);
+}
+
+// Punto de miles en una parte entera ya escrita como dígitos (`1234567` -> `1.234.567`).
+function groupThousands(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+$)/g, ".");
 }
 
 function assertScaledInteger(value: number, max: number): void {
@@ -356,8 +364,70 @@ export function formatArs(
     CENTS_SCALE,
     "0",
   );
-  const grouped = whole.replace(/\B(?=(\d{3})+$)/g, ".");
   const sign = cents < 0 ? "-" : "";
-  const number = `${grouped},${fraction}`;
+  const number = `${groupThousands(whole)},${fraction}`;
   return options.symbol === false ? `${sign}${number}` : `${sign}$ ${number}`;
+}
+
+// ---------------------------------------------------------------------------
+// Margen (D12, RN-PC-07).
+// ---------------------------------------------------------------------------
+
+const BASIS_POINTS_PER_UNIT = 10_000;
+// Un punto básico son 0,01 %: un decimal de porcentaje son 10 puntos básicos.
+const BASIS_POINTS_PER_TENTH_PERCENT = 10;
+const TENTHS_PER_PERCENT = 10;
+
+/**
+ * Margen `(precio - costo) / precio` (RN-PC-07) en puntos básicos enteros
+ * (`10000` = 100 %), redondeado a la mitad LEJOS de cero, como `round` de
+ * Postgres. El producto `(precio - costo) x 10000` puede pasar `2^53` (precio y
+ * costo llegan a 10^14), así que se calcula con `BigInt` y nunca con coma
+ * flotante. Sin precio no hay margen (`null`); por debajo de
+ * `MIN_MARGIN_BASIS_POINTS` se devuelve ese piso. Un precio o costo que no es un
+ * `Cents` válido (decimal, negativo, fuera de rango) lanza `RangeError`.
+ */
+export function marginBasisPoints(
+  priceCents: Cents,
+  costCents: Cents,
+): number | null {
+  assertScaledInteger(priceCents, MAX_CENTS);
+  assertScaledInteger(costCents, MAX_CENTS);
+  if (priceCents < 0 || costCents < 0) {
+    throw new RangeError("El precio y el costo no pueden ser negativos");
+  }
+  if (priceCents === 0) {
+    return null;
+  }
+  const price = BigInt(priceCents);
+  const numerator = (price - BigInt(costCents)) * BigInt(BASIS_POINTS_PER_UNIT);
+  const negative = numerator < BigInt(0);
+  const magnitude = negative ? -numerator : numerator;
+  let rounded = magnitude / price;
+  // El resto es la mitad del divisor o más: el redondeo va hacia arriba.
+  if ((magnitude % price) * BigInt(2) >= price) {
+    rounded += BigInt(1);
+  }
+  const basisPoints = Number(negative ? -rounded : rounded);
+  return Math.max(basisPoints, MIN_MARGIN_BASIS_POINTS);
+}
+
+/**
+ * Formatea puntos básicos como porcentaje con un decimal: `2000` -> `20,0 %`
+ * (coma decimal, punto de miles, espacio no separable antes del `%`, signo menos
+ * delante). Lo que redondea a cero se muestra sin signo (`-1` -> `0,0 %`). Sin
+ * `Intl`, por la misma razón que `formatArs`: el servidor y el navegador deben
+ * dibujar el mismo texto.
+ */
+export function formatBasisPointsPercent(basisPoints: number): string {
+  if (!Number.isSafeInteger(basisPoints)) {
+    throw new RangeError(`Puntos básicos inválidos: ${basisPoints}`);
+  }
+  const half = BASIS_POINTS_PER_TENTH_PERCENT / 2;
+  const tenths = Math.floor(
+    (Math.abs(basisPoints) + half) / BASIS_POINTS_PER_TENTH_PERCENT,
+  );
+  const whole = groupThousands(String(Math.floor(tenths / TENTHS_PER_PERCENT)));
+  const sign = basisPoints < 0 && tenths !== 0 ? "-" : "";
+  return `${sign}${whole},${tenths % TENTHS_PER_PERCENT} %`;
 }

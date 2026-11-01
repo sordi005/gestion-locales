@@ -20,7 +20,8 @@ import { BOTTOM_BAR_ITEM_CLASS } from "./shell-nav";
 
 type AccountSheetProps = {
   userName: string;
-  locationName: string;
+  /** `null` en el área de organización: no hay local activo y no se muestra la fila. */
+  locationName: string | null;
   organizationName: string;
   canSwitchLocation: boolean;
 };
@@ -54,10 +55,12 @@ export function AccountSheet({
           <SheetDescription>Sesión iniciada como {userName}</SheetDescription>
         </SheetHeader>
         <dl className="flex flex-col gap-2 text-sm">
-          <div className="flex flex-col">
-            <dt className="text-muted-foreground">Local</dt>
-            <dd className="font-medium">{locationName}</dd>
-          </div>
+          {locationName === null ? null : (
+            <div className="flex flex-col">
+              <dt className="text-muted-foreground">Local</dt>
+              <dd className="font-medium">{locationName}</dd>
+            </div>
+          )}
           <div className="flex flex-col">
             <dt className="text-muted-foreground">Organización</dt>
             <dd className="font-medium">{organizationName}</dd>

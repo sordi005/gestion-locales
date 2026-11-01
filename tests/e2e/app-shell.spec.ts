@@ -181,7 +181,7 @@ test.describe("recorrido con teclado", () => {
 
   // Solo corre en `desktop-keyboard` (el proyecto `mobile` excluye @keyboard).
   test(
-    "Tab pasa por 'Saltar al contenido', el menú, 'Cambiar de local' y 'Cerrar sesión' en ese orden, y Enter sigue el enlace",
+    "Tab pasa por 'Saltar al contenido', el menú (con 'Catálogo'), 'Cambiar de local' y 'Cerrar sesión' en ese orden, y Enter sigue el enlace",
     { tag: "@keyboard" },
     async ({ page }) => {
       await page.goto(`/l/${LOCAL_CENTRO_SUR}`);
@@ -193,6 +193,9 @@ test.describe("recorrido con teclado", () => {
       ).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(menu.getByRole("link", { name: "Inicio" })).toBeFocused();
+      await page.keyboard.press("Tab");
+      // La dueña ve también "Catálogo" (C-09), que es una sección de organización.
+      await expect(menu.getByRole("link", { name: "Catálogo" })).toBeFocused();
       await page.keyboard.press("Tab");
       await expect(
         menu.getByRole("link", { name: "Cambiar de local" }),

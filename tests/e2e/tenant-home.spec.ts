@@ -17,17 +17,30 @@ const WITH_ONE_LOCATION: ReadonlyArray<{
   user: StorageStateUser;
   role: string;
   locationId: string;
+  /** El empleado no tiene secciones construidas (el catálogo es de dueño y encargado). */
+  hasSections: boolean;
 }> = [
   {
     user: "employee.norte",
     role: "empleado",
     locationId: LOCAL_CENTRO_NORTE,
+    hasSections: false,
   },
-  { user: "manager.sur", role: "encargado", locationId: LOCAL_CENTRO_SUR },
-  { user: "owner.norte", role: "dueño", locationId: LOCAL_CENTRO_NORTE },
+  {
+    user: "manager.sur",
+    role: "encargado",
+    locationId: LOCAL_CENTRO_SUR,
+    hasSections: true,
+  },
+  {
+    user: "owner.norte",
+    role: "dueño",
+    locationId: LOCAL_CENTRO_NORTE,
+    hasSections: true,
+  },
 ];
 
-for (const { user, role, locationId } of WITH_ONE_LOCATION) {
+for (const { user, role, locationId, hasSections } of WITH_ONE_LOCATION) {
   test.describe(`${user} (${role} con un solo local)`, () => {
     test.use({ storageState: storageStateFor(user) });
 
@@ -38,9 +51,21 @@ for (const { user, role, locationId } of WITH_ONE_LOCATION) {
       await expect(
         page.getByRole("heading", { level: 1, name: "Local Centro" }),
       ).toBeVisible();
-      await expect(
-        page.getByText("Muy pronto vas a poder vender y manejar la caja"),
-      ).toBeVisible();
+      // Con "Catálogo" construido (C-09), dueño y encargado ven la lista de secciones;
+      // el empleado sigue viendo el aviso de "muy pronto".
+      const soon = page.getByText(
+        "Muy pronto vas a poder vender y manejar la caja",
+      );
+      const sections = page.getByRole("list", { name: "Secciones del local" });
+      if (hasSections) {
+        await expect(
+          sections.getByRole("link", { name: "Catálogo" }),
+        ).toBeVisible();
+        await expect(soon).toHaveCount(0);
+      } else {
+        await expect(soon).toBeVisible();
+        await expect(sections).toHaveCount(0);
+      }
     });
   });
 }

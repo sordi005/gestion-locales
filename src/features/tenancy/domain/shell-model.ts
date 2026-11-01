@@ -1,10 +1,11 @@
 import type { LocationContext } from "./location-access";
 import { sectionHref, visibleSections } from "./navigation";
 import type { Section, SectionKey } from "./navigation";
+import type { OrgContext } from "./org-access";
 import type { Role } from "./tenant-context";
 
-// Lo ÚNICO que el layout de `/l/[locationId]` le pasa al marco de la app (D11):
-// nombres, ids, rol, `writable` y las secciones con su `href`. Cruza al cliente
+// Lo ÚNICO que los layouts de `/l/[locationId]` y `/org/[orgId]` le pasan al marco
+// de la app (D11): nombres, ids, rol, `writable` y las secciones con su `href`. Cruza al cliente
 // (el marco tiene partes interactivas), así que no lleva el id de la persona, la
 // lista completa de locales ni el contexto de tenant entero. El único email que
 // puede cruzar es el de la PROPIA persona, como `userName` cuando no tiene
@@ -20,7 +21,8 @@ export type ShellSection = {
 export type ShellModel = {
   /** `full_name`, o el email si no hay nombre (RN-AU-03). */
   readonly userName: string;
-  readonly location: { readonly id: string; readonly name: string };
+  /** `null` en el área de organización (`/org/[orgId]`): no hay local activo. */
+  readonly location: { readonly id: string; readonly name: string } | null;
   readonly organization: {
     readonly id: string;
     readonly name: string;
@@ -61,6 +63,48 @@ export function buildShellModel(
         organizationId: context.organization.id,
       }),
     })),
+  };
+}
+
+/**
+ * Arma el modelo del marco para el área de organización (`/org/[orgId]/…`): sin
+ * local activo (`location: null`). Las secciones de organización siempre; las de
+ * local solo si la persona tiene exactamente UN local en la organización (cuelgan
+ * de ese local). Con varios no hay local que elegir por ella: no se muestran y el
+ * marco ofrece "Cambiar de local".
+ */
+export function buildOrgShellModel(
+  context: OrgContext,
+  registry: readonly Section[],
+): ShellModel {
+  const locationId =
+    context.locations.length === 1 ? context.locations[0]?.id : undefined;
+
+  return {
+    userName: context.user.displayName,
+    location: null,
+    organization: {
+      id: context.organization.id,
+      name: context.organization.name,
+      writable: context.organization.writable,
+    },
+    role: context.role,
+    canSwitchLocation: context.locations.length > 1,
+    sections: visibleSections(context.role, { registry }).flatMap((section) =>
+      section.scope === "location" && locationId === undefined
+        ? []
+        : [
+            {
+              key: section.key,
+              label: section.label,
+              // Las secciones de organización no usan el id del local.
+              href: sectionHref(section, {
+                locationId: locationId ?? "",
+                organizationId: context.organization.id,
+              }),
+            },
+          ],
+    ),
   };
 }
 

@@ -4,7 +4,13 @@ import { resolveLocationAccess } from "../location-access";
 import type { LocationContext } from "../location-access";
 import { SECTIONS } from "../navigation";
 import type { Section, SectionKey } from "../navigation";
-import { buildShellModel, currentSectionKey } from "../shell-model";
+import { resolveOrgAccess } from "../org-access";
+import type { OrgContext } from "../org-access";
+import {
+  buildOrgShellModel,
+  buildShellModel,
+  currentSectionKey,
+} from "../shell-model";
 import { buildTenantContext } from "../tenant-context";
 import {
   LOC_NORTE_CENTRO,
@@ -90,7 +96,7 @@ describe("buildShellModel", () => {
       "name",
       "writable",
     ]);
-    expect(Object.keys(model.location).sort()).toEqual(["id", "name"]);
+    expect(Object.keys(model.location ?? {}).sort()).toEqual(["id", "name"]);
   });
 
   it("owner.sur tiene dos locales: puede cambiar de local; owner.norte (uno) no", () => {
@@ -220,6 +226,168 @@ describe("buildShellModel", () => {
 
       expect(model.sections.map((s) => s.key)).toEqual(["inicio"]);
     });
+  });
+});
+
+function orgContextOf(
+  user: SeedUserKey,
+  orgId: string,
+  mutate?: (rows: ReturnType<typeof rowsFor>) => void,
+): OrgContext {
+  const rows = rowsFor(user);
+  mutate?.(rows);
+  const access = resolveOrgAccess(buildTenantContext(rows), orgId, [
+    "owner",
+    "manager",
+    "employee",
+  ]);
+  if (access.kind !== "ok") throw new Error(`${user} no entra a ${orgId}`);
+  return access.context;
+}
+
+// `buildOrgShellModel` arma el mismo modelo para `/org/[orgId]/…` (spec app-shell
+// "Marco del área de organización"): sin local activo (`location: null`), con las
+// secciones de organización siempre y las de local solo si la persona tiene
+// exactamente UN local en la organización.
+describe("buildOrgShellModel", () => {
+  it('"Owner con un local en el catálogo": sin local, la organización, Inicio enlazado a su local y Catálogo', () => {
+    const model = buildOrgShellModel(
+      orgContextOf("owner.norte", ORG_NORTE),
+      SECTIONS,
+    );
+
+    expect(model).toStrictEqual({
+      userName: "Dueño Demo Norte",
+      location: null,
+      organization: {
+        id: ORG_NORTE,
+        name: "Kiosco Demo Norte",
+        writable: true,
+      },
+      role: "owner",
+      canSwitchLocation: false,
+      sections: [
+        { key: "inicio", label: "Inicio", href: `/l/${LOC_NORTE_CENTRO}` },
+        {
+          key: "catalogo",
+          label: "Catálogo",
+          href: `/org/${ORG_NORTE}/catalogo`,
+        },
+      ],
+    });
+  });
+
+  it('"Persona con dos locales": solo Catálogo, sin secciones de local, y puede cambiar de local', () => {
+    const model = buildOrgShellModel(
+      orgContextOf("owner.sur", ORG_SUR),
+      SECTIONS,
+    );
+
+    expect(model.location).toBeNull();
+    expect(model.canSwitchLocation).toBe(true);
+    expect(model.sections).toEqual([
+      { key: "catalogo", label: "Catálogo", href: `/org/${ORG_SUR}/catalogo` },
+    ]);
+  });
+
+  it("con dos locales tampoco aparecen las secciones de local que se construyan después", () => {
+    const model = buildOrgShellModel(
+      orgContextOf("owner.sur", ORG_SUR),
+      built("vender", "caja", "catalogo", "estadisticas"),
+    );
+
+    expect(model.sections.map((s) => s.key)).toEqual([
+      "catalogo",
+      "estadisticas",
+    ]);
+  });
+
+  it("con un local, las secciones de local construidas cuelgan de ESE local", () => {
+    const model = buildOrgShellModel(
+      orgContextOf("manager.sur", ORG_SUR),
+      built("vender", "caja", "estadisticas"),
+    );
+
+    expect(model.sections.map((s) => [s.key, s.href])).toEqual([
+      ["inicio", `/l/${LOC_SUR_CENTRO}`],
+      ["vender", `/l/${LOC_SUR_CENTRO}/vender`],
+      ["caja", `/l/${LOC_SUR_CENTRO}/caja`],
+      ["estadisticas", `/org/${ORG_SUR}/estadisticas`],
+    ]);
+    expect(model.role).toBe("manager");
+    expect(model.canSwitchLocation).toBe(false);
+  });
+
+  it("manager sin locales asignados: solo las secciones de organización y nada para cambiar", () => {
+    const model = buildOrgShellModel(
+      orgContextOf("manager.sur", ORG_SUR, (rows) => {
+        rows.membershipLocations = [];
+      }),
+      SECTIONS,
+    );
+
+    expect(model.sections.map((s) => s.key)).toEqual(["catalogo"]);
+    expect(model.canSwitchLocation).toBe(false);
+  });
+
+  it("un employee no recibe el catálogo (sí el inicio de su local)", () => {
+    const model = buildOrgShellModel(
+      orgContextOf("employee.norte", ORG_NORTE),
+      SECTIONS,
+    );
+
+    expect(model.sections.map((s) => s.key)).toEqual(["inicio"]);
+  });
+
+  it("organización suspendida: writable en falso (el marco muestra el aviso)", () => {
+    const model = buildOrgShellModel(
+      orgContextOf("owner.norte", ORG_NORTE, (rows) => {
+        rows.organizations = rows.organizations.map((o) => ({
+          ...o,
+          status: "suspended",
+        }));
+      }),
+      SECTIONS,
+    );
+
+    expect(model.organization.writable).toBe(false);
+  });
+
+  it("no pasa nada más: ni el email, ni el id de la persona, ni el estado crudo, ni locales de sobra", () => {
+    const model = buildOrgShellModel(
+      orgContextOf("owner.sur", ORG_SUR),
+      SECTIONS,
+    );
+
+    const serialized = JSON.stringify(model);
+    expect(serialized).not.toContain("owner.sur@demo.test");
+    expect(serialized).not.toContain("10000000-0000-4000-8000-000000000004");
+    expect(serialized).not.toContain(LOC_SUR_ESTE);
+    expect(serialized).not.toContain("status");
+    expect(Object.keys(model).sort()).toEqual([
+      "canSwitchLocation",
+      "location",
+      "organization",
+      "role",
+      "sections",
+      "userName",
+    ]);
+    expect(Object.keys(model.organization).sort()).toEqual([
+      "id",
+      "name",
+      "writable",
+    ]);
+  });
+
+  it("persona sin nombre: el nombre mostrado es el email", () => {
+    const model = buildOrgShellModel(
+      orgContextOf("owner.norte", ORG_NORTE, (rows) => {
+        rows.profile = { id: rows.user.id, full_name: null };
+      }),
+      SECTIONS,
+    );
+
+    expect(model.userName).toBe("owner.norte@demo.test");
   });
 });
 

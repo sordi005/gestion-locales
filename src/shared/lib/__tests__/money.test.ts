@@ -5,10 +5,13 @@ import { err, ok } from "@/shared/lib/result";
 import {
   MAX_CENTS,
   MAX_QUANTITY_MILLI,
+  MIN_MARGIN_BASIS_POINTS,
   fromCents,
   formatArs,
+  formatBasisPointsPercent,
   fromQuantityMilli,
   lineTotalCents,
+  marginBasisPoints,
   parseArQuantity,
   parseArsAmount,
   sumCents,
@@ -511,4 +514,96 @@ describe("formatArs: sin símbolo, para un input", () => {
   it("con símbolo también vuelve: el $ y el espacio no separable se aceptan", () => {
     expect(parseArsAmount(formatArs(123456))).toStrictEqual(ok(123456));
   });
+});
+
+describe("marginBasisPoints: margen (precio - costo) / precio", () => {
+  it.each([
+    // Escenario "Márgenes" del spec money-cents.
+    [100000, 80000, 2000],
+    [75000, 80000, -667],
+    [100, 0, 10000],
+    [3, 2, 3333],
+    [20000, 19999, 1],
+    [20000, 20001, -1],
+    [100000, 100000, 0],
+    [0, 50, null],
+  ] as const)(
+    "marginBasisPoints(precio %d, costo %d) da %j",
+    (price, cost, expected) => {
+      expect(marginBasisPoints(price, cost)).toBe(expected);
+    },
+  );
+});
+
+describe("marginBasisPoints: bordes", () => {
+  it("un margen muy negativo se corta en el mínimo, sin perder precisión ni lanzar", () => {
+    expect(marginBasisPoints(1, 99999999999999)).toBe(-1000000);
+    expect(MIN_MARGIN_BASIS_POINTS).toBe(-1000000);
+  });
+
+  it.each([
+    // Justo en el piso (-10.000 %) y apenas por debajo / por encima.
+    [100, 10100, -1000000],
+    [100, 10101, -1000000],
+    [100, 10099, -999900],
+    [1, 99999999999999, -1000000],
+  ] as const)(
+    "marginBasisPoints(precio %d, costo %d) da %d",
+    (price, cost, expected) => {
+      expect(marginBasisPoints(price, cost)).toBe(expected);
+    },
+  );
+
+  it("con el precio máximo y costo cero da 100 % sin perder precisión", () => {
+    expect(marginBasisPoints(MAX_CENTS, 0)).toBe(10000);
+    expect(marginBasisPoints(MAX_CENTS, MAX_CENTS - 1)).toBe(0);
+  });
+
+  it.each<[number, number, string]>([
+    [10.5, 100, "precio decimal"],
+    [100, -1, "costo negativo"],
+    [MAX_CENTS + 1, 100, "precio mayor que MAX_CENTS"],
+    [100, MAX_CENTS + 1, "costo mayor que MAX_CENTS"],
+    [Number.NaN, 100, "precio NaN"],
+    [100, Number.POSITIVE_INFINITY, "costo infinito"],
+    [-5, 100, "precio negativo"],
+    [0, 10.5, "precio cero con costo inválido: igual lanza antes de dar null"],
+  ])("marginBasisPoints(%d, %d) lanza RangeError (%s)", (price, cost) => {
+    expect(() => marginBasisPoints(price, cost)).toThrow(RangeError);
+  });
+});
+
+describe("formatBasisPointsPercent: porcentaje con un decimal", () => {
+  it.each([
+    // Escenario "Formatos de porcentaje" del spec money-cents (U+00A0 antes del %).
+    [2000, "20,0 %"],
+    [-667, "-6,7 %"],
+    [5, "0,1 %"],
+    [-5, "-0,1 %"],
+    [-1, "0,0 %"],
+    [10000, "100,0 %"],
+    // El spec dice "-100.000,0 %", pero 10000 pb = 100 %: -1.000.000 pb = -10.000 %.
+    [-1000000, "-10.000,0 %"],
+    // Triangulación: redondeo a la mitad lejos de cero, ceros y miles.
+    [0, "0,0 %"],
+    [4, "0,0 %"],
+    [-4, "0,0 %"],
+    [14, "0,1 %"],
+    [15, "0,2 %"],
+    [-15, "-0,2 %"],
+    [99, "1,0 %"],
+    [1_234_567, "12.345,7 %"],
+    [-1_234_567, "-12.345,7 %"],
+  ] as const)("formatBasisPointsPercent(%d) da %j", (basisPoints, expected) => {
+    expect(formatBasisPointsPercent(basisPoints)).toBe(expected);
+  });
+});
+
+describe("formatBasisPointsPercent: entrada inválida", () => {
+  it.each([10.5, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 53])(
+    "formatBasisPointsPercent(%d) lanza RangeError",
+    (basisPoints) => {
+      expect(() => formatBasisPointsPercent(basisPoints)).toThrow(RangeError);
+    },
+  );
 });

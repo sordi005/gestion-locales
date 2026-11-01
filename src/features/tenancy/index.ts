@@ -26,7 +26,11 @@ export {
 export type { Section, SectionKey, SectionScope } from "./domain/navigation";
 export { resolveOrgAccess } from "./domain/org-access";
 export type { OrgAccess, OrgContext } from "./domain/org-access";
-export { buildShellModel, currentSectionKey } from "./domain/shell-model";
+export {
+  buildOrgShellModel,
+  buildShellModel,
+  currentSectionKey,
+} from "./domain/shell-model";
 export type { ShellModel, ShellSection } from "./domain/shell-model";
 export { buildTenantContext } from "./domain/tenant-context";
 export type {

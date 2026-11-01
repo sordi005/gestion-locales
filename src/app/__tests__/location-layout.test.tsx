@@ -121,7 +121,7 @@ describe("layout /l/[locationId]", () => {
     ]);
   });
 
-  it("el modelo usa el registro real de secciones (hoy, solo el inicio)", async () => {
+  it("el modelo usa el registro real de secciones (las construidas para ese rol)", async () => {
     enter("owner.norte", LOC_NORTE_CENTRO);
 
     render(await renderLayout(LOC_NORTE_CENTRO));

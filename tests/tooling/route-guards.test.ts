@@ -57,7 +57,7 @@ describe("convención de guardas en src/app y en los archivos use server de src/
     expect(findings.map(describeFinding)).toEqual([]);
   });
 
-  it("el recorrido es real: encuentra las páginas, los layouts, el handler y las acciones de auth", () => {
+  it("el recorrido es real: encuentra las páginas, los layouts (incluido el área de organización), el handler y las acciones de auth", () => {
     const routeFiles = files
       .map((f) => f.file)
       .filter((file) =>
@@ -78,6 +78,11 @@ describe("convención de guardas en src/app y en los archivos use server de src/
         "src/app/(app)/l/[locationId]/page.tsx",
         "src/app/(app)/l/[locationId]/layout.tsx",
         "src/app/(app)/locales/page.tsx",
+        "src/app/(app)/org/[orgId]/layout.tsx",
+        "src/app/(app)/org/[orgId]/catalogo/page.tsx",
+        "src/app/(app)/org/[orgId]/catalogo/nuevo/page.tsx",
+        "src/app/(app)/org/[orgId]/catalogo/[productId]/page.tsx",
+        "src/app/(app)/org/[orgId]/catalogo/categorias/page.tsx",
         "src/app/layout.tsx",
         "src/app/(auth)/layout.tsx",
         "src/app/auth/layout.tsx",
@@ -137,6 +142,32 @@ describe("convención de guardas en src/app y en los archivos use server de src/
       auditRouteGuards(files, {})
         .map((f) => f.file)
         .filter((file) => file.startsWith("src/app/(app)/l/[locationId]/")),
+    ).toEqual([]);
+  });
+
+  it("las rutas de la organización (layout y páginas bajo /org/[orgId]) llaman a requireOrgContext, no están exceptuadas", () => {
+    const orgFiles = files.filter((f) =>
+      f.file.startsWith("src/app/(app)/org/[orgId]/"),
+    );
+
+    expect(orgFiles.map((f) => f.file)).toEqual(
+      expect.arrayContaining([
+        "src/app/(app)/org/[orgId]/layout.tsx",
+        "src/app/(app)/org/[orgId]/catalogo/page.tsx",
+        "src/app/(app)/org/[orgId]/catalogo/nuevo/page.tsx",
+        "src/app/(app)/org/[orgId]/catalogo/[productId]/page.tsx",
+        "src/app/(app)/org/[orgId]/catalogo/categorias/page.tsx",
+      ]),
+    );
+    for (const { file, source } of orgFiles) {
+      expect(Object.keys(EXCEPTIONS), file).not.toContain(file);
+      expect(source, file).toMatch(/requireOrgContext\(/);
+    }
+    // Con la lista vacía tampoco aparecen: llaman a la guarda de la organización.
+    expect(
+      auditRouteGuards(files, {})
+        .map((f) => f.file)
+        .filter((file) => file.startsWith("src/app/(app)/org/[orgId]/")),
     ).toEqual([]);
   });
 

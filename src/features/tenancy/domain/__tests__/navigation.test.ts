@@ -7,15 +7,16 @@ import {
   visibleSections,
 } from "../navigation";
 import type { Section, SectionKey } from "../navigation";
-import type { Role } from "../tenant-context";
 
-const ROLES: readonly Role[] = ["owner", "manager", "employee"];
-
-/** Registro propio de un test: el real con las secciones `keys` marcadas construidas. */
+/**
+ * Registro propio de un test: el real con SOLO el inicio y las secciones `keys`
+ * construidas (así el test no depende de qué construyó cada change en el real).
+ */
 function registryBuilt(...keys: SectionKey[]): readonly Section[] {
-  return SECTIONS.map((s) =>
-    keys.includes(s.key) ? { ...s, built: true } : s,
-  );
+  return SECTIONS.map((s) => ({
+    ...s,
+    built: s.key === "inicio" || keys.includes(s.key),
+  }));
 }
 
 const ALL_BUILT: readonly Section[] = SECTIONS.map((s) => ({
@@ -49,8 +50,11 @@ describe("SECTIONS (registro real de C-06)", () => {
     ]);
   });
 
-  it("solo el inicio del local está construido", () => {
-    expect(keysOf(SECTIONS.filter((s) => s.built))).toEqual(["inicio"]);
+  it("están construidos el inicio del local y el catálogo (C-09)", () => {
+    expect(keysOf(SECTIONS.filter((s) => s.built))).toEqual([
+      "inicio",
+      "catalogo",
+    ]);
   });
 
   it("cada sección tiene una etiqueta en castellano y al menos un rol", () => {
@@ -107,9 +111,23 @@ describe("SECTIONS (registro real de C-06)", () => {
 });
 
 describe("visibleSections", () => {
-  describe("en C-06", () => {
-    it.each(ROLES)("para %s solo aparece el inicio del local", (role) => {
-      expect(keysOf(visibleSections(role))).toEqual(["inicio"]);
+  describe("con el registro real (después de C-09)", () => {
+    it.each([
+      ["owner", ["inicio", "catalogo"]],
+      ["manager", ["inicio", "catalogo"]],
+      ["employee", ["inicio"]],
+    ] as const)("para %s aparecen %j", (role, expected) => {
+      expect(keysOf(visibleSections(role))).toEqual(expected);
+    });
+
+    it("el catálogo es una sección de organización, construida, solo de owner y manager", () => {
+      expect(SECTIONS.find((s) => s.key === "catalogo")).toMatchObject({
+        label: "Catálogo",
+        scope: "org",
+        segment: "catalogo",
+        roles: ["owner", "manager"],
+        built: true,
+      });
     });
   });
 
@@ -139,7 +157,7 @@ describe("visibleSections", () => {
     });
 
     it("el registro real no cambia por haber construido uno propio", () => {
-      expect(keysOf(visibleSections("owner"))).toEqual(["inicio"]);
+      expect(keysOf(visibleSections("owner"))).toEqual(["inicio", "catalogo"]);
       expect(SECTIONS.find((s) => s.key === "estadisticas")?.built).toBe(false);
     });
   });
