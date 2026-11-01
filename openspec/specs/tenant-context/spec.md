@@ -2,9 +2,7 @@
 
 ## Purpose
 Define cómo el servidor conoce, una vez por request, quién es la persona, sus organizaciones y los locales a los que entra; la validación del local de la URL con un 404 uniforme que no filtra su existencia; las guardas por local, rol y organización; la redirección de inicio por rol y dispositivo; el selector de local; la organización suspendida en solo lectura; y la salida por falta de acceso, incluida la pantalla provisoria del super-admin. RLS sigue siendo la frontera de los datos: estas reglas dan la experiencia y los mensajes.
-
 ## Requirements
-
 ### Requirement: Contexto de tenant cargado una vez por request
 El servidor SHALL exponer `getTenantContext()` en `src/features/tenancy/server.ts` (`server-only`), que verifica la identidad con `requireUser()` y lee con el cliente de servidor (Data API, sesión de la persona y RLS) su perfil, su fila de `platform_admins`, sus propias membresías, las asignaciones de esas membresías, sus organizaciones y sus locales, con las consultas independientes en paralelo. El resultado MUST armarse con una función pura (`buildTenantContext`, en `features/tenancy/domain/`) que: considera solo las membresías `active` cuya organización es visible; da a un `owner` todos los locales de su organización y a `manager`/`employee` solo los asignados a esa membresía (espejo de `private.location_role`); nunca da acceso a un local por ser super-admin; y marca cada organización como `writable` solo si su `status` es `active`. `getTenantContext` MUST memoizarse por request con `React.cache`, para que el layout, la página y las guardas de una misma request no repitan las consultas. Si una consulta devuelve error, MUST lanzarse un error de la app (no tratarse como "sin acceso").
 
@@ -161,3 +159,15 @@ Mientras C-07 no construya `/admin`, un super-admin sin locales que abre `/` SHA
 #### Scenario: Super-admin en el inicio
 - **WHEN** `admin@demo.test` abre `/` con sesión
 - **THEN** ve "Hola, Admin Demo" y el botón "Cerrar sesión", y no es redirigido a `/auth/sin-acceso`
+
+### Requirement: 404 uniforme en el área de organización
+El 404 de `requireOrgContext` SHALL responder con estado HTTP 404 real en todas las rutas de `/org/[orgId]/**`: ningún `loading.tsx` MUST envolver ese segmento (ni en él, ni en un ancestro como `org/`, `(app)/` o la raíz, ni en un descendiente), porque con streaming un `notFound()` lanzado después del primer byte responde 200. El test de tooling que hoy vigila `/l/[locationId]` MUST cubrir también `/org/[orgId]`. Una organización ajena, una inexistente, un id mal formado y un rol que no alcanza MUST dar la misma respuesta.
+
+#### Scenario: Sin loading en el área de organización
+- **WHEN** corre el test de tooling de segmentos sin `loading`
+- **THEN** falla si aparece un `loading.tsx` en `src/app/(app)/org/[orgId]/**`, en `org/`, en `(app)/` o en la raíz
+
+#### Scenario: Mismo 404 para todo lo que no es propio
+- **WHEN** `owner.norte@demo.test` abre `/org/<Almacén Demo Sur>/catalogo`, `/org/<uuid inexistente>/catalogo` y `/org/no-es-uuid/catalogo`, y `employee.norte@demo.test` abre `/org/<Kiosco Demo Norte>/catalogo`
+- **THEN** las cuatro respuestas tienen estado 404 y el mismo contenido
+
