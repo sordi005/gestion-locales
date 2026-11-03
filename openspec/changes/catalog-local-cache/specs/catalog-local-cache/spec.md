@@ -43,7 +43,7 @@ La decisión SHALL ser una función pura (`decideSyncMode`): sincronización **c
 - **THEN** el producto sigue en la caché marcado inactivo, y la búsqueda por texto ya no lo devuelve
 
 ### Requirement: Disparadores de sincronización y una sola a la vez
-El `CatalogCacheProvider` SHALL sincronizar: al montarse, cuando la pestaña vuelve a estar visible (`visibilitychange`), cuando vuelve la conexión (`online`), cada 60 segundos mientras la pestaña está visible, y cuando se llama a `refresh()`. Una pestaña oculta MUST NOT sincronizar por el intervalo. MUST correr a lo sumo una sincronización a la vez: dentro de la pestaña, una llamada mientras otra está en curso se une a la que está en curso; entre pestañas se usa un Web Lock (`navigator.locks`) y, si el navegador no lo tiene, solo el control dentro de la pestaña. Al terminar una sincronización que cambió datos, MUST avisar a las otras pestañas por `BroadcastChannel` para que recarguen su índice en memoria desde IndexedDB.
+El `CatalogCacheProvider` SHALL sincronizar: al montarse, cuando la pestaña vuelve a estar visible (`visibilitychange`), cuando vuelve la conexión (`online`), cada 60 segundos mientras la pestaña está visible, y cuando se llama a `refresh()`. Una pestaña oculta MUST NOT sincronizar por el intervalo. Con el estado `no-access` el intervalo MUST NOT pedir nada; con `unauthenticated` MUST reintentar cada 5 minutos (en vez de cada minuto) mientras la pestaña esté visible, salvo que haya recibido `cleared(logout)`: entonces MUST hacer UN reintento temprano en el próximo ciclo normal de 60 segundos (una ventana siempre visible no espera 5 minutos para enterarse de que otra persona inició sesión) y, gastado ese intento (con cualquier resultado), volver al ritmo de 5 minutos. MUST correr a lo sumo una sincronización a la vez: dentro de la pestaña, una llamada mientras otra está en curso se une a la que está en curso; entre pestañas se usa un Web Lock (`navigator.locks`) y, si el navegador no lo tiene, solo el control dentro de la pestaña. Al terminar una sincronización que cambió datos, MUST avisar a las otras pestañas por `BroadcastChannel` para que recarguen su índice en memoria desde IndexedDB.
 
 #### Scenario: Volver a la pestaña
 - **WHEN** la pestaña de la venta estaba oculta y vuelve a estar visible
@@ -62,7 +62,7 @@ El `CatalogCacheProvider` SHALL sincronizar: al montarse, cuando la pestaña vue
 - **THEN** la otra pestaña abierta del mismo local recarga su índice y su búsqueda devuelve el precio nuevo sin pedir nada al servidor
 
 ### Requirement: Errores de sincronización que conservan la caché
-Un corte de red, una respuesta `503`, una respuesta `5xx` o una respuesta que no valida SHALL conservar la caché y el `cursor`, y dejar el estado en `stale` (desactualizada) hasta la próxima sincronización exitosa. Una respuesta `401` MUST conservar la caché, dejar el estado en `unauthenticated` y frenar el intervalo (la limpieza de cierre de sesión es la que borra). Una respuesta `404` (la persona perdió el acceso a ese local) MUST vaciar la caché y dejar el estado en `no-access`. Si el almacenamiento falla (por ejemplo, `QuotaExceededError` o IndexedDB no disponible), el catálogo recibido MUST seguir usable en memoria durante la sesión, con el estado `memory-only`. El estado MUST exponerse junto con la hora de la última sincronización exitosa.
+Un corte de red, una respuesta `503`, una respuesta `5xx` o una respuesta que no valida SHALL conservar la caché y el `cursor`, y dejar el estado en `stale` (desactualizada) hasta la próxima sincronización exitosa. Una respuesta `401` MUST conservar la caché, dejar el estado en `unauthenticated` y bajar el ritmo del intervalo a un reintento cada 5 minutos (la limpieza de cierre de sesión es la que borra). Una respuesta `404` (la persona perdió el acceso a ese local) MUST vaciar la caché y dejar el estado en `no-access`; solo la transición a `no-access` vacía y avisa: una pestaña que ya está en `no-access` y vuelve a recibir `404` MUST NOT vaciar el almacén compartido ni avisar de nuevo. Si el almacenamiento falla (por ejemplo, `QuotaExceededError` o IndexedDB no disponible), el catálogo recibido MUST seguir usable en memoria durante la sesión, con el estado `memory-only`; mientras la memoria vaya por delante del almacén, la caché MUST NOT escribir un delta ni solo el cursor sobre la base vieja (dejaría un cursor guardado más allá de filas que nunca se guardaron) y MUST NOT volver a bajar el catálogo entero en cada ciclo: sigue pidiendo deltas desde el cursor en memoria e intenta guardar el catálogo ENTERO en memoria a lo sumo cada 5 minutos. Un delta MUST aplicarse al almacén solo si el cursor guardado es el desde el que se pidió; si no, y lo guardado es de esta persona, organización y formato (otra pestaña solo movió el cursor), la caché MUST adoptarlo y reintentar UNA vez el delta desde ese cursor, y solo si no hay nada propio que adoptar (otra persona, vacío, ilegible) o el reintento vuelve a chocar, pide una completa. Una respuesta `200` cuyo `userId` no es el de esta pestaña (el servidor le respondió a OTRA persona: un dispositivo compartido donde la sesión de las cookies ya es otra) MUST tratarse como `401`: el estado queda `unauthenticated`, no se escribe nada en el almacén ni en memoria y no se avisa a las otras pestañas. El estado MUST exponerse junto con la hora de la última sincronización exitosa.
 
 #### Scenario: Sin internet
 - **WHEN** el `fetch` del delta falla por la red
@@ -70,7 +70,7 @@ Un corte de red, una respuesta `503`, una respuesta `5xx` o una respuesta que no
 
 #### Scenario: Sesión vencida
 - **WHEN** el delta responde `401`
-- **THEN** la caché no se borra, el estado es `unauthenticated` y no hay más pedidos por el intervalo
+- **THEN** la caché no se borra, el estado es `unauthenticated` y el intervalo reintenta cada 5 minutos en vez de cada 60 segundos
 
 #### Scenario: Acceso quitado
 - **WHEN** el delta responde `404` porque la membresía de la persona se deshabilitó
@@ -79,6 +79,14 @@ Un corte de red, una respuesta `503`, una respuesta `5xx` o una respuesta que no
 #### Scenario: Almacenamiento lleno
 - **WHEN** escribir en IndexedDB lanza `QuotaExceededError`
 - **THEN** la búsqueda funciona con el catálogo recibido en memoria y el estado es `memory-only`
+
+#### Scenario: Almacenamiento que vuelve después de un error
+- **WHEN** una escritura falló, el almacenamiento vuelve a andar y llega un delta nuevo
+- **THEN** no se escribe el delta sobre la base vieja; pasados 5 minutos del fallo se guarda el catálogo entero que está en memoria, y el estado vuelve a `ready`
+
+#### Scenario: Pestaña ya sin acceso se hace visible
+- **WHEN** una pestaña en `no-access` vuelve a ser visible y el delta responde `404` otra vez, mientras otra pestaña con acceso repobló la caché
+- **THEN** no se vacía el almacén, no se avisa a las otras pestañas y la otra pestaña no pierde su índice
 
 ### Requirement: Almacenamiento persistente y reconstrucción
 Después de la primera sincronización completa exitosa, el cliente SHALL pedir `navigator.storage.persist()` si existe, sin bloquear nada y sin mostrar errores si no lo concede. Si el navegador borró el almacenamiento (por ejemplo, Safari en iOS tras días sin uso; gotcha 10 de 08), la falta de `meta` MUST llevar a una reconstrucción completa desde el servidor en la próxima sincronización, sin intervención de la persona.
@@ -149,7 +157,7 @@ El layout de `/l/[locationId]` SHALL montar un `CatalogCacheProvider` (component
 - **THEN** lanza un error que dice que falta el `CatalogCacheProvider`
 
 ### Requirement: Limpieza al cerrar sesión
-La caché SHALL registrar la tarea `catalog-cache` con `registerLogoutCleanup` en `src/app/logout-cleanups.tsx`. La tarea MUST vaciar todos los almacenes (incluido `meta`) en una transacción, avisar a las otras pestañas para que descarten su índice en memoria y terminar dentro del tope de 3 segundos aunque otra pestaña tenga la base abierta (vaciar, no `deleteDatabase`, que puede quedar bloqueado). Como la caché se reconstruye siempre desde el servidor, MAY vaciarse también al abrir `/login`. La caché MUST NOT vaciarse por un `401`, un `503` ni un corte de red. El contrato de C-05 para distinguir "no se pudo verificar la sesión" de "sin sesión" y poder vetar una limpieza queda para los datos que no se pueden reconstruir (el carrito de C-19 y la cola de la Etapa 1).
+La caché SHALL registrar la tarea `catalog-cache` con `registerLogoutCleanup` en `src/app/logout-cleanups.tsx`. La tarea MUST vaciar todos los almacenes (incluido `meta`) en una transacción, avisar a las otras pestañas por `BroadcastChannel` con el mensaje `{ type: "cleared", reason: "logout" }` (antes de empezar y de nuevo al terminar) y terminar dentro del tope de 3 segundos aunque otra pestaña tenga la base abierta (vaciar, no `deleteDatabase`, que puede quedar bloqueado). El mensaje de las pestañas es `{ type: "cleared", reason }` con `reason` `"logout"` (se cerró la sesión) o `"no-access"` (a esa pestaña le quitaron el acceso a SU local); un `reason` desconocido vale como `"logout"`. Con `logout`, una pestaña MUST descartar su catálogo (índice y memoria) y quedar en `unauthenticated` (una pestaña que ya estaba en `no-access` conserva `no-access`: descarta sus datos igual, pero un `404` posterior no es una transición nueva y no vacía el almacén compartido ni avisa), sin quedar inutilizable: el próximo disparador (pestaña visible, `online`, `refresh()` o el reintento temprano y después el de 5 minutos) MUST volver a preguntarle al servidor, que decide (`200` de la MISMA persona la deja `ready` con una completa; `401`, o una respuesta de otra persona, la deja `unauthenticated`). Un `cleared(logout)` tardío (la limpieza que se pasó de su tope y llega ya con la sesión nueva) MUST solo vaciar: el siguiente disparador la recupera. Con `no-access` ajeno, una pestaña que trabaja con normalidad MUST conservar su índice y su estado y resincronizar enseguida (la sincronización reescribe el almacén compartido); una pestaña en `no-access` o `unauthenticated` MUST descartar lo suyo y esperar al servidor. Como la caché se reconstruye siempre desde el servidor, MAY vaciarse también al abrir `/login`. La caché MUST NOT vaciarse por un `401`, un `503` ni un corte de red. El contrato de C-05 para distinguir "no se pudo verificar la sesión" de "sin sesión" y poder vetar una limpieza queda para los datos que no se pueden reconstruir (el carrito de C-19 y la cola de la Etapa 1).
 
 #### Scenario: Cerrar sesión borra la caché
 - **WHEN** `employee.norte@demo.test` entra a su local, se carga la caché y toca "Cerrar sesión"
@@ -157,10 +165,30 @@ La caché SHALL registrar la tarea `catalog-cache` con `registerLogoutCleanup` e
 
 #### Scenario: Otra pestaña abierta
 - **WHEN** hay dos pestañas del local abiertas y se cierra sesión en una
-- **THEN** la limpieza termina en menos de 3 segundos y la otra pestaña descarta su índice en memoria
+- **THEN** la limpieza termina en menos de 3 segundos y la otra pestaña descarta su índice en memoria y queda `unauthenticated`
+
+#### Scenario: Volver a ingresar con la otra pestaña abierta
+- **WHEN** se cerró la sesión en una pestaña, la persona vuelve a ingresar, y la otra pestaña (abierta todo el tiempo) vuelve a estar visible
+- **THEN** la otra pestaña sincroniza de nuevo (completa), queda `ready` y su búsqueda vuelve a funcionar sin recargar
+
+#### Scenario: Otra persona inició sesión en el mismo dispositivo
+- **WHEN** el dueño cierra sesión en una pestaña, un empleado de la misma organización inicia sesión en esa pestaña, y la pestaña del dueño (que quedó `unauthenticated`) se vuelve a sincronizar con las cookies del empleado
+- **THEN** el servidor responde `200` con el `userId` del empleado, la pestaña del dueño lo trata como `unauthorized` (queda `unauthenticated`, sin datos), no escribe nada ni avisa, y no vacía ni pisa la caché del empleado (no hay ciclo de vaciados entre las dos pestañas)
+
+#### Scenario: Ventana siempre visible tras un cierre de sesión ajeno
+- **WHEN** una pestaña siempre visible recibe `cleared(logout)` y vuelve a quedar con sesión válida en la misma cuenta
+- **THEN** se recupera en el próximo ciclo de 60 segundos (un solo reintento temprano), no a los 5 minutos; si ese intento responde `401`, vuelve al ritmo de 5 minutos
+
+#### Scenario: Pestaña sin acceso recibe un cierre de sesión ajeno
+- **WHEN** una pestaña en `no-access` recibe `cleared(logout)` y después vuelve a recibir `404`
+- **THEN** sigue en `no-access` (no pasó por `unauthenticated`), no vacía el almacén compartido y no avisa a las otras pestañas
+
+#### Scenario: Otra pestaña pierde el acceso a su local
+- **WHEN** una pestaña recibe `404` y avisa `cleared` con motivo `no-access`, y otra pestaña del mismo dispositivo tiene acceso a su propio local
+- **THEN** la otra pestaña sigue mostrando su catálogo sin pasar por `loading`, resincroniza enseguida y deja el almacén repoblado
 
 ### Requirement: Conjuntos de datos extensibles
-La caché SHALL definir sus almacenes en un registro de conjuntos de datos (nombre, clave, validación Zod y forma de aplicar un delta) que tanto el almacenamiento como la sincronización recorren, de modo que C-20 pueda sumar `payment_methods` agregando una entrada al registro y subiendo la versión del formato, sin tocar la lógica de sincronización. Subir la versión del formato MUST provocar una reconstrucción completa.
+La caché SHALL definir sus almacenes en un registro de conjuntos de datos (`DATASETS`: nombre, clave y validación Zod de cada fila) que el almacenamiento recorre, de modo que sumar un conjunto (C-20: `payment_methods`) sea una lista acotada y conocida de cambios y no una reescritura: una entrada en `DATASETS`, su arreglo en el esquema de la respuesta del delta (`catalogDeltaSchema`), el tipo `CatalogData` y las funciones de aplicación que nombran cada arreglo (`mergeSyncResult`, `hasChanges`), la subida de `CACHE_FORMAT_VERSION` y la lectura correspondiente en el servidor. La política de sincronización, el lock, el canal y el provider MUST NOT cambiar. Subir la versión del formato MUST provocar una reconstrucción completa.
 
 #### Scenario: Versión del formato nueva
 - **WHEN** la caché guardada tiene la versión 1 y la app espera la versión 2

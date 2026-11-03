@@ -19,7 +19,7 @@ export type FakeResult = {
 export type FakeOperation = "select" | "insert" | "update";
 
 export type RecordedFilter = {
-  kind: "eq" | "neq" | "is" | "in" | "ilike";
+  kind: "eq" | "neq" | "is" | "in" | "ilike" | "gt" | "gte";
   column: string;
   value: unknown;
 };
@@ -116,6 +116,14 @@ export function createFakeCatalogDb() {
       },
       ilike(column: string, value: unknown) {
         call.filters.push({ kind: "ilike", column, value });
+        return builder;
+      },
+      gt(column: string, value: unknown) {
+        call.filters.push({ kind: "gt", column, value });
+        return builder;
+      },
+      gte(column: string, value: unknown) {
+        call.filters.push({ kind: "gte", column, value });
         return builder;
       },
       // El `or` de PostgREST arma el filtro con texto: el catálogo NO lo usa jamás.

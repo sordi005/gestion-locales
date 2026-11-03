@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Endpoint del delta con identidad verificada y local validado
-El sistema SHALL exponer `GET /api/catalog/delta` como Route Handler en `src/app/api/catalog/delta/route.ts`. MUST verificar la identidad en el servidor con `getAuthState()` (nunca `getSession()`), y solo una sesión `full` opera: sin sesión, con sesión vencida o con la sesión de definir contraseña MUST responder `401` con el cuerpo `{"error":"unauthenticated"}`, sin redirigir. Los parámetros MUST validarse con Zod: `location` es obligatorio y se valida como UUID con `z.guid()` (igual que C-09); `since`, si viene, es una fecha ISO 8601 con zona horaria. Un parámetro inválido MUST responder `400` con `{"error":"bad_request"}`, salvo `location` mal formado, que responde el mismo `404` que un local ajeno. El local MUST resolverse con el contexto de tenant (`getTenantContext()`) y la misma decisión pura de las guardas de C-06 (`resolveLocationAccess`), sin `notFound()` ni `redirect()`. Un local mal formado, inexistente, de otra organización, no asignado o `inactive`, y una persona sin acceso a ningún local (incluido el super-admin), MUST recibir exactamente la misma respuesta `404` con `{"error":"not_found"}`. Los tres roles (`owner`, `manager`, `employee`) MUST poder leer el delta de un local al que tienen acceso, también con la organización suspendida (lectura).
+El sistema SHALL exponer `GET /api/catalog/delta` como Route Handler en `src/app/api/catalog/delta/route.ts`. MUST verificar la identidad en el servidor con `getAuthState()` (nunca `getSession()`), y solo una sesión `full` opera: sin sesión, con sesión vencida o con la sesión de definir contraseña MUST responder `401` con el cuerpo `{"error":"unauthenticated"}`, sin redirigir. Los parámetros MUST validarse con Zod: `location` es obligatorio y se valida con `locationIdSchema` de tenencia (el mismo de las guardas de C-06: UUID RFC 4122 que acepta mayúsculas y se compara en minúsculas); `since`, si viene, es una fecha ISO 8601 con zona horaria, entre el 1 de enero del 2000 y un día adelante de la hora del servidor. Un parámetro inválido MUST responder `400` con `{"error":"bad_request"}`, salvo `location` mal formado, que responde el mismo `404` que un local ajeno. El local MUST resolverse con el contexto de tenant (`getTenantContext()`) y la misma decisión pura de las guardas de C-06 (`resolveLocationAccess`), sin `notFound()` ni `redirect()`. Un local mal formado, inexistente, de otra organización, no asignado o `inactive`, y una persona sin acceso a ningún local (incluido el super-admin), MUST recibir exactamente la misma respuesta `404` con `{"error":"not_found"}`. Los tres roles (`owner`, `manager`, `employee`) MUST poder leer el delta de un local al que tienen acceso, también con la organización suspendida (lectura).
 
 #### Scenario: Sin sesión
 - **WHEN** alguien sin cookie de sesión pide `GET /api/catalog/delta?location=00000000-0000-4000-b000-000000000001`
@@ -22,6 +22,10 @@ El sistema SHALL exponer `GET /api/catalog/delta` como Route Handler en `src/app
 #### Scenario: `since` inválido
 - **WHEN** `employee.norte@demo.test` pide su local con `since=ayer`
 - **THEN** recibe `400` con `{"error":"bad_request"}`
+
+#### Scenario: `since` fuera de rango
+- **WHEN** `employee.norte@demo.test` pide su local con `since=9999-12-31T23:59:59Z` (o un año anterior al 2000)
+- **THEN** recibe `400` con `{"error":"bad_request"}` y el pedido no llega a la base (nunca un `503`)
 
 #### Scenario: Organización suspendida
 - **WHEN** una persona de una organización `suspended` pide el delta de su local
@@ -47,7 +51,7 @@ El delta SHALL devolver la misma proyección para cualquier rol, leída con el c
 - **THEN** su entrada trae `salePriceCents: 123450`; un producto sin precio trae `salePriceCents: null`
 
 ### Requirement: Modo completo y modo delta con solape
-Sin `since`, el endpoint SHALL responder en modo `full`: todos los productos de la organización (activos e inactivos), todos sus códigos y todas sus categorías. Con `since`, MUST responder en modo `delta`: solo las filas de cada tabla con `updated_at >= since − 60 segundos` (el solape cubre las transacciones que estamparon `updated_at` con su hora de inicio y confirmaron después). Una desactivación MUST viajar en el delta como el producto con `status: "inactive"` (no hay borrados). La respuesta MUST incluir `version` (versión del formato, hoy `1`), `mode` (`"full"` o `"delta"`), `organizationId` y `cursor`: el mayor `updated_at` entre todas las filas devueltas, o el mismo `since` si no hubo cambios, o `null` en un `full` sin filas. Una misma fila puede llegar en dos deltas seguidos y el cliente la deduplica por `id`.
+Sin `since`, el endpoint SHALL responder en modo `full`: todos los productos de la organización (activos e inactivos), todos sus códigos y todas sus categorías. Con `since`, MUST responder en modo `delta`: solo las filas de cada tabla con `updated_at >= since − 60 segundos` (el solape cubre las transacciones que estamparon `updated_at` con su hora de inicio y confirmaron después). Una desactivación MUST viajar en el delta como el producto con `status: "inactive"` (no hay borrados). La respuesta MUST incluir `version` (versión del formato, hoy `1`), `mode` (`"full"` o `"delta"`), `organizationId`, `userId` (el id de la persona que hizo el pedido, tomado de la identidad que el handler ya verificó con `getAuthState()`, sin otra verificación; es su propio id, no un dato de nadie más, y MUST NOT salir de la URL) y `cursor`: el mayor `updated_at` entre todas las filas devueltas, o el mismo `since` si no hubo cambios, o `null` en un `full` sin filas. En un `delta` el `cursor` MUST NOT quedar por detrás del `since` recibido (el solape trae filas con `updated_at` anterior a `since`): es el mayor entre las filas devueltas y `since`. Una misma fila puede llegar en dos deltas seguidos y el cliente la deduplica por `id`.
 
 #### Scenario: Catálogo completo
 - **WHEN** `employee.norte@demo.test` pide su local sin `since`
@@ -68,6 +72,10 @@ Sin `since`, el endpoint SHALL responder en modo `full`: todos los productos de 
 #### Scenario: Sin cambios
 - **WHEN** se pide el delta con un `since` posterior a todos los cambios
 - **THEN** la respuesta trae listas vacías y `cursor` igual al `since` recibido
+
+#### Scenario: La respuesta dice a quién se le respondió
+- **WHEN** `employee.norte@demo.test` y `owner.norte@demo.test` piden el catálogo de su local
+- **THEN** cada respuesta trae su propio `userId` (el de la persona autenticada, nunca uno pasado en la URL), y el esquema de la respuesta es estricto: sin `userId`, o con un `userId` que no es UUID, no valida
 
 ### Requirement: Paginación por debajo del tope de PostgREST
 El servidor SHALL leer cada tabla en páginas de a lo sumo 1000 filas, ordenadas por `id`, con paginación por clave (`id > último id`), hasta recibir una página incompleta, y devolver todas las filas en una sola respuesta. MUST NOT asumir que una consulta trae todo (gotcha 6 de 08).

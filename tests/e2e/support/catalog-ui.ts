@@ -23,6 +23,10 @@ export const SEED = {
   orgNorte: "00000000-0000-4000-a000-000000000001",
   orgSur: "00000000-0000-4000-a000-000000000002",
   localCentroNorte: "00000000-0000-4000-b000-000000000001",
+  /** "Local Centro" de Almacén Demo Sur (el único que tiene asignado `employee.sur`). */
+  localCentroSur: "00000000-0000-4000-b000-000000000002",
+  /** "Local Este" de Almacén Demo Sur (no está asignado a `employee.sur`). */
+  localEsteSur: "00000000-0000-4000-b000-000000000003",
   /** Producto 1 del seed ("Agua mineral 500 ml"): es de Kiosco Demo Norte. */
   productNorte: "00000000-0000-4000-f000-000000000001",
   /** Producto 101 del seed: es de Almacén Demo Sur. */

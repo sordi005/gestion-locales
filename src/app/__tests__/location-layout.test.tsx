@@ -1,8 +1,9 @@
 import { render, screen, within } from "@testing-library/react";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import LocationLayout from "@/app/(app)/l/[locationId]/layout";
+import { CatalogCacheProvider } from "@/features/catalog/cache";
 import {
   SECTIONS,
   buildTenantContext,
@@ -16,6 +17,7 @@ import {
   ORG_NORTE,
   ORG_SUR,
   rowsFor,
+  userId,
 } from "@/features/tenancy/domain/__tests__/fixtures";
 import type { SeedUserKey } from "@/features/tenancy/domain/__tests__/fixtures";
 import { requireLocationContext } from "@/features/tenancy/server";
@@ -26,9 +28,23 @@ import { requireLocationContext } from "@/features/tenancy/server";
 // marco (para capturar el modelo que recibe).
 
 const shell = vi.hoisted(() => ({ received: [] as unknown[] }));
+const cache = vi.hoisted(() => ({ received: [] as unknown[] }));
 
 vi.mock("@/features/tenancy/server", () => ({
   requireLocationContext: vi.fn(),
+}));
+// El provider de la caché real arma IndexedDB, un canal y un temporizador: acá solo
+// importa QUÉ le pasa el layout (sus props son lo único que cruza al cliente).
+vi.mock("@/features/catalog/cache", () => ({
+  CatalogCacheProvider: ({
+    children,
+    ...props
+  }: {
+    children: ReactNode;
+  } & Record<string, unknown>) => {
+    cache.received.push(props);
+    return <div data-testid="catalog-cache">{children}</div>;
+  },
 }));
 vi.mock("@/features/tenancy/components", () => ({
   AppShell: ({ model, children }: { model: unknown; children: ReactNode }) => {
@@ -56,6 +72,7 @@ function renderLayout(locationId: string, children: ReactNode = "contenido") {
 beforeEach(() => {
   vi.mocked(requireLocationContext).mockReset();
   shell.received.length = 0;
+  cache.received.length = 0;
 });
 
 describe("layout /l/[locationId]", () => {
@@ -141,5 +158,74 @@ describe("layout /l/[locationId]", () => {
       "NEXT_NOT_FOUND",
     );
     expect(shell.received).toEqual([]);
+  });
+});
+
+describe("layout /l/[locationId]: caché local del catálogo (C-11)", () => {
+  it("monta el provider con la persona, la organización y el local de la guarda (solo ids)", async () => {
+    enter("employee.norte", LOC_NORTE_CENTRO);
+
+    render(await renderLayout(LOC_NORTE_CENTRO));
+
+    expect(cache.received).toStrictEqual([
+      {
+        userId: userId("employee.norte"),
+        organizationId: ORG_NORTE,
+        locationId: LOC_NORTE_CENTRO,
+      },
+    ]);
+  });
+
+  it("nada más cruza al provider cliente: ni el email, ni el nombre, ni el rol, ni los otros locales", async () => {
+    enter("owner.sur", LOC_SUR_CENTRO);
+
+    render(await renderLayout(LOC_SUR_CENTRO));
+
+    const serialized = JSON.stringify(cache.received);
+    expect(serialized).not.toContain("owner.sur@demo.test");
+    expect(serialized).not.toContain("Dueño Demo Sur");
+    expect(serialized).not.toContain("Almacén Demo Sur");
+    expect(serialized).not.toContain("owner");
+    expect(serialized).not.toContain(LOC_SUR_ESTE);
+    expect(Object.keys(cache.received[0] as object).sort()).toEqual([
+      "locationId",
+      "organizationId",
+      "userId",
+    ]);
+  });
+
+  it("la `key` cambia con la persona y con la organización (el provider nunca arrastra la caché de otra)", async () => {
+    enter("employee.norte", LOC_NORTE_CENTRO);
+    const norte = (await renderLayout(LOC_NORTE_CENTRO)) as ReactElement;
+    enter("employee.sur", LOC_SUR_CENTRO);
+    const sur = (await renderLayout(LOC_SUR_CENTRO)) as ReactElement;
+    enter("owner.norte", LOC_NORTE_CENTRO);
+    const owner = (await renderLayout(LOC_NORTE_CENTRO)) as ReactElement;
+
+    expect(norte.type).toBe(CatalogCacheProvider);
+    expect(norte.key).toBe(`${userId("employee.norte")}:${ORG_NORTE}`);
+    expect(sur.key).toBe(`${userId("employee.sur")}:${ORG_SUR}`);
+    // Misma organización, otra persona: otra key.
+    expect(owner.key).not.toBe(norte.key);
+  });
+
+  it("el marco y las páginas del local viven dentro del provider", async () => {
+    enter("employee.norte", LOC_NORTE_CENTRO);
+
+    render(await renderLayout(LOC_NORTE_CENTRO, <p>página del local</p>));
+
+    const provider = screen.getByTestId("catalog-cache");
+    expect(within(provider).getByTestId("app-shell")).toBeVisible();
+    expect(within(provider).getByText("página del local")).toBeVisible();
+  });
+
+  it("si la guarda corta (404 o salida) no se monta ni el provider", async () => {
+    vi.mocked(requireLocationContext).mockRejectedValue(
+      new Error("NEXT_NOT_FOUND"),
+    );
+
+    await expect(renderLayout("no-es-un-uuid")).rejects.toThrow();
+
+    expect(cache.received).toEqual([]);
   });
 });
