@@ -11,12 +11,31 @@ describe("routeKindOf", () => {
     ["/auth/confirm", "link"],
     ["/auth/callback", "link"],
     ["/actualizar-contrasena", "password-setup"],
+    ["/api", "api"],
+    ["/api/catalog/delta", "api"],
+    ["/api/otra/cosa/mas", "api"],
     ["/", "protected"],
     ["/l/123/vender", "protected"],
     ["/admin", "protected"],
     ["/caja", "protected"],
   ] satisfies [string, RouteKind][])("%s es %s", (pathname, expected) => {
     expect(routeKindOf(pathname)).toBe(expected);
+  });
+
+  it("ignora la barra final también en las rutas de API", () => {
+    expect(routeKindOf("/api/")).toBe("api");
+    expect(routeKindOf("/api/catalog/delta/")).toBe("api");
+  });
+
+  it("lo que solo empieza parecido a /api sigue siendo protegido (falla cerrado)", () => {
+    expect(routeKindOf("/apis")).toBe("protected");
+    expect(routeKindOf("/api-docs")).toBe("protected");
+    expect(routeKindOf("/apix/catalog")).toBe("protected");
+    expect(routeKindOf("/API/catalog/delta")).toBe("protected");
+    expect(routeKindOf("/%61pi/catalog/delta")).toBe("protected");
+    expect(routeKindOf("/l/1/api")).toBe("protected");
+    expect(routeKindOf("/l/1/api/catalog")).toBe("protected");
+    expect(routeKindOf("//api/catalog/delta")).toBe("protected");
   });
 
   it("ignora la barra final (Next la normaliza con una redirección)", () => {
@@ -234,6 +253,58 @@ describe("decideAccess", () => {
           isServerAction: false,
         }),
       ).toEqual(redirectTo("/"));
+    });
+  });
+
+  // Una ruta de API la pide un `fetch` del cliente: una redirección a `/login`
+  // llegaría como HTML y rompería la sincronización. Siempre sigue, sin cerrar
+  // ninguna sesión; el handler responde `401` en JSON por su cuenta.
+  describe("ruta de API", () => {
+    const sessions: SessionKind[] = [
+      "none",
+      "full",
+      "password-setup",
+      "password-setup-expired",
+    ];
+    const apiRequest = {
+      method: "GET",
+      pathname: "/api/catalog/delta",
+      search: "?location=00000000-0000-4000-b000-000000000001",
+    };
+
+    const combinations = sessions.flatMap((session) =>
+      ["GET", "POST"].map((method): [SessionKind, string] => [session, method]),
+    );
+
+    it.each(combinations)(
+      "con sesión %s y método %s sigue, sin redirigir y sin cerrar la sesión",
+      (session, method) => {
+        expect(decideAccess("api", session, { ...apiRequest, method })).toEqual(
+          proceed,
+        );
+      },
+    );
+
+    it("la ruta real /api/catalog/delta sin sesión sigue (no va a /login)", () => {
+      expect(
+        decideAccess(routeKindOf(apiRequest.pathname), "none", apiRequest),
+      ).toEqual(proceed);
+    });
+
+    it("regresión: las rutas protegidas sin sesión siguen redirigiendo a /login", () => {
+      expect(
+        decideAccess(routeKindOf("/l/123/vender"), "none", getRequest),
+      ).toEqual(redirectTo(LOGIN_WITH_NEXT));
+      expect(decideAccess(routeKindOf("/apis"), "none", getRequest)).toEqual(
+        redirectTo(LOGIN_WITH_NEXT),
+      );
+      expect(
+        decideAccess(routeKindOf("/api-docs"), "password-setup-expired", {
+          ...getRequest,
+          pathname: "/api-docs",
+          search: "",
+        }),
+      ).toEqual(redirectTo("/login?next=%2Fapi-docs", true));
     });
   });
 

@@ -212,6 +212,8 @@ describe("proxy", () => {
       "/l/123/vender",
       "/l/123/vender?tab=1",
       "/admin",
+      "/api/catalog/delta",
+      "/api/catalog/delta?location=00000000-0000-4000-b000-000000000001",
     ])("corre para %s", (path) => {
       expect(runsFor(path)).toBe(true);
     });
@@ -493,6 +495,70 @@ describe("proxy", () => {
         }
       },
     );
+  });
+
+  // Las rutas `/api/…` las pide un `fetch` del cliente (la sincronización del
+  // catálogo): una redirección a `/login` llegaría como HTML. El proxy solo
+  // refresca la sesión y deja pasar; el handler responde `401` en JSON.
+  describe("rutas de API (/api/…)", () => {
+    const DELTA =
+      "/api/catalog/delta?location=00000000-0000-4000-b000-000000000001";
+
+    it.each([
+      ["sin sesión", { claims: null }],
+      ["con sesión completa", { claims: FULL }],
+      ["con sesión de definir contraseña", { claims: PASSWORD_SETUP }],
+      [
+        "con sesión de definir contraseña vencida",
+        { claims: PASSWORD_SETUP_EXPIRED },
+      ],
+    ] satisfies [string, Scenario][])(
+      "pasan siempre, sin redirigir ni cerrar la sesión, %s",
+      async (_label, scenario) => {
+        const { calls } = simulateSupabase(scenario);
+
+        const response = await proxy(request(DELTA));
+
+        expect(continues(response)).toBe(true);
+        expect(redirectOf(response)).toBeNull();
+        expect(calls).toEqual(["getClaims"]);
+      },
+    );
+
+    it("getClaims que lanza (cookie adulterada) tampoco redirige ni da un 500", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      simulateSupabase({ claims: null, claimsThrows: new Error("JWT roto") });
+
+      const response = await proxy(request(DELTA));
+
+      expect(continues(response)).toBe(true);
+      expect(redirectOf(response)).toBeNull();
+    });
+
+    it("el handler recibe la cookie refrescada y la respuesta la lleva al navegador", async () => {
+      simulateSupabase({ claims: FULL, refresh: true });
+
+      const response = await proxy(request(DELTA));
+
+      expect(continues(response)).toBe(true);
+      expect(response.cookies.get(SESSION_COOKIE)?.value).toBe("refrescada");
+      expect(response.headers.get("Cache-Control")).toContain("no-store");
+      const forwarded = response.headers.get("x-middleware-request-cookie");
+      expect(forwarded).toContain(`${SESSION_COOKIE}=refrescada`);
+      expect(forwarded).toContain("otra=valor");
+    });
+
+    it("las páginas siguen redirigiendo y lo que solo empieza parecido a /api también", async () => {
+      for (const path of ["/", "/l/123/vender", "/apis", "/api-docs"]) {
+        simulateSupabase({ claims: null });
+
+        const response = await proxy(request(path));
+
+        expect(redirectOf(response), path).toBe(
+          `${ORIGIN}/login?next=${encodeURIComponent(path)}`,
+        );
+      }
+    });
   });
 
   describe("/actualizar-contrasena", () => {

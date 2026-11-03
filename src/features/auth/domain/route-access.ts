@@ -15,9 +15,12 @@ import type { SessionKind } from "./session-kind";
  * - `guest`: pantallas para quien no ingresó (`/login`, `/recuperar-contrasena`).
  * - `link`: destino de los links de email; pasan siempre, con o sin sesión.
  * - `password-setup`: `/actualizar-contrasena`, solo con la sesión de un link.
+ * - `api`: los Route Handlers bajo `/api/`; los pide un `fetch`, así que nunca se
+ *   redirigen (cada handler verifica la identidad y responde `401` en JSON).
  * - `protected`: todo lo demás.
  */
-export type RouteKind = "guest" | "link" | "password-setup" | "protected";
+export type RouteKind =
+  "guest" | "link" | "password-setup" | "api" | "protected";
 
 /**
  * Qué hace el proxy con la request. `signOut` pide cerrar la sesión de este
@@ -42,6 +45,9 @@ export type AccessRequest = {
 const GUEST_ROUTES: ReadonlySet<string> = new Set([LOGIN_PATH, RECOVERY_PATH]);
 const LINK_ROUTES: ReadonlySet<string> = new Set([CONFIRM_PATH, CALLBACK_PATH]);
 
+/** Prefijo de los Route Handlers de datos. Sin barra final no matchea `/apis`. */
+const API_PREFIX = "/api";
+
 function withoutTrailingSlash(pathname: string): string {
   return pathname.length > 1 && pathname.endsWith("/")
     ? pathname.slice(0, -1)
@@ -57,6 +63,7 @@ export function routeKindOf(pathname: string): RouteKind {
   if (GUEST_ROUTES.has(path)) return "guest";
   if (LINK_ROUTES.has(path)) return "link";
   if (path === PASSWORD_SETUP_PATH) return "password-setup";
+  if (path === API_PREFIX || path.startsWith(`${API_PREFIX}/`)) return "api";
   return "protected";
 }
 
@@ -122,6 +129,11 @@ function decideForProtected(
  * | link           | sigue       | sigue           | sigue                         | sigue|
  * | password-setup | `/login`    | sigue           | cierra sesión → link inválido | `/`  |
  * | protected      | `/login?next` | `/actualizar-contrasena` | cierra sesión → `/login?next` | sigue |
+ * | api            | sigue       | sigue           | sigue                         | sigue|
+ *
+ * `api` (`/api/…`) sigue siempre y nunca cierra la sesión: la pide un `fetch`, que
+ * no puede seguir una redirección a una página HTML. Cada Route Handler verifica
+ * la identidad por su cuenta (`getAuthState`) y responde `401` en JSON.
  *
  * Excepción: una Server Action (`isServerAction`) siempre sigue y nunca cierra la
  * sesión. El cliente de Next no puede seguir una redirección HTTP a una acción
@@ -140,6 +152,7 @@ export function decideAccess(
 
   switch (route) {
     case "link":
+    case "api":
       return proceed();
     case "guest":
       return decideForGuest(session);

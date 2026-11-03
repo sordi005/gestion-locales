@@ -21,11 +21,13 @@ function isServerActionRequest(request: NextRequest): boolean {
 /**
  * Proxy de sesión (Next 16: antes `middleware.ts`). Corre en toda request de
  * página, refresca la sesión de Supabase y aplica la tabla de decisiones de
- * `decideAccess` (D5); a las Server Actions solo les refresca la sesión y las
- * deja pasar (una redirección HTTP rompería al cliente de Next). Es un filtro de
- * experiencia, NO la frontera de seguridad: cada página protegida y cada Server
- * Action vuelven a verificar la identidad en el servidor
- * (`@/features/auth/server`), y los datos los protege RLS.
+ * `decideAccess` (D5); a las Server Actions y a las rutas de API (`/api/…`) solo
+ * les refresca la sesión y las deja pasar (una redirección HTTP rompería al
+ * cliente de Next y a un `fetch`, que no pueden seguirla hasta una página HTML).
+ * Es un filtro de experiencia, NO la frontera de seguridad: cada página
+ * protegida, cada Server Action y cada Route Handler vuelven a verificar la
+ * identidad en el servidor (`@/features/auth/server`; un handler sin sesión
+ * responde `401` en JSON), y los datos los protege RLS.
  */
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const { supabase, next, withSession } = createProxyClient(request);

@@ -32,12 +32,29 @@ const sharedPatterns = [
 // Una feature se consume por su API pública: `index.ts` ("@/features/x") o una de
 // las entradas `server`, `components` y `routing` (las negaciones `!` las dejan
 // pasar; el dominio, `session`, `actions`, `schemas`, `queries` y todo archivo
-// interno siguen prohibidos).
+// interno siguen prohibidos). Además hay entradas PUNTUALES, una por feature que
+// las necesita (nunca un comodín `*`: abriría `cache` y `logout-cleanup` en todas):
+// - `@/features/catalog/cache`: la entrada cliente de la caché local del catálogo
+//   (C-11), solo el provider y el hook. La usan la capa `app` y otras features (la
+//   venta lee el hook).
 const featureInteriorGroup = [
   "@/features/*/**",
   "!@/features/*/server",
   "!@/features/*/components",
   "!@/features/*/routing",
+  "!@/features/catalog/cache",
+];
+
+// Las entradas de limpieza al cerrar sesión son SOLO de la capa `app`: la única que
+// las consume es `src/app/logout-cleanups.tsx`, el punto de registro. Una feature no
+// las importa (su `login-form` y su botón usan rutas relativas dentro de `auth`).
+// - `@/features/auth/logout-cleanup`: el contrato de limpieza (C-05).
+// - `@/features/catalog/logout-cleanup`: la limpieza de la caché del catálogo,
+//   angosta a propósito (se carga en TODAS las páginas).
+const appFeatureInteriorGroup = [
+  ...featureInteriorGroup,
+  "!@/features/auth/logout-cleanup",
+  "!@/features/catalog/logout-cleanup",
 ];
 
 // Los alias (`@/features/...`) son la única forma de llegar a otra capa: una ruta
@@ -62,10 +79,19 @@ const featuresPatterns = [
   relativeIntoFeaturesPattern,
 ];
 
+// Los tests de una feature pueden ejercitar el contrato de limpieza al cerrar
+// sesión de verdad (registrar su tarea y correr `runLogoutCleanups`), como lo hace
+// la capa `app` en producción. El resto de las reglas de features sigue igual.
+const featuresTestPatterns = featuresPatterns.map((pattern) =>
+  pattern.group === featureInteriorGroup
+    ? { ...pattern, group: appFeatureInteriorGroup }
+    : pattern,
+);
+
 const appPatterns = [
   browserClientPattern,
   {
-    group: featureInteriorGroup,
+    group: appFeatureInteriorGroup,
     message: `La capa "app/" usa cada feature por su API pública (index.ts, o las entradas server, components y routing), no por su interior: por ejemplo "@/features/auth/server" y no "@/features/auth/session". Si falta un símbolo, exportalo desde la entrada pública que corresponda (${KB}).`,
   },
   relativeIntoFeaturesPattern,
@@ -84,6 +110,7 @@ const domainPatterns = [
       "@/shared/db",
       "@/shared/db/*",
       "dexie",
+      "idb",
       "server-only",
     ],
     message: `"domain/" no puede importar módulos de I/O ni "server-only" (Supabase, Next, React, IndexedDB, shared/db): la lógica de dominio es pura y se puede importar desde cualquier lado (${KB}).`,
@@ -160,7 +187,15 @@ const eslintConfig = defineConfig([
     },
   },
   {
-    files: ["src/features/*/domain/**/*.{ts,tsx}"],
+    files: ["src/features/**/__tests__/**", "src/features/**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: featuresTestPatterns }],
+    },
+  },
+  {
+    // Cualquier `domain/` dentro de una feature, también el de una subcarpeta
+    // (`src/features/catalog/cache/domain`).
+    files: ["src/features/**/domain/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": ["error", { patterns: domainPatterns }],
     },

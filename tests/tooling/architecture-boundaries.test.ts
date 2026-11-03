@@ -210,6 +210,62 @@ describe("regla de capas: src/features/*/domain (sin I/O)", () => {
     LINT_TIMEOUT_MS,
   );
 
+  // El `domain/` de una subcarpeta de la feature (`catalog/cache/domain`) es igual de
+  // puro: la regla cubre cualquier `domain/` dentro de `src/features/`.
+  it.each([
+    "idb",
+    "dexie",
+    "react",
+    "next/headers",
+    "@supabase/ssr",
+    "server-only",
+    "@/shared/db/server",
+  ])(
+    "prohibe importar %s desde un domain anidado (catalog/cache/domain)",
+    async (specifier) => {
+      const messages = await lintImport(
+        "src/features/catalog/cache/domain/__virtual__.ts",
+        specifier,
+      );
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0]?.message).toContain("domain/");
+    },
+    LINT_TIMEOUT_MS,
+  );
+
+  it(
+    "prohibe idb también en el domain de primer nivel, pero no fuera de domain",
+    async () => {
+      const inDomain = await lintImport(
+        "src/features/pos/domain/__virtual__.ts",
+        "idb",
+      );
+      const outside = await lintImport(
+        "src/features/catalog/cache/__virtual__.ts",
+        "idb",
+      );
+
+      expect(inDomain).toHaveLength(1);
+      expect(inDomain[0]?.message).toContain("domain/");
+      expect(outside).toEqual([]);
+    },
+    LINT_TIMEOUT_MS,
+  );
+
+  it(
+    "el domain anidado conserva las reglas de features (no importa de app)",
+    async () => {
+      const messages = await lintImport(
+        "src/features/catalog/cache/domain/__virtual__.ts",
+        "@/app/layout",
+      );
+
+      expect(messages).toHaveLength(1);
+    },
+    LINT_TIMEOUT_MS,
+  );
+
   // `server-only` no es de I/O pero ata el módulo al servidor: `domain/` tiene que
   // poder importarse desde componentes cliente (index.ts) y desde Vitest sin él.
   it(
@@ -301,7 +357,6 @@ describe("regla de capas: src/app", () => {
   it.each([
     "@/features/auth/actions",
     "@/features/auth/session",
-    "@/features/auth/logout-cleanup",
     "@/features/auth/domain/safe-next-path",
     "@/features/auth/components/login-form",
     "@/features/tenancy/queries",
@@ -329,6 +384,12 @@ describe("regla de capas: src/app", () => {
     "@/features/auth/server",
     "@/features/auth/components",
     "@/features/auth/routing",
+    // El punto único de registro de la limpieza al cerrar sesión (`src/app/logout-cleanups.tsx`)
+    // importa `registerLogoutCleanup`: módulo de cliente sin dependencias de Next ni Supabase.
+    "@/features/auth/logout-cleanup",
+    "@/features/catalog/cache",
+    // La entrada angosta de la limpieza de la caché del catálogo (no arrastra el provider).
+    "@/features/catalog/logout-cleanup",
     "@/features/tenancy",
     "@/features/tenancy/server",
     "@/features/tenancy/components",
@@ -397,6 +458,159 @@ describe("regla de capas: src/app", () => {
           "@/shared/db/browser",
         ),
       ).toHaveLength(1);
+    },
+    LINT_TIMEOUT_MS,
+  );
+});
+
+// La caché local del catálogo (C-11) tiene su propia entrada pública cliente
+// (`@/features/catalog/cache`, que el layout del local y los registros de limpieza
+// importan); su interior (el servidor, el store, el orquestador) sigue prohibido.
+describe("regla de capas: entrada pública de la caché local (`cache`)", () => {
+  it.each([
+    "src/app/(app)/l/[locationId]/__virtual__.tsx",
+    "src/app/__virtual__.tsx",
+    "src/features/pos/__virtual__.ts",
+  ])(
+    "permite importar @/features/catalog/cache desde %s",
+    async (filePath) => {
+      expect(await lintImport(filePath, "@/features/catalog/cache")).toEqual(
+        [],
+      );
+    },
+    LINT_TIMEOUT_MS,
+  );
+
+  it.each([
+    "@/features/catalog/cache/server",
+    "@/features/catalog/cache/store",
+    "@/features/catalog/cache/sync",
+    "@/features/catalog/cache/domain/catalog-index",
+  ])(
+    "prohíbe importar el interior %s desde app y desde otra feature",
+    async (specifier) => {
+      for (const filePath of [
+        "src/app/(app)/l/[locationId]/__virtual__.tsx",
+        "src/features/pos/__virtual__.ts",
+      ]) {
+        const messages = await lintImport(filePath, specifier);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]?.message).toContain("API pública");
+      }
+    },
+    LINT_TIMEOUT_MS,
+  );
+});
+
+// Las excepciones del ESLint son entradas puntuales, no comodines por nombre: que
+// `catalog` tenga `cache` y `logout-cleanup` no le abre esas puertas a las demás
+// features (un `@/features/*/cache` suelto dejaría importar el interior de cualquiera).
+describe("regla de capas: las entradas `cache` y `logout-cleanup` no son comodines", () => {
+  it.each([
+    "@/features/tenancy/cache",
+    "@/features/auth/cache",
+    "@/features/pos/cache",
+    "@/features/tenancy/logout-cleanup",
+    "@/features/pos/logout-cleanup",
+    "@/features/auth/cache/sync",
+    "@/features/catalog/logout-cleanup/internal",
+  ])(
+    "prohíbe importar %s desde app y desde otra feature",
+    async (specifier) => {
+      for (const filePath of [
+        "src/app/(app)/l/[locationId]/__virtual__.tsx",
+        "src/features/pos/__virtual__.ts",
+      ]) {
+        const messages = await lintImport(filePath, specifier);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]?.message).toContain("API pública");
+      }
+    },
+    LINT_TIMEOUT_MS,
+  );
+
+  // Las entradas de limpieza al cerrar sesión son SOLO de la capa `app`
+  // (`src/app/logout-cleanups.tsx` las registra): una feature no las consume.
+  it.each([
+    "@/features/auth/logout-cleanup",
+    "@/features/catalog/logout-cleanup",
+  ])(
+    "prohíbe importar %s desde una feature (solo vale en la capa app)",
+    async (specifier) => {
+      for (const filePath of [
+        "src/features/pos/__virtual__.ts",
+        "src/features/tenancy/components/__virtual__.tsx",
+      ]) {
+        const messages = await lintImport(filePath, specifier);
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]?.message).toContain("API pública");
+      }
+    },
+    LINT_TIMEOUT_MS,
+  );
+
+  it.each([
+    "@/features/auth/logout-cleanup",
+    "@/features/catalog/logout-cleanup",
+  ])(
+    "los TESTS de una feature sí pueden ejercitar el contrato %s, pero sus archivos de producción no",
+    async (specifier) => {
+      expect(
+        await lintImport(
+          "src/features/catalog/cache/__tests__/__virtual__.ts",
+          specifier,
+        ),
+      ).toEqual([]);
+      expect(
+        await lintImport(
+          "src/features/catalog/cache/__virtual__.ts",
+          specifier,
+        ),
+      ).toHaveLength(1);
+    },
+    LINT_TIMEOUT_MS,
+  );
+
+  it(
+    "los tests de una feature siguen sin poder importar el interior de otra",
+    async () => {
+      const messages = await lintImport(
+        "src/features/catalog/cache/__tests__/__virtual__.ts",
+        "@/features/auth/session",
+      );
+
+      expect(messages).toHaveLength(1);
+      expect(messages[0]?.message).toContain("API pública");
+    },
+    LINT_TIMEOUT_MS,
+  );
+
+  it(
+    "la entrada de la caché (`@/features/catalog/cache`) sí la pueden usar otras features (el hook lo usa la venta)",
+    async () => {
+      expect(
+        await lintImport(
+          "src/features/pos/components/__virtual__.tsx",
+          "@/features/catalog/cache",
+        ),
+      ).toEqual([]);
+    },
+    LINT_TIMEOUT_MS,
+  );
+
+  it.each([
+    "@/features/auth/logout-cleanup",
+    "@/features/catalog/logout-cleanup",
+    "@/features/catalog/cache",
+  ])(
+    "las entradas puntuales %s siguen permitidas",
+    async (specifier) => {
+      expect(await lintImport("src/app/__virtual__.tsx", specifier)).toEqual(
+        [],
+      );
     },
     LINT_TIMEOUT_MS,
   );
