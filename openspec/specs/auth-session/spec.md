@@ -2,9 +2,7 @@
 
 ## Purpose
 Define el ingreso y cierre de sesión con email y contraseña, las cookies y el proxy de sesión, la identidad verificada en el servidor y la política de contraseña.
-
 ## Requirements
-
 ### Requirement: Ingreso con email y contraseña
 La app SHALL ofrecer en `/login` un formulario de ingreso con email y contraseña, en castellano y usable solo con teclado, que se envía a una Server Action. La acción MUST validar la entrada con Zod antes de llamar a Supabase (email con formato válido y contraseña no vacía; el mínimo de 8 caracteres no se exige al ingresar), iniciar sesión con `signInWithPassword` y, si sale bien, redirigir a la ruta pedida (`next`, filtrada por la regla de redirecciones internas) o a `/`, que lleva a cada persona a su inicio según su rol y su dispositivo (capacidad `tenant-context`). Ante credenciales inválidas MUST mostrar siempre el mismo mensaje genérico, "El email o la contraseña no son correctos.", exista o no la cuenta; ante un rechazo por exceso de intentos (HTTP 429), "Demasiados intentos. Esperá unos minutos y probá de nuevo."; ante cualquier otro error, "No pudimos iniciar sesión. Probá de nuevo en un rato.". Los mensajes MUST anunciarse a lectores de pantalla (`role="alert"`). Los campos MUST declarar `autocomplete` (`username` y `current-password`) y la página MUST ofrecer el enlace "¿Olvidaste tu contraseña?" a `/recuperar-contrasena`.
 
@@ -56,7 +54,7 @@ Todo destino tomado de la URL (`next`) SHALL pasar por una función pura (`safeN
 - **THEN** el destino es `/`
 
 ### Requirement: Proxy de sesión
-`src/proxy.ts` SHALL correr en toda request de página, excluyendo con su `matcher` los archivos estáticos de Next (`_next/static`, `_next/image`), `favicon.ico`, `manifest.webmanifest`, `sw.js`, `icons/` y los archivos de imagen. MUST crear el cliente de Supabase del proxy, llamar a `auth.getClaims()` antes de cualquier otra lógica (eso refresca la sesión), clasificar la sesión y decidir según la tabla de rutas: rutas de invitado (`/login`, `/recuperar-contrasena`), de link (`/auth/confirm`, `/auth/callback`), de definir contraseña (`/actualizar-contrasena`) y protegidas (todo lo demás). Si `getClaims()` lanza (por ejemplo, una cookie de sesión adulterada), MUST tratarse como "sin sesión" y registrarse en el servidor sin datos de la cookie, en lugar de responder con un error 500. Toda respuesta del proxy, incluidas las redirecciones, MUST llevar las cookies y los headers anti-caché que dejó el refresco. Una Server Action invocada por el JavaScript de Next (POST con el header `Next-Action`) MUST seguir siempre, solo con la sesión refrescada y sin cerrar ninguna sesión: el cliente de Next no puede seguir una redirección HTTP a una acción, y cada acción ya verifica por su cuenta y responde con `redirect()`. El proxy es un filtro de experiencia: no reemplaza la verificación en el servidor.
+`src/proxy.ts` SHALL correr en toda request de página, excluyendo con su `matcher` los archivos estáticos de Next (`_next/static`, `_next/image`), `favicon.ico`, `manifest.webmanifest`, `sw.js`, `icons/` y los archivos de imagen. MUST crear el cliente de Supabase del proxy, llamar a `auth.getClaims()` antes de cualquier otra lógica (eso refresca la sesión), clasificar la sesión y decidir según la tabla de rutas: rutas de invitado (`/login`, `/recuperar-contrasena`), de link (`/auth/confirm`, `/auth/callback`), de definir contraseña (`/actualizar-contrasena`), de API (todo lo que empieza con `/api/`) y protegidas (todo lo demás). Una ruta de API MUST seguir siempre, con o sin sesión, solo con la sesión refrescada y sin cerrar ninguna sesión: la pide un `fetch` del cliente, que no puede seguir una redirección a una página HTML, y cada Route Handler verifica la identidad por su cuenta y responde `401` en JSON. Si `getClaims()` lanza (por ejemplo, una cookie de sesión adulterada), MUST tratarse como "sin sesión" y registrarse en el servidor sin datos de la cookie, en lugar de responder con un error 500. Toda respuesta del proxy, incluidas las redirecciones, MUST llevar las cookies y los headers anti-caché que dejó el refresco. Una Server Action invocada por el JavaScript de Next (POST con el header `Next-Action`) MUST seguir siempre, solo con la sesión refrescada y sin cerrar ninguna sesión: el cliente de Next no puede seguir una redirección HTTP a una acción, y cada acción ya verifica por su cuenta y responde con `redirect()`. El proxy es un filtro de experiencia: no reemplaza la verificación en el servidor.
 
 #### Scenario: Ruta protegida sin sesión
 - **WHEN** alguien sin sesión abre `/`
@@ -74,9 +72,21 @@ Todo destino tomado de la URL (`next`) SHALL pasar por una función pura (`safeN
 - **WHEN** se abre `/auth/confirm` o `/auth/callback`, con o sin sesión
 - **THEN** el proxy deja pasar la request
 
+#### Scenario: Ruta de API sin sesión
+- **WHEN** alguien sin sesión pide `GET /api/catalog/delta?location=<id>`
+- **THEN** el proxy deja pasar la request sin redirigir ni cerrar sesión, y el handler responde `401` en JSON
+
+#### Scenario: Ruta de API con sesión de definir contraseña vencida
+- **WHEN** alguien con una sesión de definir contraseña vencida pide `/api/catalog/delta`
+- **THEN** el proxy deja pasar la request sin cerrar la sesión, y el handler responde `401`
+
+#### Scenario: Una ruta que solo empieza parecido no es de API
+- **WHEN** alguien sin sesión abre `/apis` o `/api-docs`
+- **THEN** el proxy la trata como protegida y redirige a `/login`
+
 #### Scenario: Archivos estáticos fuera del proxy
 - **WHEN** se evalúa el `matcher` del proxy con `/_next/static/x.js`, `/_next/image`, `/favicon.ico`, `/manifest.webmanifest`, `/sw.js`, `/icons/icon-192.png` y `/logo.png`
-- **THEN** el proxy no corre para ninguna; para `/`, `/login` y `/l/123/vender` sí
+- **THEN** el proxy no corre para ninguna; para `/`, `/login`, `/l/123/vender` y `/api/catalog/delta` sí
 
 #### Scenario: Cookies refrescadas en una redirección
 - **WHEN** el refresco de la sesión escribe cookies y el proxy decide redirigir
@@ -211,3 +221,4 @@ Las contraseñas nuevas SHALL tener al menos 8 caracteres y como máximo 72 byte
 #### Scenario: Auth rechaza por su cuenta
 - **WHEN** con una sesión válida se llama directo a la API de Auth para poner una contraseña de 7 caracteres
 - **THEN** Supabase local la rechaza como contraseña débil
+
