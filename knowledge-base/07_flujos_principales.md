@@ -30,7 +30,7 @@ Flujos de punta a punta. Notación: **UI** = PWA (Client Component) · **LC** = 
 2. Invita a los usuarios (SA server-only con la secret key → `AUTH.admin.inviteUserByEmail` → `profiles`, `memberships`, `membership_locations`).
 3. Importa el catálogo del comercio (F-13) o, si no hay lista, lo arma escaneando con el equipo.
 4. Configura con el dueño: medios de pago que usa (por ejemplo, alias), botones de venta rápida, categorías sin vencimiento (`tracks_expiry = false`) y servicios sin stock.
-5. Instala la PWA en la PC y en el celular; prueba el lector USB y la cámara.
+5. Instala la PWA en el celular (y en la PC si hay); prueba la cámara (y el lector USB si hay).
 6. Registra cada paso en `audit_events`.
 
 **Errores:** email ya registrado en otra organización → se agrega la membresía sin crear usuario. Límite de envío del SMTP → configurar un SMTP propio antes de la visita (08, gotchas).
@@ -54,7 +54,7 @@ Navegador → middleware/proxy: refresca la sesión (cookies @supabase/ssr)
 ## F-03 — Escaneo y alta rápida de un producto
 **Disparador:** escaneo en cualquier flujo operativo.
 
-1. UI: el lector USB escribe dígitos + Enter (la pantalla de venta los capta aunque el foco esté en otro lado, por velocidad de tipeo) o la cámara decodifica.
+1. UI: la cámara del celular decodifica el código, o el lector USB (si hay) escribe dígitos + Enter (la pantalla de venta los capta aunque el foco esté en otro lado, por velocidad de tipeo). Sin código, se busca por nombre o se usa un botón de venta rápida.
 2. UI normaliza (`normalizeBarcode`: solo dígitos, variantes con y sin cero a la izquierda).
 3. **LC**: busca en la caché local del catálogo. Si no está y hay conexión, confirma contra **DB** (`product_barcodes`), por si la caché está desactualizada.
 4. Encontrado → vuelve al flujo de origen.

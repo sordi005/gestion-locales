@@ -37,7 +37,7 @@ Organizadas por **épica** e **historia de usuario** (US-NNN). Cada criterio de 
 ### US-002 — Ingreso [D1]
 **Como** usuario invitado **quiero** entrar con email y contraseña **para** operar en mis locales.
 - [ ] Credenciales inválidas → mensaje genérico, sin revelar si el email existe.
-- [ ] `employee` con un solo local entra directo a `/l/[id]/vender`; `owner` entra a estadísticas en el celular y a la venta en la PC (**Suposición**). Con varios locales, selector.
+- [ ] `employee` con un solo local entra directo a `/l/[id]/vender`; `owner` entra a estadísticas en el celular y a la venta en la PC si hay (**Suposición**). Con varios locales, selector.
 - [ ] La sesión persiste en el dispositivo; el nombre del usuario activo está siempre visible.
 **Reglas:** RN-AU-02, RN-AU-03.
 
@@ -65,12 +65,12 @@ Organizadas por **épica** e **historia de usuario** (US-NNN). Cada criterio de 
 - [ ] Mapeo de columnas (código, nombre, precio, costo, categoría, proveedor) con plantilla autodetectada o asistente.
 - [ ] Previsualización con altas, actualizaciones, sin cambios, conflictos y errores, antes de confirmar.
 - [ ] En una reimportación, el usuario elige qué campos actualizar; nunca se pisan los campos locales ni se borran productos.
-- [ ] **Alternativa** si el comercio no tiene lista: el catálogo se arma escaneando (US-012) durante el conteo inicial o las primeras ventas.
+- [ ] **Alternativa** si el comercio no tiene lista (lo más común): el catálogo se arma escaneando con el celular (US-012), con el nombre sugerido por la base de productos compartida (DD-34), en la visita del piloto, el conteo inicial o las primeras ventas.
 **Reglas:** RN-IM-01 a RN-IM-12. Ver 11.
 
 ### US-011 — Encontrar un producto escaneando o buscando [D1]
-**Como** cajero **quiero** escanear con el lector USB o la cámara, o buscar por nombre, **para** encontrar el producto al instante.
-- [ ] El lector USB (modo teclado + Enter) funciona en la pantalla de venta aunque el foco no esté en el campo (detección por velocidad de tipeo).
+**Como** cajero **quiero** escanear con la cámara del celular (o con el lector USB si hay), o buscar por nombre, **para** encontrar el producto al instante.
+- [ ] Si hay lector USB (opcional, DD-33), en modo teclado + Enter funciona en la pantalla de venta aunque el foco no esté en el campo (detección por velocidad de tipeo).
 - [ ] Cámara: `BarcodeDetector` si existe; si no, ZXing (iOS).
 - [ ] La búsqueda usa la caché local del catálogo: < 200 ms, tolera ceros a la izquierda y busca por texto parcial sin acentos.
 **Reglas:** RN-CA-03.
@@ -78,6 +78,7 @@ Organizadas por **épica** e **historia de usuario** (US-NNN). Cada criterio de 
 ### US-012 — Alta rápida de un producto desconocido [D1]
 **Como** cajero **quiero** dar de alta un producto que no está, sin salir del flujo, **para** no frenar la venta, la recepción ni el conteo.
 - [ ] Un código desconocido abre una hoja con el código precargado; pide nombre y, desde la venta, precio.
+- [ ] Si el código está en la base de productos compartida (DD-34), el nombre aparece ya escrito y solo se pone el precio. Un código con dígito verificador inválido se rechaza (lectura o tipeo equivocado). *(Change por proponer.)*
 - [ ] Desde la venta, también ofrece "vender como ítem manual" sin dar de alta.
 - [ ] Al guardar, vuelve al flujo con el producto agregado.
 **Reglas:** RN-CA-05, RN-VT-05.
@@ -118,15 +119,15 @@ Organizadas por **épica** e **historia de usuario** (US-NNN). Cada criterio de 
 
 ## E3 — Ventas
 
-### US-020 — Vender en la PC con teclado y lector [D1]
-**Como** cajero en la PC **quiero** escanear, ajustar cantidades y cobrar sin tocar el mouse **para** atender rápido.
+### US-020 — Vender en la PC con teclado (y lector si hay) [D1]
+**Como** cajero en la PC (opcional, DD-33) **quiero** escanear, ajustar cantidades y cobrar sin tocar el mouse **para** atender rápido.
 - [ ] Foco permanente en el campo de escaneo; atajos para cantidad, quitar línea, buscar, venta rápida, cobrar y cancelar (08 §Pantalla de venta).
 - [ ] Repetir un escaneo suma 1 a la línea.
 - [ ] Objetivo: 3 ítems + efectivo en < 10 s (**Suposición**).
 **Reglas:** RN-VT-01 a RN-VT-03, RN-GL-07.
 
 ### US-021 — Vender en el celular con la cámara [D1]
-**Como** cajero con el celular **quiero** escanear con la cámara y cobrar con una mano **para** vender sin PC.
+**Como** cajero con el celular **quiero** escanear con la cámara y cobrar con una mano **para** vender sin PC (entrada principal, DD-33).
 - [ ] Cámara continua en la pantalla de venta; botones grandes; carrito y total siempre visibles.
 **Reglas:** RN-VT-01, RN-GL-07.
 
@@ -333,7 +334,7 @@ Organizadas por **épica** e **historia de usuario** (US-NNN). Cada criterio de 
 - [ ] Manifest con nombre `[NOMBRE-PRODUCTO]`, íconos y `display: standalone`; se instala en Android, iOS y en la PC (Chrome/Edge).
 
 ### US-091 — Componente de escaneo único [D1]
-- [ ] Un solo componente para lector USB y cámara, reutilizado en venta, compras, mermas y conteos, con feedback sonoro o háptico.
+- [ ] Un solo componente para la cámara (entrada principal) y el lector USB (opcional, DD-33), reutilizado en venta, compras, mermas y conteos, con feedback sonoro o háptico.
 
 ### US-092 — Atajos de teclado de la pantalla de venta [D1]
 - [ ] Mapa de atajos visible (tecla `?`), sin usar teclas reservadas del navegador (08 §Pantalla de venta).

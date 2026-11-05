@@ -77,9 +77,11 @@
 
 La pantalla más usada y la que define la adopción (RE-02). Dos layouts sobre el mismo dominio (`features/pos/domain`):
 
-| Aspecto | PC (teclado + lector USB) | Celular (cámara) |
+El celular es la entrada principal; la PC es opcional y el lector USB se usa solo si el kiosco lo tiene (DD-33).
+
+| Aspecto | PC (opcional: teclado; lector USB si hay) | Celular (cámara; entrada principal) |
 |---|---|---|
-| Entrada principal | Lector USB en modo teclado; captura global por velocidad de tipeo (< 30 ms entre teclas + Enter), aunque el foco esté en otro lado | Cámara continua en la parte superior |
+| Entrada principal | Lector USB en modo teclado, si hay: captura global por velocidad de tipeo (< 30 ms entre teclas + Enter), aunque el foco esté en otro lado. Sin lector: búsqueda por nombre o tipeo del código | Cámara continua en la parte superior; búsqueda por nombre |
 | Carrito | Tabla con línea seleccionada; total grande siempre visible | Lista colapsable; total y botón "Cobrar" fijos abajo |
 | Venta rápida | Grilla con tecla por botón | Grilla de botones grandes |
 | Cobro | Teclas `1`–`9` para medios, dígitos para montos, `Enter` confirma | Botones de medios, teclado numérico propio, montos sugeridos |
