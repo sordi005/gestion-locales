@@ -77,8 +77,8 @@ Fuente de verdad del dominio en `knowledge-base/`. **Leer el archivo relevante A
 
 Plan completo en [CHANGES.md](CHANGES.md) (leerlo antes de cualquier `/opsx:propose`).
 
-- **63 changes** (C-01 a C-63); **37** hasta el hito "Listo para el Día 1" (C-37); C-38 a C-45 en la semana 1 y el resto durante el mes. C-59 está bloqueado por PQ-11.
-- **Camino crítico al Día 1** (12): `C-01 → C-02 → C-04 → C-05 → C-06 → C-09 → C-12 → C-19 → C-20 → C-24 → C-25 → C-37`.
+- **64 changes** (C-01 a C-64); **38** hasta el hito "Listo para el Día 1" (C-37 más C-64, la base de productos compartida que va antes de C-12); C-38 a C-45 en la semana 1 y el resto durante el mes. C-59 está bloqueado por PQ-11.
+- **Camino crítico al Día 1** (12): `C-01 → C-02 → C-04 → C-05 → C-06 → C-09 → C-12 → C-19 → C-20 → C-24 → C-25 → C-37`. C-64 corre en paralelo con C-09 y frena a C-12.
 - **Primer change:** `/opsx:propose foundation-setup` (C-01).
 - Cada change trae su nivel de governance, dependencias y "Leer antes".
 
