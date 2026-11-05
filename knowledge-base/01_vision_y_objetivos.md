@@ -27,7 +27,7 @@ Mensaje comercial (**Suposición**, a validar con los pilotos): *"Cobrá, contro
 ## Diferencial
 
 1. **Ultra simple**: se aprende en minutos; cada pantalla tiene una acción principal.
-2. **Funciona igual de bien en celular y en PC**: en la PC, venta con teclado + lector USB y atajos, sin mouse; en el celular, escaneo con la cámara y botones grandes, con una mano.
+2. **Funciona igual de bien en celular y en PC**: el celular es la entrada principal (escaneo con la cámara, búsqueda por nombre y botones grandes, con una mano); la PC es opcional (teclado y atajos, sin mouse, con lector USB si el kiosco lo tiene) (DD-33).
 3. **Pagos combinados bien resueltos**: una venta con varios medios (por ejemplo, mitad Mercado Pago y mitad efectivo), con vuelto y totales por medio para controlar la caja.
 4. **Control de vencimientos y pérdidas**: vencimiento por lote de compra, alertas y pérdidas valorizadas en $.
 5. **Atención y configuración en persona en Mendoza.**
@@ -71,7 +71,7 @@ Detalle del dominio de ventas, pagos y caja: `13_ventas_pagos_y_caja.md`.
 
 1. **Simplicidad antes que funciones.** Si una función complica la venta, no entra en la Etapa 0.
 2. **Nunca dejar de vender.** El sistema es la caja: ningún error de catálogo, stock o conexión puede bloquear un cobro (RN-VT-05, RN-ST-08; mitigación en DD-31).
-3. **Escanear primero, tipear lo mínimo.** En la PC, todo con teclado y lector; en el celular, con la cámara y una mano.
+3. **Escanear primero, tipear lo mínimo.** En el celular, con la cámara y una mano; en la PC, con teclado y lector USB si hay.
 4. **Los números salen de documentos, no se tipean.** El stock y el efectivo esperado se calculan; las ventas, compras, mermas, conteos y movimientos son documentos inmutables que se anulan, no se editan.
 5. **Pensar como empresa, construir como startup.** Multi-tenant y seguro desde el día 1; nada de la Etapa 2 antes de validar.
 6. **Puertas abiertas, no construidas.** Fiscal y cobros electrónicos dejan su lugar en el modelo, sin código que no se use.
@@ -83,7 +83,7 @@ Detalle del dominio de ventas, pagos y caja: `13_ventas_pagos_y_caja.md`.
 | Uso como caja | El piloto cobra con el sistema **todos los días** que abre | Días con ventas / días hábiles |
 | Cajas cerradas con arqueo | ≥ 90 % de las sesiones de caja | `cash_sessions` cerradas con `counted_cash` |
 | Diferencias de caja | Tendencia decreciente durante el mes | Σ \|diferencia\| por semana |
-| Velocidad de venta (PC) | Venta de 3 ítems escaneados con pago en efectivo en < 10 s | Prueba cronometrada con el lector USB |
+| Velocidad de venta (PC con lector) | Venta de 3 ítems escaneados con pago en efectivo en < 10 s | Prueba cronometrada solo en los pilotos que tengan lector USB (opcional, DD-33) |
 | Velocidad de venta (celular) | Venta de 2 ítems con cámara y pago combinado en < 20 s | Prueba con el equipo del kiosco |
 | Compras con vencimiento | ≥ 90 % de los ingresos de perecederos con fecha | Compras cargadas vs. facturas/remitos (muestra semanal) |
 | Uso de estadísticas | El dueño las consulta ≥ 2 veces por semana | Eventos de acceso |

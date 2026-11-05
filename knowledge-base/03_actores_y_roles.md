@@ -9,7 +9,7 @@
 | Super-admin de plataforma | `platform_admin` (tabla aparte, no es un rol de organización) | Toda la plataforma | El fundador. Da de alta comercios, locales y usuarios; importa el catálogo en la visita de configuración; da soporte. | Panel `/admin` desde PC o celular. |
 | Dueño del comercio | `owner` | Su organización y todos sus locales | Decide, ve estadísticas, actualiza precios, controla caja y anulaciones. En un kiosco chico **muchas veces también atiende** el mostrador. | Celular (remoto) y PC del mostrador. |
 | Encargado/a | `manager` | Los locales asignados | Opera el local: caja, compras, vencimientos, conteos, anulaciones. | PC del mostrador y celular. |
-| Empleado / cajero | `employee` | Los locales asignados | Cobra, abre y cierra la caja de su turno, registra gastos, mermas, compras y líneas de conteo. | PC con lector USB o celular con cámara. |
+| Empleado / cajero | `employee` | Los locales asignados | Cobra, abre y cierra la caja de su turno, registra gastos, mermas, compras y líneas de conteo. | Celular con cámara (principal); PC opcional, con lector USB si hay (DD-33). |
 | Cliente final | Ninguno (no es usuario) | — | Compra en el mostrador. Recibe el comprobante interno *"no válido como factura"* si lo pide. | Indirecta. |
 | Mercado Pago / banco / posnet | Sistemas externos (sin integración en la Etapa 0) | — | Por donde entran los cobros electrónicos. El cajero marca el medio a mano y controla los totales por fuera. | Indirecta: control manual con los totales por medio (RN-CJ-10). |
 

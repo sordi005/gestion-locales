@@ -21,7 +21,7 @@ Aplicación web **SaaS multi-tenant**, **PWA responsive** (celular **y** PC), fu
 | Validación | Zod (esquemas compartidos cliente/servidor) | 3.x+ | **Suposición** |
 | Lectura de Excel/CSV | SheetJS (`xlsx`) instalado desde el CDN oficial de SheetJS | — | **Suposición** (ver gotcha en 08) |
 | Escaneo por cámara (celular) | `BarcodeDetector` nativo + fallback ZXing (`@zxing/browser`) | — | **Suposición** (iOS Safari no tiene `BarcodeDetector`) |
-| Escaneo por lector (PC) | Lector USB en modo teclado (HID): dígitos + Enter | — | Decidido (PC con lector USB) |
+| Escaneo por lector (PC) | Lector USB en modo teclado (HID): dígitos + Enter | — | Opcional (DD-33): se usa si el kiosco lo tiene; no es requisito |
 | Impresión de comprobante | Impresión del navegador con CSS para papel térmico de 58/80 mm | — | **Suposición** (SU-12, PQ-24) |
 | Testing | Vitest + Testing Library, Playwright (E2E, viewports PC y mobile), pgTAP (`supabase test db`) | — | Strict TDD decidido; herramientas **Suposición** |
 | Tooling | Supabase CLI (migraciones, tipos generados), pnpm, ESLint + Prettier | — | **Suposición** (salvo Supabase CLI) |
@@ -30,8 +30,8 @@ Aplicación web **SaaS multi-tenant**, **PWA responsive** (celular **y** PC), fu
 ## Arquitectura general
 
 ```
- [PC del mostrador]            [Celular del local]           [Celular / PC del dueño, remoto]
-  teclado + lector USB (HID)    cámara, una mano               estadísticas, precios, caja
+ [PC (opcional)]               [Celular: entrada principal]  [Celular / PC del dueño, remoto]
+  teclado; lector USB si hay    cámara, búsqueda, una mano     estadísticas, precios, caja
         │ PWA (HTTPS)                │ PWA (HTTPS)                    │
         └──────────────┬─────────────┴────────────────────────────────┘
                        │  caché local del catálogo (IndexedDB) + carrito persistido
@@ -101,7 +101,7 @@ No hay API REST pública. La interacción es:
 
 | Tema | Requisito |
 |---|---|
-| Dispositivos | **PC del mostrador** (navegador Chromium, lector USB) **y celular** (Android/iOS, cámara). El mismo producto, layout responsive (DD-04). |
+| Dispositivos | **Celular** (Android/iOS, cámara): entrada principal; muchos kioscos trabajan solo con el celular. **PC del mostrador** opcional (navegador Chromium); lector USB si el kiosco lo tiene, no es requisito (DD-33). El mismo producto, layout responsive (DD-04). |
 | UX de venta en PC | Usable **sin mouse**: foco permanente en el campo de escaneo, atajos de teclado (08 §Pantalla de venta). |
 | UX de venta en celular | Escaneo con la cámara, botones grandes, operable con una mano. |
 | Latencia de la venta | **Suposición:** escaneo → línea en el carrito < 200 ms (búsqueda contra la caché local, sin red); confirmar el cobro < 1 s con buena conexión. |

@@ -31,7 +31,7 @@ Visita de configuración ──► Día 1: abrir caja y VENDER ──► Todos l
 |---|---|---|
 | G-1 | **Decisión de venta sin conexión** tomada e implementada en su alcance | **Decidida (DD-31)**: solo en línea (Etapa 0), cola en Etapa 1 |
 | G-2 | Pilotos elegidos y fecha fijada | PQ-09 |
-| G-3 | Dispositivos e internet de cada piloto verificados (PC, lector, celular, impresora, señal) | PQ-03 |
+| G-3 | Dispositivos e internet de cada piloto verificados (celular y cámara; PC y lector si hay; impresora; señal) | PQ-03 |
 | G-4 | Catálogo disponible (archivo o plan de alta por escaneo) | PQ-08 |
 | G-5 | Medios de pago, turnos y usuarios relevados | PQ-04, PQ-05 |
 | G-6 | Propuestas del lead técnico validadas por el fundador | PQ-06 |
@@ -43,7 +43,7 @@ Visita de configuración ──► Día 1: abrir caja y VENDER ──► Todos l
 | Hito | Contenido | US | Criticidad | Para |
 |---|---|---|---|---|
 | H0 Fundación | Proyecto, CI, Supabase, auth, tenancy, RLS y helpers, admin mínimo, auditoría | US-001 a US-005 | CRITICAL | Día 1 |
-| H1 Catálogo | Escaneo (USB/cámara), caché local, alta rápida, edición, precios, venta rápida, **importación de catálogo** | US-010 a US-013, US-015, US-016, US-091 | LOW/MEDIUM | Día 1 |
+| H1 Catálogo | Escaneo (cámara; lector USB si hay), caché local, alta rápida, edición, precios, venta rápida, **importación de catálogo**; base de productos compartida (DD-34, change por proponer) | US-010 a US-013, US-015, US-016, US-091 | LOW/MEDIUM | Día 1 |
 | H2 Venta y pagos | Pantalla de venta (PC y celular), atajos, carrito, cobro combinado con vuelto, comprobante, anulación, historial, medios de pago | US-020 a US-025, US-030 a US-032, US-092, US-095 | **HIGH** | Día 1 |
 | H3 Caja | Apertura, movimientos, cierre con arqueo, totales por medio | US-040 a US-043 | **HIGH** | Día 1 |
 | H4 Sin conexión | Mínimo (indicador, carrito, reintento idempotente, Etapa 0) + cola (Etapa 1, si es necesario) | US-093 | **HIGH** | Día 1 |
@@ -73,7 +73,7 @@ Visita de configuración ──► Día 1: abrir caja y VENDER ──► Todos l
 - [ ] **Catálogo importado** desde la lista del comercio (US-010) y conflictos resueltos; si no hay lista, plan de alta por escaneo.
 - [ ] Productos sin código como **botones de venta rápida**; servicios con `tracks_stock = false`; categorías sin vencimiento (SU-15).
 - [ ] **Medios de pago** activados y ordenados según cómo cobra el comercio (PQ-04).
-- [ ] PWA instalada en la PC y en el celular; **lector USB** probado en la pantalla de venta; cámara probada; impresión probada si hay impresora (PQ-03).
+- [ ] PWA instalada en el celular (y en la PC si hay); **cámara** probada en la pantalla de venta con la luz del mostrador; lector USB probado si hay; impresión probada si hay impresora (PQ-03).
 - [ ] Ensayo: una venta por cada medio, una venta combinada con vuelto, una anulación, un gasto, un cierre con arqueo.
 - [ ] **Plan de contingencia sin conexión** explicado según PQ-01 (y respaldo de datos móviles).
 - [ ] Monto inicial de la primera caja definido.
@@ -95,7 +95,7 @@ Visita de configuración ──► Día 1: abrir caja y VENDER ──► Todos l
 | Riesgo | Mitigación |
 |---|---|
 | Corte de internet en el mostrador (RE-01) | Decisión PQ-01 antes del día 1; contingencia explicada; respaldo de datos móviles |
-| Vender con el sistema es más lento que antes (RE-02) | Atajos, lector, venta rápida, ítem manual; acompañamiento el día 1; medición de tiempos |
+| Vender con el sistema es más lento que antes (RE-02) | Cámara y búsqueda por nombre, botones de venta rápida, ítem manual; atajos y lector en la PC si hay; acompañamiento el día 1; medición de tiempos |
 | El catálogo no está completo el día 1 (RE-04) | Importación + alta rápida con precio + ítem manual |
 | Los medios se marcan mal (RE-05) | Totales por medio al cerrar; revisión semanal con el dueño |
 | El comercio necesita facturar (RE-03) | Aclararlo en el acuerdo; relevar PQ-10 |

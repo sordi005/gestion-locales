@@ -209,7 +209,7 @@ La estrategia está **decidida** (DD-31; resuelve PQ-01, DD-20). Estas reglas ap
 - **RN-GL-04** [K] Los documentos de negocio (ventas, pagos, movimientos de caja, compras, mermas, conteos, importaciones) **no se borran físicamente**: se anulan con motivo, usuario y fecha.
 - **RN-GL-05** [K] Toda escritura registra `created_by = auth.uid()` y `created_at` por defecto en la base, no desde el cliente.
 - **RN-GL-06** [R] **No se construyen funciones de la Etapa 2** (suscripciones, registro propio, ARCA, MP Point/posnet) antes de validar.
-- **RN-GL-07** [R] **Celular y PC por igual**: en la PC, la venta se completa sin mouse (teclado + lector USB); en el celular, con la cámara y una mano.
+- **RN-GL-07** [R] **Celular y PC por igual**: en el celular (entrada principal, DD-33), la venta se completa con la cámara o la búsqueda por nombre y una mano; en la PC (opcional), sin mouse, con teclado y lector USB si hay.
 - **RN-GL-08** [R] **Simplicidad como diferencial**: cada pantalla tiene una acción principal; las funciones avanzadas no se interponen en la venta.
 
 ## Fórmulas
