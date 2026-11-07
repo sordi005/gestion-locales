@@ -1,7 +1,13 @@
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import globalSetup, {
   checkSupabaseReady,
+  EAN13_FIXTURE_PATH,
+  generateEan13Fixture,
   type FetchLike,
 } from "../e2e/global-setup";
 
@@ -261,5 +267,55 @@ describe("globalSetup (función por defecto)", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", undefined);
 
     await expect(globalSetup()).rejects.toThrow(/NEXT_PUBLIC_SUPABASE_URL/);
+  });
+});
+
+describe("generateEan13Fixture (video falso de la cámara)", () => {
+  const FRAME = 640 * 480 * 1.5;
+  const HEADER = "YUV4MPEG2 W640 H480 F5:1 Ip A1:1 C420jpeg\n";
+  let tempDir: string | undefined;
+
+  afterEach(async () => {
+    if (tempDir !== undefined) {
+      await rm(tempDir, { recursive: true, force: true });
+      tempDir = undefined;
+    }
+  });
+
+  it("el archivo vive en playwright/.fixtures/ean13-sequence.y4m", () => {
+    expect(EAN13_FIXTURE_PATH.replaceAll(String.fromCharCode(92), "/")).toMatch(
+      /playwright\/\.fixtures\/ean13-sequence\.y4m$/,
+    );
+  });
+
+  it("el archivo generado no se versiona", async () => {
+    const gitignore = await readFile(join(process.cwd(), ".gitignore"), "utf8");
+
+    const lines = gitignore.split("\n").map((line) => line.trim());
+
+    expect(lines).toContain("playwright/.fixtures/");
+  });
+
+  it("crea la carpeta que falta y escribe la cabecera y los 26 cuadros", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "ean13-"));
+    const target = join(tempDir, "no-existe-todavia", "ean13-sequence.y4m");
+
+    await generateEan13Fixture(target);
+
+    const bytes = await readFile(target);
+    expect(bytes.subarray(0, HEADER.length).toString("latin1")).toBe(HEADER);
+    expect(bytes.length).toBe(HEADER.length + 26 * (6 + FRAME));
+  });
+
+  it("si el archivo ya existe lo pisa con el mismo contenido", async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "ean13-"));
+    const target = join(tempDir, "ean13-sequence.y4m");
+
+    await generateEan13Fixture(target);
+    const first = await readFile(target);
+    await generateEan13Fixture(target);
+
+    expect((await stat(target)).size).toBe(first.length);
+    expect(Buffer.compare(await readFile(target), first)).toBe(0);
   });
 });

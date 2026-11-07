@@ -45,7 +45,12 @@ export default defineConfig({
     // En CI se sirve el build de producción (el job corre `pnpm build` antes).
     command: process.env.CI ? "pnpm start" : "pnpm dev",
     url: baseURL,
+    // OJO con `reuseExistingServer` en local: un `pnpm dev` que ya estaba levantado
+    // se reutiliza tal cual y NO recibe `E2E_HARNESS`, así que la página de prueba
+    // del escáner (`/e2e/escaner`) da 404. Para esos specs, parar el servidor o
+    // levantarlo con `E2E_HARNESS=1`.
     reuseExistingServer: !process.env.CI,
+    env: { E2E_HARNESS: "1" },
     timeout: 120_000,
   },
   projects: [
