@@ -65,6 +65,17 @@ describe("playwright.config.ts fuera de CI", () => {
   });
 });
 
+describe("playwright.config.ts: página de prueba del escáner", () => {
+  it.each([
+    ["en CI", { CI: "true", PORT: undefined }],
+    ["fuera de CI", { CI: undefined, PORT: undefined }],
+  ])("%s, el webServer define E2E_HARNESS=1", async (_label, env) => {
+    const { webServer } = await loadConfig(env);
+
+    expect(webServer.env?.E2E_HARNESS).toBe("1");
+  });
+});
+
 describe("playwright.config.ts: puerto", () => {
   it("usa el puerto 3000 por defecto", async () => {
     const { config, webServer } = await loadConfig({

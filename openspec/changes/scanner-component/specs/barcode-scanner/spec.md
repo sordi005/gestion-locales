@@ -93,7 +93,7 @@ Si la pista de video ofrece linterna (`getCapabilities().torch === true`), `Scan
 
 ### Requirement: Modos continuo y de un disparo
 
-`Scanner.Camera` SHALL aceptar `mode="continuous"` (venta) o `mode="single"` (compras, mermas, conteos). En modo continuo la cámara MUST quedar abierta entre lecturas (sin reabrirse) y filtrar repeticiones con una función pura: un código que sigue a la vista cuenta una sola vez y vuelve a contar solo después de estar al menos 500 ms sin verse; un código distinto cuenta enseguida. En modo de un disparo, después de la primera lectura aceptada (un `Scan`; un `retry` o un `rejected` no cuentan) MUST dejar de decodificar pero mantener la cámara abierta hasta 30 s con un botón "Escanear otro" que vuelve a leer al instante; pasados los 30 s sin tocarlo, MUST apagar la cámara y volver al botón de inicio.
+`Scanner.Camera` SHALL aceptar `mode="continuous"` (venta) o `mode="single"` (compras, mermas, conteos). En modo continuo la cámara MUST quedar abierta entre lecturas (sin reabrirse) y filtrar repeticiones con una función pura: un código que sigue a la vista cuenta una sola vez y vuelve a contar solo después de una ausencia real (al menos 2 cuadros seguidos sin verse y al menos 500 ms o 2,5 veces el período del bucle, el mayor; ajuste del judgment-day, así un teléfono lento no cuenta dos veces un producto quieto); un código distinto cuenta enseguida, y dos códigos a la vez en el cuadro no cuentan cada cambio. En modo de un disparo, después de la primera lectura aceptada (un `Scan`; un `retry` o un `rejected` no cuentan) MUST dejar de decodificar pero mantener la cámara abierta hasta 30 s con un botón "Escanear otro" que vuelve a leer al instante; pasados los 30 s sin tocarlo, MUST apagar la cámara y volver al botón de inicio.
 
 #### Scenario: Producto quieto frente a la cámara
 
@@ -102,7 +102,7 @@ Si la pista de video ofrece linterna (`getCapabilities().torch === true`), `Scan
 
 #### Scenario: Mismo producto dos veces
 
-- **WHEN** en modo continuo un código se ve, deja de verse 600 ms y se vuelve a ver
+- **WHEN** en modo continuo un código se ve, deja de verse 600 ms (cuadros vacíos) y se vuelve a ver
 - **THEN** salen dos lecturas
 
 #### Scenario: Dos productos seguidos
@@ -113,7 +113,7 @@ Si la pista de video ofrece linterna (`getCapabilities().torch === true`), `Scan
 #### Scenario: Un disparo y el siguiente
 
 - **WHEN** en modo de un disparo se lee un código válido y a los 10 s se toca "Escanear otro"
-- **THEN** sale una lectura, la cámara sigue abierta sin decodificar, y al tocar "Escanear otro" vuelve a leer sin pedir la cámara de nuevo
+- **THEN** sale una lectura, la cámara sigue abierta sin decodificar, y al tocar "Escanear otro" vuelve a leer sin pedir la cámara de nuevo; si el mismo producto sigue a la vista, no se lee de nuevo hasta que salga del cuadro (uno distinto se lee enseguida; para el mismo hay que sacarlo de la vista o usar "+1"/la cantidad)
 
 #### Scenario: Un disparo sin siguiente
 
@@ -122,7 +122,7 @@ Si la pista de video ofrece linterna (`getCapabilities().torch === true`), `Scan
 
 ### Requirement: Apagado y reanudación de la cámara
 
-La cámara SHALL detener todas las pistas (`track.stop()`) y liberar el motor al desmontarse el componente, al tocar "Apagar cámara", en los casos del modo de un disparo y cuando la pestaña se oculta (`visibilitychange` a `hidden`: el cajero contesta un mensaje, bloquea el teléfono o cambia de app). Al volver a estar visible, una función pura `decideResume({ wasActive, hiddenMs, permission })` MUST decidir: `auto` (reabrir sola, sin toque) si la cámara estaba activa al ocultarse, estuvo oculta a lo sumo 5 minutos y `navigator.permissions.query({ name: "camera" })` responde `granted`; `tap` (mostrar "Tocá para seguir con la cámara") si estaba activa pero falta alguna de las otras condiciones (sin Permissions API, la consulta falla, el permiso es `prompt`, o pasaron más de 5 minutos); `none` si no estaba activa. Si la reapertura automática falla, MUST pasar a `tap`. En modo continuo, la cámara MUST apagarse sola después de 2 minutos sin ninguna lectura ni toque sobre la cámara, mostrando "Cámara en pausa para ahorrar batería. Tocá para seguir.".
+La cámara SHALL detener todas las pistas (`track.stop()`) al desmontarse el componente (y liberar el motor), al tocar "Apagar cámara", en los casos del modo de un disparo y cuando la pestaña se oculta (`visibilitychange` a `hidden`: el cajero contesta un mensaje, bloquea el teléfono o cambia de app). Al volver a estar visible, una función pura `decideResume({ wasActive, hiddenMs, permission })` MUST decidir: `auto` (reabrir sola, sin toque) si la cámara estaba activa al ocultarse, estuvo oculta a lo sumo 5 minutos y `navigator.permissions.query({ name: "camera" })` responde `granted`; `tap` (mostrar "Tocá para seguir con la cámara") si estaba activa pero falta alguna de las otras condiciones (sin Permissions API, la consulta falla, el permiso es `prompt`, o pasaron más de 5 minutos); `none` si no estaba activa. Si la reapertura automática falla, MUST pasar a `tap`. Mientras decodifica (en modo continuo y, también en el de un disparo, confirmado por el fundador (2026-11-06)), la cámara MUST apagarse sola después de 2 minutos sin ninguna lectura ni toque sobre la cámara, mostrando "Cámara en pausa para ahorrar batería. Tocá para seguir.".
 
 #### Scenario: Se desmonta
 
@@ -146,7 +146,7 @@ La cámara SHALL detener todas las pistas (`track.stop()`) y liberar el motor al
 
 #### Scenario: Pausa por inactividad
 
-- **WHEN** en modo continuo pasan 2 minutos sin lecturas ni toques sobre la cámara
+- **WHEN** la cámara está decodificando (modo continuo; en un disparo también, confirmado por el fundador (2026-11-06)) y pasan 2 minutos sin lecturas ni toques sobre la cámara
 - **THEN** las pistas se detienen y se ve "Cámara en pausa para ahorrar batería. Tocá para seguir."
 
 ### Requirement: Ayuda cuando la cámara no lee
@@ -272,7 +272,7 @@ El lector USB en modo teclado es el camino secundario (la minoría de comercios 
 
 ### Requirement: Captura global del lector sin costo para el celular
 
-Mientras haya al menos un escáner habilitado, el cliente SHALL escuchar `keydown` en `window` en fase de captura con un único listener por pestaña y pasar cada tecla por el detector. La captura MUST funcionar con el foco en el `body`, en un botón o en cualquier campo. Solo cuando el detector devuelve `scan` la captura MUST llamar a `preventDefault()` y `stopPropagation()` sobre el terminador (no envía formularios, no aprieta el botón con foco, no mueve el foco con `Tab`) y entregar el texto crudo al escáner activo; ninguna otra tecla se bloquea nunca, así el tipeo con el teclado en pantalla del celular no cambia en nada. Si la ráfaga cayó en un `input` de texto o un `textarea` que no es el campo del escáner activo, la captura MUST devolverle el valor y la selección que tenía al empezar la ráfaga y avisarle con un evento `input`. La captura MUST NOT intervenir cuando el foco está en un campo con `data-scan-passthrough`, en un `input` de tipo `password`, o dentro de un diálogo modal abierto (`[aria-modal="true"]`) que no contiene al escáner activo.
+Mientras haya al menos un escáner habilitado, el cliente SHALL escuchar `keydown` en `window` en fase de captura con un único listener por pestaña y pasar cada tecla por el detector. La captura MUST funcionar con el foco en el `body`, en un botón o en cualquier campo. Solo cuando el detector devuelve `scan` la captura MUST llamar a `preventDefault()` y `stopPropagation()` sobre el terminador (no envía formularios, no aprieta el botón con foco, no mueve el foco con `Tab`) y entregar el texto crudo al escáner activo; ninguna otra tecla se bloquea nunca, así el tipeo con el teclado en pantalla del celular no cambia en nada. Si la ráfaga cayó en un `input` de texto o un `textarea` que no es el campo del escáner activo, la captura MUST devolverle el valor y la selección que tenía al empezar la ráfaga y avisarle con un evento `input`. La captura MUST NOT intervenir cuando el foco está en un campo con `data-scan-passthrough`, en un `input` de tipo `password`, o dentro de un diálogo modal abierto (`[aria-modal="true"]`, o `role="dialog"`/`"alertdialog"` con `data-state="open"` como los de Radix) que no contiene al escáner activo.
 
 #### Scenario: Foco en un botón
 

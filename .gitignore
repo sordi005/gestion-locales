@@ -20,6 +20,7 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.auth/
+playwright/.fixtures/
 
 # entorno (solo se versiona .env.example)
 .env*

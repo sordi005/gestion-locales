@@ -13,7 +13,21 @@ import { describe, expect, it } from "vitest";
  * `ids.ts` queda fuera a propósito: es el único módulo que genera (reloj y azar)
  * y lo hace a través de `uuid`.
  */
-const PURE_MODULES = ["result.ts", "money.ts", "dates.ts", "barcode.ts"];
+const PURE_MODULES = [
+  "result.ts",
+  "money.ts",
+  "dates.ts",
+  "barcode.ts",
+  "hid-scanner.ts",
+  "e2e-harness.ts",
+  "scanner/multiplier.ts",
+  "scanner/scan-result.ts",
+  "scanner/scan-messages.ts",
+  "scanner/decode-cadence.ts",
+  "scanner/sighting-filter.ts",
+  "scanner/resume-policy.ts",
+  "scanner/camera-state.ts",
+];
 
 const FORBIDDEN: ReadonlyArray<{ label: string; pattern: RegExp }> = [
   { label: "Date.now(", pattern: /\bDate\s*\.\s*now\s*\(/ },
