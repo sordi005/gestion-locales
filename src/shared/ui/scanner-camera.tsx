@@ -29,6 +29,11 @@ import { normalizeBarcode } from "@/shared/lib/barcode";
 import { runDecodeLoop } from "@/shared/lib/scanner/decode-loop";
 import { decideResume } from "@/shared/lib/scanner/resume-policy";
 import type { CameraPermission } from "@/shared/lib/scanner/resume-policy";
+import {
+  CONFIRM_READS,
+  createReadConfirmation,
+  type ReadConfirmation,
+} from "@/shared/lib/scanner/read-confirmation";
 import { createSightingFilter } from "@/shared/lib/scanner/sighting-filter";
 import type { SightingFilter } from "@/shared/lib/scanner/sighting-filter";
 import { Button } from "@/shared/ui/button";
@@ -492,6 +497,9 @@ export function ScannerCamera({ mode }: ScannerCameraProps) {
   // producto que sigue a la vista no se cuenta de nuevo). Se crea al primer
   // cuadro y se descarta recién al apagar la cámara.
   const filterRef = React.useRef<SightingFilter | null>(null);
+  // La confirmación de lecturas (3 cuadros iguales) tiene la misma vida que el
+  // filtro: una lectura suelta mal leída nunca llega a contarse.
+  const confirmationRef = React.useRef<ReadConfirmation | null>(null);
   // La linterna que el cajero dejó prendida vuelve a prenderse al reanudar.
   const torchWantedRef = React.useRef(false);
   // Reanudación al volver a la pestaña (D8): en qué fase estaba al ocultarse
@@ -558,15 +566,23 @@ export function ScannerCamera({ mode }: ScannerCameraProps) {
 
   const abortLoopRef = React.useRef<() => void>(() => {});
 
-  /** Un cuadro decodificado: el filtro decide si es una lectura nueva (D7). */
+  /**
+   * Un cuadro decodificado: primero se confirma (el código tiene que leerse
+   * igual en 3 cuadros) y recién después el filtro decide si es una lectura
+   * nueva (D7). Un cuadro sin confirmar es un cuadro perdido: no cuenta, no
+   * reinicia el apagado por inactividad ni la ayuda.
+   */
   const handleFrame = React.useCallback(
     (text: string | null, at: number) => {
+      confirmationRef.current ??= createReadConfirmation({
+        required: CONFIRM_READS,
+      });
       filterRef.current ??= createSightingFilter({ absenceMs: ABSENCE_MS });
-      const isNewSighting = filterRef.current.observe(
+      const confirmedKey = confirmationRef.current.observe(
         text === null ? null : sightingKey(text),
-        at,
       );
-      if (text === null || !isNewSighting) return;
+      const isNewSighting = filterRef.current.observe(confirmedKey, at);
+      if (text === null || confirmedKey === null || !isNewSighting) return;
       const outcome = submitRaw(text, "camera");
       if (outcome === null) return;
       // Solo una lectura nueva cuenta como actividad: un código que sigue a la
@@ -601,6 +617,7 @@ export function ScannerCamera({ mode }: ScannerCameraProps) {
     torchWantedRef.current = false;
     resumeFromRef.current = null;
     filterRef.current = null;
+    confirmationRef.current = null;
     setTorchOn(false);
     setPhase({ kind: "idle" });
   }, [stopCamera]);
@@ -811,7 +828,9 @@ export function ScannerCamera({ mode }: ScannerCameraProps) {
     <div
       data-slot="scanner-camera"
       data-mode={mode}
-      className="flex flex-col gap-2"
+      // En la PC el visor no crece con la pantalla: con el ancho de un celular
+      // alcanza (el tamaño en pantalla no cambia lo que lee la cámara).
+      className="flex w-full max-w-md flex-col gap-2"
       onPointerDown={restartIdleTimer}
       onClick={restartIdleTimer}
     >
