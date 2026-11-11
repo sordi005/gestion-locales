@@ -11,6 +11,7 @@ import {
   GUIDE_INSET_X_RATIO,
   GUIDE_TOP_RATIO,
 } from "@/shared/lib/scanner/decode-loop";
+import { CONFIRM_READS } from "@/shared/lib/scanner/read-confirmation";
 import type { Scan } from "@/shared/lib/scanner/scan-result";
 import { Scanner } from "@/shared/ui/scanner";
 
@@ -736,6 +737,11 @@ function frames(value: string | null, n: number): (string | null)[] {
   return Array.from({ length: n }, () => value);
 }
 
+/** Un código leído en los cuadros que la cámara pide para aceptarlo (3). */
+function read(value: string): string[] {
+  return Array.from({ length: CONFIRM_READS }, () => value);
+}
+
 /** ZXing con cuadros instantáneos: un cuadro cada 80 ms (el piso del ritmo). */
 const FRAME_MS = 80;
 
@@ -766,9 +772,9 @@ describe("Scanner.Camera: modo continuo (6.5)", () => {
       [A, B, A],
     ],
     [
-      "dos códigos a la vez alternándose cuadro a cuadro (judgment-day)",
+      "dos códigos a la vez alternándose cuadro a cuadro: ninguno se confirma",
       [A, B, A, B, A, B, A, B],
-      [A, B],
+      [],
     ],
     [
       "cuadros vacíos sueltos entre lecturas del mismo código",
@@ -790,7 +796,7 @@ describe("Scanner.Camera: modo continuo (6.5)", () => {
   });
 
   it("entrega las lecturas con source camera y sin multiplicador", async () => {
-    installWorkingCamera({ kind: "zxing", results: [A] });
+    installWorkingCamera({ kind: "zxing", results: read(A) });
     const { onScan } = setup();
     await tapStart();
     await advance(300);
@@ -805,7 +811,7 @@ describe("Scanner.Camera: modo continuo (6.5)", () => {
   it("el mismo UPC-A leído como EAN-13 con cero adelante cuenta como el mismo producto", async () => {
     installWorkingCamera({
       kind: "zxing",
-      results: ["036000291452", null, "0036000291452"],
+      results: ["036000291452", null, "0036000291452", "036000291452"],
     });
     const { onScan } = setup();
     await tapStart();
@@ -825,6 +831,101 @@ describe("Scanner.Camera: modo continuo (6.5)", () => {
   });
 });
 
+describe("Scanner.Camera: confirmación de lecturas (3 cuadros iguales)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  // Caso real: etiqueta curva impresa 7790490998309; la cámara leyó UNA vez
+  // 4790080998309, que también tiene dígito verificador válido.
+  const PRINTED = "7790490998309";
+  const MISREAD = "4790080998309";
+  const scans = (onScan: ReturnType<typeof setup>["onScan"]) =>
+    onScan.mock.calls.map(([scan]) => scan.norm);
+
+  it.each([
+    ["nativo", "native" as const],
+    ["ZXing", "zxing" as const],
+  ])(
+    "una lectura suelta distinta nunca llega a onScan; la real sí (%s)",
+    async (_name, kind) => {
+      installWorkingCamera({
+        kind,
+        results: [MISREAD, PRINTED, PRINTED, PRINTED],
+      });
+      const { onScan } = setup();
+      await tapStart();
+      await advance(1_000);
+
+      expect(scans(onScan)).toEqual([PRINTED]);
+    },
+  );
+
+  it.each([
+    ["una sola lectura", [PRINTED]],
+    ["dos lecturas", [PRINTED, PRINTED]],
+    ["dos códigos alternándose", [PRINTED, MISREAD, PRINTED, MISREAD, PRINTED]],
+  ])("%s no alcanzan: no hay lectura", async (_name, results) => {
+    installWorkingCamera({ kind: "zxing", results });
+    const { onScan } = setup();
+    await tapStart();
+    await advance(1_000);
+
+    expect(onScan).not.toHaveBeenCalled();
+  });
+
+  it("tres lecturas iguales con cuadros vacíos en el medio se aceptan una sola vez", async () => {
+    installWorkingCamera({
+      kind: "zxing",
+      results: [PRINTED, null, PRINTED, null, PRINTED, MISREAD, PRINTED],
+    });
+    const { onScan } = setup();
+    await tapStart();
+    await advance(1_000);
+
+    expect(scans(onScan)).toEqual([PRINTED]);
+  });
+
+  it("un disparo termina en 'Escanear otro' con el código confirmado, no con la lectura suelta", async () => {
+    installWorkingCamera({
+      kind: "zxing",
+      results: [MISREAD, PRINTED, PRINTED, PRINTED, MISREAD],
+    });
+    const { onScan } = setup({ mode: "single" });
+    await tapStart();
+    await advance(200);
+    expect(onScan).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: "Escanear otro" }),
+    ).not.toBeInTheDocument();
+
+    await advance(400);
+    expect(scans(onScan)).toEqual([PRINTED]);
+    expect(
+      screen.getByRole("button", { name: "Escanear otro" }),
+    ).toBeInTheDocument();
+  });
+
+  it("las lecturas sin confirmar no reinician la pausa por inactividad de 2 minutos", async () => {
+    const { track } = installWorkingCamera({
+      kind: "zxing",
+      results: [
+        ...frames(null, 1_000),
+        MISREAD,
+        ...frames(null, 600),
+        PRINTED,
+        ...frames(null, 3_000),
+      ],
+    });
+    setup();
+    await tapStart();
+    // La lectura suelta cae a ~80 s: si reiniciara la cuenta, a los 2 min no
+    // se habría apagado.
+    await advance(2 * MIN + 500);
+    expect(track.stop).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Scanner.Camera: modo de un disparo (6.5)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -836,7 +937,7 @@ describe("Scanner.Camera: modo de un disparo (6.5)", () => {
   it("lee una vez, deja de decodificar, mantiene las pistas vivas y ofrece 'Escanear otro'", async () => {
     const { decodeFrame, track, getUserMedia } = installWorkingCamera({
       kind: "zxing",
-      results: [A, B, B, B],
+      results: [...read(A), ...read(B)],
     });
     const { onScan } = setup({ mode: "single" });
     await tapStart();
@@ -855,7 +956,7 @@ describe("Scanner.Camera: modo de un disparo (6.5)", () => {
   it("'Escanear otro' (a los 10 s) vuelve a leer sin pedir la cámara de nuevo", async () => {
     const { getUserMedia, track } = installWorkingCamera({
       kind: "zxing",
-      results: [A, ...frames(null, 150), B],
+      results: [...read(A), ...frames(null, 150), ...read(B)],
     });
     const { onScan } = setup({ mode: "single" });
     await tapStart();
@@ -876,7 +977,7 @@ describe("Scanner.Camera: modo de un disparo (6.5)", () => {
   });
 
   it("sin tocarlo, a los 30 s apaga las pistas y vuelve el botón de inicio", async () => {
-    const { track } = installWorkingCamera({ kind: "zxing", results: [A] });
+    const { track } = installWorkingCamera({ kind: "zxing", results: read(A) });
     setup({ mode: "single" });
     await tapStart();
     await advance(300);
@@ -892,7 +993,7 @@ describe("Scanner.Camera: modo de un disparo (6.5)", () => {
   });
 
   it("tocar 'Escanear otro' cancela el apagado de los 30 s", async () => {
-    const { track } = installWorkingCamera({ kind: "zxing", results: [A] });
+    const { track } = installWorkingCamera({ kind: "zxing", results: read(A) });
     setup({ mode: "single" });
     await tapStart();
     await advance(300);
@@ -907,7 +1008,7 @@ describe("Scanner.Camera: modo de un disparo (6.5)", () => {
   it("un retry no cuenta como lectura: sigue decodificando hasta un código válido", async () => {
     installWorkingCamera({
       kind: "zxing",
-      results: [INVALID, ...frames(null, 8), A],
+      results: [...read(INVALID), ...frames(null, 8), ...read(A)],
     });
     const { onScan } = setup({ mode: "single" });
     await tapStart();
@@ -926,7 +1027,7 @@ describe("Scanner.Camera: modo de un disparo (6.5)", () => {
   it("un código rechazado (con letras) tampoco cuenta como lectura", async () => {
     installWorkingCamera({
       kind: "zxing",
-      results: ["ABC123", ...frames(null, 8), B],
+      results: [...read("ABC123"), ...frames(null, 8), ...read(B)],
     });
     const { onScan } = setup({ mode: "single" });
     await tapStart();
@@ -1190,7 +1291,7 @@ describe("Scanner.Camera: pausa por inactividad (6.7)", () => {
   it("una lectura reinicia la cuenta", async () => {
     const { track } = installWorkingCamera({
       kind: "zxing",
-      results: [...frames(null, 700), A],
+      results: [...frames(null, 700), ...read(A)],
     });
     setup();
     await tapStart();
@@ -1228,7 +1329,7 @@ describe("Scanner.Camera: pausa por inactividad (6.7)", () => {
   });
 
   it("en un disparo, después de leer rige el límite de 30 s (no la pausa)", async () => {
-    const { track } = installWorkingCamera({ kind: "zxing", results: [A] });
+    const { track } = installWorkingCamera({ kind: "zxing", results: read(A) });
     setup({ mode: "single" });
     await tapStart();
     await advance(300);
@@ -1239,7 +1340,7 @@ describe("Scanner.Camera: pausa por inactividad (6.7)", () => {
   });
 
   it("'Escanear otro' vuelve a armar la pausa por inactividad", async () => {
-    const { track } = installWorkingCamera({ kind: "zxing", results: [A] });
+    const { track } = installWorkingCamera({ kind: "zxing", results: read(A) });
     setup({ mode: "single" });
     await tapStart();
     await advance(300);
@@ -1464,7 +1565,7 @@ describe("Scanner.Camera: ayuda cuando no lee (6.9)", () => {
   it("el siguiente resultado la oculta", async () => {
     installWorkingCamera({
       kind: "zxing",
-      results: [...frames(null, 110), A],
+      results: [...frames(null, 108), ...read(A)],
     });
     setup();
     await tapStart();
@@ -1477,7 +1578,7 @@ describe("Scanner.Camera: ayuda cuando no lee (6.9)", () => {
   it("un aviso (código inválido) también cuenta como resultado", async () => {
     installWorkingCamera({
       kind: "zxing",
-      results: [...frames(null, 110), INVALID],
+      results: [...frames(null, 108), ...read(INVALID)],
     });
     setup();
     await tapStart();
@@ -1490,7 +1591,7 @@ describe("Scanner.Camera: ayuda cuando no lee (6.9)", () => {
   it("los 8 s se cuentan desde el último resultado", async () => {
     installWorkingCamera({
       kind: "zxing",
-      results: [...frames(null, 62), A], // sale a los ~5 s
+      results: [...frames(null, 60), ...read(A)], // sale a los ~5 s
     });
     setup();
     await tapStart();
@@ -1526,9 +1627,9 @@ describe("Scanner.Camera: feedback visual de la guía (6.10)", () => {
       ?.getAttribute("data-state");
 
   it.each([
-    ["una lectura aceptada", [A], "accepted"],
-    ["un re-escaneo (dígito inválido)", [INVALID], "retry"],
-    ["un rechazo (con letras)", ["ABC123"], "rejected"],
+    ["una lectura aceptada", read(A), "accepted"],
+    ["un re-escaneo (dígito inválido)", read(INVALID), "retry"],
+    ["un rechazo (con letras)", read("ABC123"), "rejected"],
   ])(
     "%s pinta la guía y después vuelve al neutro",
     async (_n, results, state) => {
@@ -1537,7 +1638,7 @@ describe("Scanner.Camera: feedback visual de la guía (6.10)", () => {
       expect(guideState(container)).toBe("idle");
       await tapStart();
 
-      await advance(100);
+      await advance(200);
       expect(guideState(container)).toBe(state);
       await advance(400);
       expect(guideState(container)).toBe("idle");
@@ -1547,11 +1648,11 @@ describe("Scanner.Camera: feedback visual de la guía (6.10)", () => {
   it("dos lecturas aceptadas seguidas se distinguen: la guía vuelve a pintarse", async () => {
     installWorkingCamera({
       kind: "zxing",
-      results: [A, ...frames(null, 8), A],
+      results: [...read(A), ...frames(null, 8), ...read(A)],
     });
     const { container } = setup();
     await tapStart();
-    await advance(100);
+    await advance(200);
     expect(guideState(container)).toBe("accepted");
     await advance(400);
     expect(guideState(container)).toBe("idle");
@@ -1749,7 +1850,7 @@ describe("Scanner.Camera: judgment-day ronda 1", () => {
     it("con permiso granted y pocos segundos afuera vuelve a 'Escanear otro' sin decodificar", async () => {
       const { getUserMedia, decodeFrame, track } = installWorkingCamera({
         kind: "zxing",
-        results: [A, B, B],
+        results: [...read(A), ...read(B)],
       });
       installPermissions("granted");
       const { onScan } = setup({ mode: "single" });
@@ -1778,7 +1879,7 @@ describe("Scanner.Camera: judgment-day ronda 1", () => {
     it("después de más de 30 s afuera ya pasó el límite de un disparo: vuelve el botón de inicio", async () => {
       const { getUserMedia } = installWorkingCamera({
         kind: "zxing",
-        results: [A],
+        results: read(A),
       });
       installPermissions("granted");
       setup({ mode: "single" });
@@ -1800,7 +1901,7 @@ describe("Scanner.Camera: judgment-day ronda 1", () => {
     it("si pide un toque (permiso prompt), el toque reabre leyendo", async () => {
       const { getUserMedia, decodeFrame } = installWorkingCamera({
         kind: "zxing",
-        results: [A],
+        results: read(A),
       });
       installPermissions("prompt");
       setup({ mode: "single" });
@@ -2018,7 +2119,7 @@ describe("Scanner.Camera: judgment-day ronda 2", () => {
       installPermissions("granted");
       const { onScan } = setup();
       await tapStart();
-      await advance(100);
+      await advance(200);
       expect(scans(onScan)).toEqual([A]);
 
       await setVisibility("hidden");
@@ -2032,7 +2133,7 @@ describe("Scanner.Camera: judgment-day ronda 2", () => {
       installWorkingCamera({ kind: "zxing", results: frames(A, 2_000) });
       const { onScan } = setup();
       await tapStart();
-      await advance(2 * MIN + 100);
+      await advance(2 * MIN + 400);
       expect(
         screen.getByRole("button", { name: IDLE_PAUSED }),
       ).toBeInTheDocument();
@@ -2106,7 +2207,7 @@ describe("Scanner.Camera: judgment-day ronda 2", () => {
     it("con A todavía en el cuadro no lo lee de nuevo; un producto distinto sí, enseguida", async () => {
       installWorkingCamera({
         kind: "zxing",
-        results: [A, A, A, A, B],
+        results: [...read(A), A, ...read(B)],
       });
       const { onScan } = setup({ mode: "single" });
       await tapStart();
@@ -2129,7 +2230,7 @@ describe("Scanner.Camera: judgment-day ronda 2", () => {
     it("si A salió de la vista antes de volver a entrar, vuelve a leerse", async () => {
       installWorkingCamera({
         kind: "zxing",
-        results: [A, A, ...frames(null, 8), A],
+        results: [...read(A), A, ...frames(null, 8), A],
       });
       const { onScan } = setup({ mode: "single" });
       await tapStart();
@@ -2242,7 +2343,7 @@ describe("Scanner.Camera: judgment-day ronda 2", () => {
         .mockImplementation(() => {});
       installWorkingCamera({
         kind: "zxing",
-        results: [A, A, ...frames(null, 4), B],
+        results: [...read(A), ...frames(null, 4), ...read(B)],
       });
       const { onScan } = setup();
       onScan.mockImplementationOnce(() => {
@@ -2259,7 +2360,7 @@ describe("Scanner.Camera: judgment-day ronda 2", () => {
   describe("#9 cambiar de cámara y ocultarse respetan el estado 'done'", () => {
     it("'Cambiar cámara' en un disparo ya leído reabre en 'Escanear otro', sin decodificar", async () => {
       const { decodeFrame } = installWorkingCamera(
-        { kind: "zxing", results: [A, B, B, B] },
+        { kind: "zxing", results: [...read(A), ...read(B)] },
         {},
         ["cam-1", "cam-2"],
       );
@@ -2291,7 +2392,7 @@ describe("Scanner.Camera: judgment-day ronda 2", () => {
         .mockImplementation(async () => asStream(makeTrack()));
       installMediaDevices(getUserMedia);
       engineMocks.loadCameraEngine.mockResolvedValue(
-        makeEngine({ kind: "zxing", results: [A] }).engine,
+        makeEngine({ kind: "zxing", results: read(A) }).engine,
       );
       installPermissions("granted");
       setup({ mode: "single" });

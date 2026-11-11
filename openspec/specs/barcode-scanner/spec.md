@@ -76,6 +76,30 @@ El bucle de lectura SHALL decodificar un cuadro por vez (nunca dos a la vez) y c
 - **WHEN** el motor es ZXing y el último cuadro tardó 30 ms
 - **THEN** la espera es 80 ms
 
+### Requirement: La cámara confirma cada lectura antes de aceptarla
+
+Una lectura suelta de la cámara puede estar mal aunque su dígito verificador sea válido (el EAN-13 solo atrapa cerca del 90% de las lecturas al azar). `Scanner.Camera` SHALL aceptar un código recién cuando lo lee igual en 3 cuadros, sin otro código en el medio; una lectura suelta distinta MUST descartarse y nunca entrega un `Scan` ni un `onIssue`. La confirmación MUST ser una función pura (`createReadConfirmation`), vale para los dos motores y los dos modos, y va antes del filtro de repeticiones: los cuadros sin ningún código no cortan la racha ni suman, y un código distinto la reinicia. Una vez confirmado, el código sigue a la vista mientras no lo reemplace otro código confirmado: una lectura suelta distinta con el producto a la vista es un cuadro perdido, no un producto nuevo; la ausencia real la decide el filtro de repeticiones. Solo una lectura confirmada y aceptada cuenta como actividad (reinicia los 2 minutos de inactividad y los 8 s de la ayuda). El tipeo y el lector USB no pasan por esta confirmación: entregan el código completo. En modo de un disparo, la lectura que corta el bucle es la primera confirmada. La confirmación agrega unos 3 cuadros de video con el motor nativo y unos 2 ciclos de lectura de ZXing (con 200 ms por cuadro, cerca de 1 s) a la primera lectura.
+
+#### Scenario: Lectura falsa suelta con dígito verificador válido
+
+- **WHEN** la etiqueta impresa es `7790490998309` y la cámara lee un cuadro como `4790080998309` y los tres siguientes como `7790490998309`
+- **THEN** `onScan` recibe solo `7790490998309` y nunca `4790080998309`
+
+#### Scenario: Lecturas insuficientes o alternadas
+
+- **WHEN** la cámara lee un código solo 2 veces, o alterna dos códigos distintos cuadro a cuadro
+- **THEN** no hay lectura: ninguno se confirma
+
+#### Scenario: Cuadros vacíos entre lecturas iguales
+
+- **WHEN** el mismo código se lee 3 veces con cuadros vacíos entre medio
+- **THEN** se acepta una sola vez
+
+#### Scenario: Lectura suelta con el producto a la vista
+
+- **WHEN** un producto ya confirmado sigue a la vista y un cuadro suelto lee otro código
+- **THEN** ese cuadro se descarta y el producto no se cuenta de nuevo
+
 ### Requirement: Linterna y cambio de cámara
 
 Si la pista de video ofrece linterna (`getCapabilities().torch === true`), `Scanner.Camera` SHALL mostrar un botón "Linterna" grande y visible junto al video; tocarlo MUST prender o apagar la linterna (`applyConstraints({ advanced: [{ torch }] })`), y si estaba prendida MUST volver a prenderse al reanudar la cámara. Sin la capacidad, el botón no se muestra. Si el dispositivo tiene más de una cámara de video, MUST mostrarse "Cambiar cámara", que pasa a la siguiente y guarda la elección en el almacenamiento local del navegador (es una comodidad del dispositivo; si el almacenamiento falla, se sigue sin guardar).

@@ -25,6 +25,7 @@ const PURE_MODULES = [
   "scanner/scan-messages.ts",
   "scanner/decode-cadence.ts",
   "scanner/sighting-filter.ts",
+  "scanner/read-confirmation.ts",
   "scanner/resume-policy.ts",
   "scanner/camera-state.ts",
 ];
