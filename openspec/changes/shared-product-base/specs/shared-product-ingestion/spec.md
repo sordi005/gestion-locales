@@ -16,7 +16,7 @@ La RPC `public.load_shared_products(p_rows jsonb, p_source text, p_source_ref te
 - **THEN** recibe `22023`
 
 ### Requirement: Precedencia entre fuentes
-Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_consensus`. Una carga MUST NOT modificar una entrada `platform_admin` ni una `retired` (cuentan como `skipped_protected`); `sepa` reemplaza nombre, marca y presentación de `off` y de `tenant_consensus`; `off` solo inserta códigos que no existen. Los códigos no elegibles cuentan como `skipped_ineligible`. Al reemplazar o insertar un código con votos pendientes, esos votos pasan a `superseded` y quedan sin organización.
+Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_consensus`. Una carga MUST NOT modificar una entrada `platform_admin` ni una `retired` (cuentan como `skipped_protected`); `sepa` reemplaza nombre, marca y presentación de `off` y de `tenant_consensus`; `off` solo inserta códigos que no existen. Los códigos no elegibles, los nombres en blanco o con `$` (un precio escrito en el texto) y los textos fuera de los largos de la tabla cuentan como `skipped_ineligible`; una marca o presentación con `$` se carga sin ese dato. Al reemplazar o insertar un código con votos pendientes, esos votos pasan a `superseded` y quedan sin organización.
 
 #### Scenario: SEPA sobre Open Food Facts
 - **WHEN** un código está con `source = 'off'` y llega en una carga `sepa`
@@ -57,12 +57,32 @@ Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_
 - **WHEN** el script procesa filas con códigos de prefijo `20` y con dígito inválido
 - **THEN** el reporte los muestra separados por motivo
 
+#### Scenario: Marca o presentación demasiado largas
+- **WHEN** una fila trae una marca de más de 80 caracteres o una presentación de más de 40
+- **THEN** la fila se carga sin ese campo (queda nulo) y el reporte cuenta cuántas veces pasó (`field_dropped_brand`, `field_dropped_presentation`); un nombre de más de 200 caracteres sigue rechazando la fila
+
+#### Scenario: Precio en el texto libre
+- **WHEN** una fila trae un nombre con `$` (por ejemplo "Alfajor $500"), o una marca o presentación con `$`
+- **THEN** el nombre rechaza la fila con el motivo `price_like_text`; la marca o la presentación se descartan (la fila entra sin ese dato) y cuentan en el reporte; "1.5 L" sigue siendo una presentación válida (no se miran números)
+
+#### Scenario: GTIN-8 relleno en 12 dígitos
+- **WHEN** el archivo trae un GTIN-8 elegible relleno con ceros hasta 12 o 13 dígitos
+- **THEN** se carga guardado con sus 8 dígitos
+
+#### Scenario: Archivo comprimido que no existe
+- **WHEN** el archivo `.csv.gz` indicado no existe o no es un gzip válido
+- **THEN** el script informa un error de lectura claro y termina con código distinto de cero, sin cortarse con un error sin atrapar
+
 ### Requirement: Compuerta de licencia
-El script SHALL negarse a cargar `--source sepa` contra un proyecto que no sea local salvo que se pase `--license-confirmed`, y la tarea de licencias MUST registrar en la KB (PQ-27) el resultado y la atribución exigida antes de usar ese flag. Para `--source off` exige la atribución ODbL en `/fuentes-de-datos` antes de la primera carga real.
+El script SHALL negarse a cargar **cualquier fuente** (`--source sepa` u `--source off`) contra un proyecto que no sea local salvo que se pase `--license-confirmed`, con un mensaje que nombra la fuente y su licencia, y la tarea de licencias MUST registrar en la KB (PQ-27) el resultado y la atribución exigida antes de usar ese flag. Para `--source off` exige además la atribución ODbL en `/fuentes-de-datos` antes de la primera carga real. "Local" lo decide el host de la URL (`localhost`, `127.0.0.1`, `[::1]`): un túnel a producción por localhost NO es local y nunca debe usarse.
 
 #### Scenario: SEPA sin licencia confirmada
 - **WHEN** el lead corre el script con `--source sepa` contra staging sin `--license-confirmed`
 - **THEN** termina con un error que explica la compuerta y no carga nada
+
+#### Scenario: Open Food Facts sin licencia confirmada
+- **WHEN** el lead corre el script con `--source off` contra staging o producción sin `--license-confirmed`
+- **THEN** termina con un error que nombra Open Food Facts y su licencia (ODbL) y no carga nada
 
 #### Scenario: Local
 - **WHEN** el lead corre el script con `--source sepa` contra la base local

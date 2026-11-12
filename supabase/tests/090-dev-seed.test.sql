@@ -4,7 +4,7 @@
 -- revierte.
 begin;
 
-select plan(65);
+select plan(79);
 
 -- ---------------------------------------------------------------------------
 -- Organizaciones y locales
@@ -612,6 +612,134 @@ select results_eq(
             (select count(*)::int from public.products where organization_id <> '00000000-0000-4000-a000-000000000001') $$,
   $$ values (true, true, true, true, true, true, 0) $$,
   'owner.norte@demo.test ve filas en las seis tablas del catálogo y ninguna de otra organización'
+);
+
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+-- ---------------------------------------------------------------------------
+-- Base compartida demo (C-64): entradas en shared_products y votos pendientes en la cola
+-- ---------------------------------------------------------------------------
+
+select ok(
+  (select count(*) between 8 and 12 from public.shared_products),
+  'base compartida demo: entre 8 y 12 entradas'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.shared_products where id::text not like '00000000-0000-4000-e200-%' $$,
+  $$ values (0) $$,
+  'base compartida demo: todas con id fijo con prefijo e200'
+);
+
+select results_eq(
+  $$ select array_agg(distinct source order by source) from public.shared_products $$,
+  $$ values (array['off', 'platform_admin', 'sepa', 'tenant_consensus']::text[]) $$,
+  'base compartida demo: están las cuatro fuentes'
+);
+
+select results_eq(
+  $$ select count(*) filter (where status = 'retired')::int, count(*) filter (where status = 'active')::int > 0
+       from public.shared_products $$,
+  $$ values (1, true) $$,
+  'base compartida demo: hay exactamente una entrada retirada y el resto activas'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.shared_products
+      where private.shared_barcode_eligibility(barcode_norm) <> 'eligible' $$,
+  $$ values (0) $$,
+  'base compartida demo: todos los códigos son elegibles'
+);
+
+select results_eq(
+  $$ select count(*)::int
+       from public.shared_products sp
+       join public.product_barcodes b on b.barcode_key = sp.barcode_key
+       join public.organizations o on o.id = b.organization_id
+      where o.slug in ('kiosco-demo-norte', 'almacen-demo-sur') $$,
+  $$ values (0) $$,
+  'base compartida demo: ningún código está en el catálogo demo de Norte ni de Sur'
+);
+
+select results_eq(
+  $$ select count(*)::int from public.shared_products
+      where length(trim(name)) = 0 or name ~* '\myes\M' or coalesce(brand, '') ~* '\myes\M' $$,
+  $$ values (0) $$,
+  'base compartida demo: nombres y marcas inventados, sin "YES"'
+);
+
+-- Votos pendientes: los que dejó el trigger con el catálogo demo y los que carga el seed.
+select results_eq(
+  $$ select count(*)::int from (
+       select s.barcode_key
+         from private.shared_product_submissions s
+        where s.status = 'pending'
+        group by s.barcode_key
+       having count(distinct s.organization_id) >= 2 and count(distinct s.name_key) = 1
+     ) g $$,
+  $$ values (1) $$,
+  'cola demo: hay un código con votos de Norte y Sur con el mismo nombre plegado (candidato a consenso)'
+);
+
+select results_eq(
+  $$ select count(*)::int from (
+       select s.barcode_key
+         from private.shared_product_submissions s
+        where s.status = 'pending'
+        group by s.barcode_key
+       having count(distinct s.organization_id) >= 2 and count(distinct s.name_key) >= 2
+     ) g $$,
+  $$ values (1) $$,
+  'cola demo: hay un código con votos de Norte y Sur con nombres distintos (candidato a "parecidos")'
+);
+
+select results_eq(
+  $$ select count(*)::int from (
+       select s.barcode_key
+         from private.shared_product_submissions s
+        where s.status = 'pending'
+        group by s.barcode_key
+       having count(distinct s.name_key) >= 2
+          and (select max(extensions.similarity(a.name_key, b.name_key))
+                 from private.shared_product_submissions a
+                 join private.shared_product_submissions b
+                   on b.barcode_key = a.barcode_key and b.status = 'pending' and a.name_key < b.name_key
+                where a.status = 'pending' and a.barcode_key = s.barcode_key) >= 0.6
+     ) g $$,
+  $$ values (1) $$,
+  'cola demo: el código de nombres distintos tiene nombres parecidos (similitud de 0,6 o más)'
+);
+
+select results_eq(
+  $$ select count(*)::int from private.shared_product_submissions s
+      where s.status = 'pending'
+        and s.organization_id not in ('00000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000002') $$,
+  $$ values (0) $$,
+  'cola demo: todos los votos pendientes son de Norte o de Sur'
+);
+
+select results_eq(
+  $$ select count(*)::int from private.shared_product_submissions s
+      where s.status = 'pending'
+        and exists (select 1 from public.shared_products sp where sp.barcode_key = s.barcode_key and sp.status = 'active') $$,
+  $$ values (0) $$,
+  'cola demo: ningún voto pendiente es de un código que ya está activo en la base'
+);
+
+-- Un empleado demo consulta la base por la RPC: ve una entrada activa y no la retirada.
+select pg_temp.act_as_demo('employee.norte@demo.test');
+set local role authenticated;
+
+select results_eq(
+  $$ select barcode_norm, name, brand, presentation from public.lookup_shared_product('7797000000019') $$,
+  $$ values ('7797000000019'::text, 'Galletitas de limón'::text, 'Campo Verde'::text, '120 g'::text) $$,
+  'base compartida demo: employee.norte@demo.test consulta una entrada activa por la RPC'
+);
+
+select is_empty(
+  $$ select * from public.lookup_shared_product('7797000000101') $$,
+  'base compartida demo: la entrada retirada no se devuelve'
 );
 
 reset role;

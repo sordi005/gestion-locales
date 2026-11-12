@@ -30,6 +30,9 @@ playwright/.fixtures/
 supabase/.temp/
 supabase/.branches/
 
+# datos reales de la base compartida (SEPA, Open Food Facts): nunca al repo
+data/shared-products/
+
 # agentes (no se versiona)
 .atl/
 

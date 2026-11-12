@@ -39,7 +39,8 @@
 │   │   ├── auth/callback/route.ts, auth/confirm/route.ts, api/catalog/delta/route.ts
 │   │   ├── (app)/l/[locationId]/{vender,caja,ventas,vencimientos,compras,mermas,conteos,stock}
 │   │   ├── (app)/org/{catalogo,precios,proveedores,medios-de-pago,importaciones,estadisticas,configuracion}
-│   │   ├── admin/{organizaciones,usuarios,plantillas,uso,auditoria}
+│   │   ├── admin/{organizaciones,usuarios,plantillas,uso,auditoria,base-de-productos}
+│   │   ├── (app)/fuentes-de-datos   # atribución de SEPA y Open Food Facts (RN-CA-18)
 │   │   └── manifest.ts, layout.tsx
 │   ├── features/
 │   │   ├── tenancy/           # contexto org/local, membresías, guardas
@@ -55,6 +56,7 @@
 │   │   ├── counts/
 │   │   ├── stock/             # stock teórico, inconsistencias
 │   │   ├── stats/             # estadísticas, control, calidad de datos
+│   │   ├── shared-products/   # lookupSharedProduct + sugerencia (C-12) y admin/ (cola de revisión)
 │   │   ├── imports/
 │   │   │   ├── engine/        # read → map → normalize → validate → resolve → dedupe (puro)
 │   │   │   └── profiles/      # presets: generic-catalog
@@ -65,6 +67,8 @@
 │       ├── db/                # clientes Supabase (server, browser, admin server-only), types.ts
 │       ├── ui/                # componentes base, <Scanner/>, <ExpiryDateInput/>, <MoneyInput/>, <Hotkeys/>
 │       └── lib/               # barcode.ts, money.ts (centavos), dates.ts (TZ), result.ts, hid-scanner.ts
+├── scripts/shared-products/   # carga inicial de la base compartida (SEPA, Open Food Facts); corre en la máquina del lead
+├── data/shared-products/      # archivos descargados; en .gitignore, nunca se versionan
 ├── tests/
 │   ├── e2e/                   # Playwright: venta PC (solo teclado), venta mobile, caja, compras, conteo
 │   └── fixtures/imports/      # catálogos sintéticos y reales anonimizados

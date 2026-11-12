@@ -156,6 +156,8 @@ describe("repo real", () => {
       "Identidad de la persona, compartida entre organizaciones; aislada por private.can_view_profile (equipo y local), probado en 022-tenancy-rls.test.sql",
     "public.platform_admins":
       "Tabla de plataforma, sin organización; cada usuario solo se ve a sí mismo, probado en 022-tenancy-rls.test.sql",
+    "public.shared_products":
+      "Excepción a la regla dura 5 (C-64, DD-34): base global sin organization_id; ningún rol de la API tiene privilegios y solo se accede por RPCs; probado en 050 y 051-shared-products-*.test.sql",
   };
 
   const root = new URL("../../supabase/", import.meta.url);
@@ -166,6 +168,17 @@ describe("repo real", () => {
       .sort()
       .map((name) => readFileSync(new URL(name, dir), "utf8"));
   }
+
+  it("las excepciones son solo las tablas de plataforma conocidas, cada una con motivo", () => {
+    expect(Object.keys(EXEMPT_TABLES).sort()).toEqual([
+      "public.platform_admins",
+      "public.profiles",
+      "public.shared_products",
+    ]);
+    for (const reason of Object.values(EXEMPT_TABLES)) {
+      expect(reason.trim().length).toBeGreaterThan(20);
+    }
+  });
 
   it("toda tabla creada en public tiene su test A↔B", () => {
     const migrations = readSqlFiles(new URL("migrations/", root)).join("\n");
