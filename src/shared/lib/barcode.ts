@@ -173,3 +173,58 @@ export function normalizeBarcode(
 
   return ok({ norm: digits, key: barcodeKey(digits), warnings });
 }
+
+// --- Filtro de la base compartida (C-64) -------------------------------------
+
+/**
+ * Por qué un código no entra en la base compartida de productos (o `eligible`).
+ * Es el espejo exacto de `private.shared_barcode_eligibility` en la base: la tabla
+ * de casos es la misma y está copiada literal en los dos tests.
+ */
+export type SharedBaseEligibility =
+  | "eligible"
+  | "unsupported_length"
+  | "invalid_check_digit"
+  | "restricted_internal"
+  | "variable_measure"
+  | "restricted_other";
+
+/** Largos con los que la base compartida trabaja: EAN-8, UPC-A y EAN-13 (los de 14 son de caja). */
+const SHARED_BASE_LENGTHS: readonly number[] = [8, 12, 13];
+
+/** Un GTIN-8 relleno con ceros (de 8, 12 o 13 dígitos) queda como `00000` + 8 dígitos al rellenar a 13. */
+const PADDED_GTIN8 = /^00000[0-9]{8}$/;
+
+/** EAN-8 que empieza con 0 o 2: reservado (restricted distribution), no es de góndola. */
+const RESTRICTED_EAN8 = /^[02]/;
+
+/** EAN-13 que empieza con 04, 05, 980 a 984 o 99. */
+const RESTRICTED_EAN13 = /^(04|05|98[0-4]|99)/;
+
+/**
+ * ¿Entra este código (ya normalizado, solo dígitos) en la base compartida? Devuelve
+ * `eligible` o el PRIMER motivo de rechazo, en este orden: largo, dígito verificador,
+ * interno (20 a 29), peso o precio variable (UPC-A que empieza con 2) y otros
+ * reservados. Un texto que no son solo dígitos es `unsupported_length`.
+ */
+export function sharedBaseEligibility(code: string): SharedBaseEligibility {
+  if (!/^[0-9]+$/.test(code) || !SHARED_BASE_LENGTHS.includes(code.length)) {
+    return "unsupported_length";
+  }
+  if (computeGtinCheckDigit(code.slice(0, -1)) !== Number(code.slice(-1))) {
+    return "invalid_check_digit";
+  }
+
+  // GTIN-8 (de 8 dígitos o relleno con ceros hasta 12 o 13): reglas del EAN-8.
+  const ean13 = code.padStart(13, "0");
+  if (PADDED_GTIN8.test(ean13)) {
+    return RESTRICTED_EAN8.test(ean13.slice(-8))
+      ? "restricted_other"
+      : "eligible";
+  }
+
+  if (ean13.startsWith("2")) return "restricted_internal";
+  if (ean13.startsWith("02")) return "variable_measure";
+  if (RESTRICTED_EAN13.test(ean13)) return "restricted_other";
+  return "eligible";
+}

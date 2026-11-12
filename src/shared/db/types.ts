@@ -257,6 +257,19 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"shared_products": {
+                  Row: {
+                    "barcode_key": string | null,"barcode_norm": string,"brand": string | null,"created_at": string,"id": string,"name": string,"presentation": string | null,"source": string,"source_ref": string | null,"status": string,"updated_at": string
+                  }
+                  Insert: {
+                    "barcode_key"?: never,"barcode_norm": string,"brand"?: string | null,"created_at"?: string,"id"?: string,"name": string,"presentation"?: string | null,"source": string,"source_ref"?: string | null,"status"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "barcode_key"?: never,"barcode_norm"?: string,"brand"?: string | null,"created_at"?: string,"id"?: string,"name"?: string,"presentation"?: string | null,"source"?: string,"source_ref"?: string | null,"status"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"suppliers": {
                   Row: {
                     "created_at": string,"created_by": string | null,"id": string,"name": string,"notes": string | null,"organization_id": string,"phone": string | null,"updated_at": string
@@ -282,7 +295,32 @@ isOneToOne: false
             [_ in never]: never
           }
           Functions: {
-            "create_location":
+            "admin_approve_shared_product":
+{ Args: { "p_barcode": string,"p_brand"?: string,"p_name": string,"p_presentation"?: string }; Returns: undefined
+                           },
+"admin_get_shared_product":
+{ Args: { "p_barcode": string }; Returns: {
+              "barcode_norm": string,"brand": string,"name": string,"presentation": string,"status": string
+            }[]
+                           },
+"admin_list_shared_product_queue":
+{ Args: { "p_cursor"?: string,"p_limit"?: number }; Returns: {
+              "barcode_key": string,"barcode_norm": string,"eligibility": string,"first_vote_at": string,"has_similar_names": boolean,"organization_count": number,"proposed_brands": (string)[],"proposed_names": (string)[]
+            }[]
+                           },
+"admin_reject_shared_product_submission":
+{ Args: { "p_barcode": string,"p_reason": string }; Returns: undefined
+                           },
+"admin_retire_shared_product":
+{ Args: { "p_barcode": string,"p_reason": string }; Returns: undefined
+                           },
+"admin_run_shared_product_consensus":
+{ Args: Record<PropertyKey, never>; Returns: number
+                           },
+"admin_update_shared_product":
+{ Args: { "p_barcode": string,"p_brand"?: string,"p_name": string,"p_presentation"?: string }; Returns: undefined
+                           },
+"create_location":
 { Args: { "p_address"?: string,"p_name": string,"p_organization_id": string }; Returns: {
               "address": string | null,
 "created_at": string,
@@ -321,6 +359,16 @@ isOneToOne: false
         isOneToOne: true
         isSetofReturn: false
       } },
+"load_shared_products":
+{ Args: { "p_rows": Json,"p_source": string,"p_source_ref": string }; Returns: {
+              "inserted": number,"skipped_ineligible": number,"skipped_protected": number,"updated": number
+            }[]
+                           },
+"lookup_shared_product":
+{ Args: { "p_barcode": string }; Returns: {
+              "barcode_norm": string,"brand": string,"name": string,"presentation": string
+            }[]
+                           },
 "set_initial_sale_price":
 { Args: { "p_product_id": string,"p_sale_price": number }; Returns: {
               "brand": string | null,

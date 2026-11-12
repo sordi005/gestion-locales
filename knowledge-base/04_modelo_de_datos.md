@@ -13,6 +13,7 @@
 | Caja | `cash_registers`, `cash_sessions`, `cash_movements`, `cash_session_method_totals` | Sesión de caja por turno, movimientos y arqueo |
 | Stock y vencimientos | `purchases`, `purchase_items`, `lots`, `lot_actions`, `waste_records`, `stock_counts`, `stock_count_items`, `stock_count_results` | Documentos fuente del stock y de los vencimientos |
 | Importación de catálogo | `import_profiles`, `imports`, `catalog_import_changes`, `import_row_errors` | Alta del catálogo desde Excel/CSV (ver 11) |
+| Base de productos compartida (plataforma) | `shared_products`, `private.shared_product_submissions` | Código → nombre, marca y presentación para sugerir en el alta rápida (DD-34). No es dato de ningún comercio |
 | Derivados | vistas `stock_events`, `product_costs`, `cash_session_balances`; RPC `stats_*` | Stock, costos, efectivo esperado y estadísticas calculados |
 
 ## Glosario (dominio → modelo)
@@ -28,6 +29,8 @@
 | Ítem manual | `sale_items` con `item_type = manual` | Descripción + importe, sin producto ni stock |
 | Proveedor / proveedor habitual | `suppliers` / `products.preferred_supplier_id` | Alta rápida; el habitual sirve para la actualización masiva |
 | Historial de precios | `price_changes` | Cada cambio de precio de venta |
+| Base de productos compartida | `shared_products` | Código → nombre, marca y presentación; global, sin `organization_id` (excepción a la regla dura 5) |
+| Cola "en revisión" | `private.shared_product_submissions` | Lo que cargan los comercios, a la espera de pasar a la base compartida |
 | Actualización masiva | `price_bulk_updates` | Aumento o baja por % sobre un alcance |
 | Venta / línea de venta | `sales` / `sale_items` | Inmutable; se anula, no se edita |
 | Comprobante interno | Vista de `sales` | Leyenda "Comprobante no válido como factura" |
@@ -80,12 +83,15 @@ organizations 1──N import_profiles (presets globales: organization_id NULL)
 organizations 1──N imports N──1 import_profiles
 imports 1──N catalog_import_changes N──0..1 products ; imports 1──N import_row_errors
 organizations 1──N audit_events (organization_id NULL si es evento de plataforma)
+
+shared_products                       (global: sin relación con ninguna organización)
+organizations 0..1──N private.shared_product_submissions   (solo mientras el voto está pendiente)
 ```
 
 ## Convenciones comunes
 
 - `id uuid PK default gen_random_uuid()` en todas las tablas. **Excepción:** `sales.id` lo genera el **cliente** (UUID v4/v7) para que registrar una venta sea idempotente (RN-OF-01).
-- `organization_id uuid NOT NULL` en **toda** tabla de negocio. Las tablas operativas también llevan `location_id uuid NOT NULL`, **desnormalizado en las tablas hijas** (`sale_items`, `payments`, `cash_movements`, `purchase_items`, `stock_count_items`) para que RLS no necesite joins.
+- `organization_id uuid NOT NULL` en **toda** tabla de negocio (única excepción: `shared_products`, que no es de ningún comercio; ver "Base de productos compartida"). Las tablas operativas también llevan `location_id uuid NOT NULL`, **desnormalizado en las tablas hijas** (`sale_items`, `payments`, `cash_movements`, `purchase_items`, `stock_count_items`) para que RLS no necesite joins.
 - **FKs compuestas anti cruce de tenants:** toda referencia entre tablas de negocio incluye el tenant, por ejemplo `(product_id, organization_id) → products(id, organization_id)`. Las FKs **no pasan por RLS** (RN-TE-08). Requiere `UNIQUE (id, organization_id)` en la tabla padre.
 - Auditoría mínima: `created_at timestamptz default now()` y `created_by uuid default auth.uid()`. Los documentos anulables llevan `status`, `voided_at`, `voided_by` y `void_reason`.
 - Tipos: dinero `numeric(14,2)` en ARS; cantidades `numeric(12,3)` (fracciones solo en productos por peso, RN-CA-10); porcentajes `numeric(6,2)`; fechas de vencimiento `date`; instantes `timestamptz` (UTC).
@@ -375,6 +381,57 @@ import_row_errors
   import_id, organization_id, row_number int, error_code text, message text, raw jsonb
 ```
 
+### Base de productos compartida (C-64, DD-34)
+
+Nivel 2 del catálogo: el nivel 1 es el catálogo de cada comercio (`products` y `product_barcodes`, sin cambios). Al escanear un código que el comercio no tiene, la app pregunta por ese código y recibe el nombre sugerido.
+
+> **Excepción a la regla dura 5.** `public.shared_products` **no tiene `organization_id` a propósito**: es la primera tabla de **plataforma** con datos que ven los tenants, y no es dato de ningún comercio. Agregar un `organization_id` nulo para "cumplir" la regla sería una mentira estructural. Cumple lo que la regla protege: RLS habilitado, **ninguna política** y **ningún privilegio de tabla** para `anon`, `authenticated` ni `service_role`; solo se llega por funciones. La guardia `001-rls-guard.sql` (exige RLS en toda tabla de `public`) sigue en verde. Esta excepción se documenta solo acá y en la migración; no está en `CLAUDE.md`/`AGENTS.md`.
+
+```
+shared_products                                     -- global, sin organization_id
+  id uuid PK default gen_random_uuid()
+  barcode_norm text NOT NULL                        -- mismo CHECK de formato que product_barcodes + filtro de elegibilidad (RN-CA-13)
+  barcode_key text GENERATED = ltrim(barcode_norm,'0')   -- UNIQUE: UPC-A y EAN-13 con 0 son una sola entrada
+  name text NOT NULL (≤ 200), brand text NULL (≤ 80), presentation text NULL (≤ 40)   -- normalizados con private.normalize_text
+  source text CHECK (sepa|off|tenant_consensus|platform_admin)   -- nunca se devuelve a un tenant
+  source_ref text NULL (≤ 64)                       -- versión del dataset (para retirar una carga mala en bloque)
+  status text CHECK (active|retired) default 'active'
+  created_at, updated_at
+  -- NO tiene: precio, costo, organización, local, producto de un comercio ni usuario (lo fija un test de estructura)
+
+private.shared_product_submissions                  -- cola "en revisión", fuera de la API
+  id, barcode_norm, barcode_key (generado), proposed_name, proposed_brand
+  name_key text GENERATED = private.fold_name_key(proposed_name)   -- minúsculas, sin acentos ni signos
+  organization_id uuid NULL FK organizations        -- solo mientras status = 'pending'
+  status text CHECK (pending|promoted|rejected|superseded), reject_reason NULL
+  created_at, updated_at, resolved_at
+  CHECK ((status = 'pending') = (organization_id IS NOT NULL))   -- resuelto = anónimo
+  -- índice único parcial (organization_id, barcode_key) WHERE status = 'pending': un voto por comercio y código
+  -- NO guarda usuario ni producto del comercio
+```
+
+**Funciones** (todas `security definer`, `set search_path = ''`; la tabla nunca se expone a la API):
+
+| Función | Quién ejecuta | Qué hace |
+|---|---|---|
+| `public.lookup_shared_product(p_barcode)` | `authenticated` con acceso activo a un comercio, o ADM (si no, `42501`) | Devuelve a lo sumo una fila con `barcode_norm`, `name`, `brand`, `presentation` de una entrada `active`. Nunca `id`, `source`, `source_ref`, `status` ni fechas. Un código mal formado o no elegible devuelve vacío, sin error |
+| `public.admin_list_shared_product_queue(p_limit, p_cursor)` | ADM | Cola agrupada por código: cantidad de comercios, nombres y marcas propuestos, si hay nombres parecidos y fecha del primer voto. Nunca ids ni nombres de organizaciones |
+| `public.admin_approve_shared_product(p_barcode, p_name, p_brand, p_presentation)` | ADM | Inserta o actualiza con `source = 'platform_admin'` y resuelve (anonimiza) los votos del código |
+| `public.admin_reject_shared_product_submission(p_barcode, p_reason)` | ADM | Marca los votos `rejected` y los anonimiza |
+| `public.admin_update_shared_product(...)`, `public.admin_retire_shared_product(p_barcode, p_reason)`, `public.admin_get_shared_product(p_barcode)` | ADM | Corregir, retirar (`retired` no se vuelve a promover sola) o leer una entrada para la búsqueda del admin |
+| `public.admin_run_shared_product_consensus()` | ADM | Corre a mano la promoción por coincidencia; devuelve cuántos códigos promovió, o `NULL` si otra corrida tenía el candado (la auditoría lleva `skipped: true`) |
+| `public.load_shared_products(p_rows, p_source, p_source_ref)` | **solo `service_role`** | Carga por lotes de hasta 1.000 filas (`sepa` u `off`) con precedencia entre fuentes; devuelve `inserted`, `updated`, `skipped_ineligible` (incluye nombres con `$`), `skipped_protected` |
+| `private.shared_barcode_eligibility(code)` | interna | Filtro de códigos: `eligible` o el primer motivo de rechazo |
+| `private.queue_shared_product_vote_batch()`, `..._products()`, `..._barcodes()`, `..._retract()` | trigger | Alimentan la cola (todos por sentencia, con tablas de transición); nunca frenan el alta del comercio |
+| `private.shared_canonical_barcode(code)` | interna | Forma en que se guarda un código: un GTIN-8 relleno, con sus 8 dígitos |
+| `private.promote_shared_product_consensus()` | `pg_cron` (job `shared-products-consensus`, una vez por día) y el admin | Promueve por coincidencia (solo votos de comercios activos y de nombres sin `$`) y anonimiza; devuelve `NULL` si otra corrida tenía el candado |
+
+**Triggers sobre el catálogo de cada comercio:** `AFTER INSERT`, `AFTER UPDATE` y `AFTER DELETE` en `product_barcodes`, y `AFTER UPDATE` en `products`, todos **por sentencia** con tablas de transición, registran, actualizan o retiran de la cola el voto de la organización (RN-CA-14). Postgres no admite lista de columnas con tablas de transición, así que los de UPDATE disparan con cada UPDATE y filtran adentro las filas que cambiaron código, producto, nombre, marca o estado; si no cambió nada relevante salen antes de abrir el bloque. Un producto que pasa a un nombre que no puede votar (solo signos o ya rechazado) retira su voto. Todo el cuerpo va en un bloque `exception when others → warning` (un subtransaction por sentencia, no por fila) y baja el `lock_timeout` a 50 ms solo para los votos, devolviendo el valor de quien llamó: si algo falla, el alta del comercio sigue igual.
+
+**Auditoría:** cada `admin_*` escribe en `audit_events` con `organization_id = NULL` (evento de plataforma), `actor_id` = el admin, `entity = 'shared_products'` y un `payload` con código, nombre y acción, **sin ids de organización**.
+
+**Extensiones:** `pg_trgm` (marcar nombres parecidos en la cola) y `pg_cron` (promoción diaria).
+
 ## Vistas y funciones derivadas
 
 Todas las vistas se crean **`WITH (security_invoker = true)`**: sin eso corren con los permisos de su dueño y **se saltean RLS**. Las funciones de estadísticas son `security invoker`.
@@ -417,6 +474,7 @@ En el esquema `private` (no expuesto por la API): `security definer`, `stable`, 
 | `private.has_location_access(loc uuid)` | `owner` de la organización, o `manager`/`employee` asignado al local |
 | `private.location_role(loc uuid)` | Rol efectivo del usuario en el local, o `NULL` |
 | `private.session_is_open(session uuid)` | `true` si la sesión de caja está `open` |
+| `private.has_active_tenant_access()` | `true` si el usuario tiene una membresía activa en una organización activa (sin parámetros; lo usa `lookup_shared_product`) |
 
 Abreviaturas de la tabla: **ORG** = `org_role(organization_id) IS NOT NULL` · **LOC** = `has_location_access(location_id)` · **ADM** = `is_platform_admin()` · **O/M** = rol `owner` o `manager` · **O** = rol `owner`.
 
@@ -449,11 +507,14 @@ Abreviaturas de la tabla: **ORG** = `org_role(organization_id) IS NOT NULL` · *
 | `stock_counts`, `stock_count_items`, `stock_count_results` | LOC | LOC (abrir/cerrar: O/M) | conteos cerrados: sin UPDATE (append-only) | — |
 | `import_profiles` | presets globales para todo autenticado; propios: ORG | O/M; presets: ADM | O/M; presets: ADM | — |
 | `imports`, `catalog_import_changes`, `import_row_errors` | O/M o ADM | O/M o ADM | O/M o ADM | — |
+| `shared_products` | **RLS habilitado, sin políticas y sin privilegios de tabla** para `anon`, `authenticated` y `service_role`: solo por funciones (`lookup_shared_product`, `admin_*`, `load_shared_products`) | — | — | — |
+| `private.shared_product_submissions` | en `private`, sin privilegios para la API: solo por funciones `security definer` | — | — | — |
 
 **Notas de RLS:**
 - **RPCs `security invoker`**: `register_sale`, `void_sale`, `open_cash_session`, `close_cash_session`, etc. corren con los permisos del usuario, así que RLS sigue siendo la frontera. Las invariantes que no puede expresar una política (Σ pagos = total, al menos una línea, un solo pago en efectivo) las garantiza un **constraint trigger diferido** al `COMMIT`, aunque alguien escriba directo por PostgREST.
 - **Columnas de anulación:** `REVOKE UPDATE` en `sales`, `payments` y `cash_movements` para `authenticated` y `GRANT UPDATE (status, voided_at, voided_by, void_reason, …)`; un trigger rechaza cualquier otro cambio.
 - **Estadísticas y `employee`:** el `employee` puede leer las ventas de su local porque las necesita para operar (historial, anulación). Ocultarle estadísticas agregadas es una restricción de **UX** (RN-ES-11). Si un piloto exige confidencialidad de montos frente a los empleados, se restringe el `SELECT` de `sales` para `employee` a la sesión abierta (PQ-05).
+- **Base compartida (excepción a la regla 5):** `shared_products` no lleva `organization_id`; se aísla por falta total de acceso directo, no por política. Los tests pgTAP prueban que ningún tenant lee la tabla ni la cola, que la consulta no revela el origen ni qué cargó otro comercio, que la cola no conserva comercios al resolverse, y que las RPC `admin_*` y la carga rechazan a quien no es ADM / `service_role`.
 - **Storage:** bucket privado `imports`, ruta `{organization_id}/{import_id}/{archivo}`. Las políticas de `storage.objects` validan el primer segmento con `org_role(...)`.
 
 ## Seed data
@@ -461,6 +522,7 @@ Abreviaturas de la tabla: **ORG** = `org_role(organization_id) IS NOT NULL` · *
 **Producción** (vía migración o RPC idempotente):
 - Usuario del fundador en `platform_admins` (creado por script con la secret key; nunca en SQL versionado).
 - Preset global de `import_profiles`: "Genérico catálogo (Excel/CSV)" (ver 11).
+- Base compartida: **no** se siembra por migración. La carga inicial la corre el lead a mano con `scripts/shared-products/` y la secret key (RN-CA-17).
 - **Al crear una organización** (RPC `create_organization`): medios de pago por defecto, en este orden: **Efectivo** (`cash`), **Transferencia/Alias** (`bank_transfer`), **Mercado Pago (QR)** (`qr_wallet`), **Débito** (`debit_card`), **Crédito** (`credit_card`), **Otro** (`other`) (RN-PA-02).
 - **Al crear un local**: una caja `cash_registers` "Caja 1" (DD-16).
 
@@ -472,4 +534,5 @@ Abreviaturas de la tabla: **ORG** = `org_role(organization_id) IS NOT NULL` · *
 - 30 días de ventas con distribución horaria realista, pagos combinados, ventas anuladas (con la sesión abierta y después del cierre), ítems manuales y precios modificados.
 - Sesiones de caja cerradas con sobrante, con faltante y sin diferencia; una sesión abierta; movimientos de cada tipo; una compra pagada desde la caja.
 - Una actualización masiva aplicada y otra revertida.
+- Un puñado de productos compartidos de ejemplo y una entrada en la cola, **solo en el seed local** (nunca en staging ni producción).
 - Fixtures en `tests/fixtures/imports/`: catálogos sintéticos con errores (códigos en notación científica, decimales con coma, filas de totales, filas sin código).

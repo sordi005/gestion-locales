@@ -27,7 +27,7 @@ La base SHALL tener la tabla `public.shared_products` con exactamente estas colu
 - **THEN** recibe `42501` (usa las RPCs del admin)
 
 ### Requirement: Filtro de códigos para la base compartida
-La función `private.shared_barcode_eligibility(p_code text)` SHALL ser `immutable` y devolver `eligible` o el primer motivo de rechazo, en este orden, evaluado sobre el código llevado a 13 dígitos cuando tiene 12: `unsupported_length` (largo distinto de 8, 12 o 13), `invalid_check_digit` (el dígito GTIN módulo 10 no coincide), `restricted_internal` (empieza con `2`), `variable_measure` (empieza con `02`), `restricted_other` (empieza con `04`, `05`, `980` a `984` o `99`; o es un EAN-8 que empieza con `0` o `2`). Los códigos `977`, `978` y `979` MUST ser elegibles. El test MUST usar la tabla de casos de la tarea correspondiente, copiada literal también en el test de `sharedBaseEligibility`.
+La función `private.shared_barcode_eligibility(p_code text)` SHALL ser `immutable` y devolver `eligible` o el primer motivo de rechazo, en este orden, evaluado sobre el código llevado a 13 dígitos cuando tiene 12 (y, si rellenado a 13 empieza con `00000`, con las reglas del EAN-8 de sus últimos 8 dígitos, venga en 8, 12 o 13 dígitos): `unsupported_length` (largo distinto de 8, 12 o 13), `invalid_check_digit` (el dígito GTIN módulo 10 no coincide), `restricted_internal` (empieza con `2`), `variable_measure` (empieza con `02`), `restricted_other` (empieza con `04`, `05`, `980` a `984` o `99`; o es un EAN-8 que empieza con `0` o `2`). Los códigos `977`, `978` y `979` MUST ser elegibles. El test MUST usar la tabla de casos de la tarea correspondiente, copiada literal también en el test de `sharedBaseEligibility`.
 
 #### Scenario: Producto de góndola argentino
 - **WHEN** se evalúa un EAN-13 que empieza con `779` y tiene el dígito verificador correcto
@@ -52,6 +52,10 @@ La función `private.shared_barcode_eligibility(p_code text)` SHALL ser `immutab
 #### Scenario: Revista
 - **WHEN** se evalúa un EAN-13 válido que empieza con `977`
 - **THEN** el resultado es `eligible`
+
+#### Scenario: GTIN-8 relleno hasta 12 dígitos
+- **WHEN** se evalúa `000001234565` (el EAN-8 `01234565` con 4 ceros)
+- **THEN** el resultado es `restricted_other`, igual que `01234565` y `0000001234565`
 
 ### Requirement: Consulta por código para tenants
 La RPC `public.lookup_shared_product(p_barcode text)` SHALL ser `security definer` con `search_path` vacío, ejecutable solo por `authenticated`, y devolver a lo sumo una fila con exactamente las columnas `barcode_norm`, `name`, `brand` y `presentation` de una entrada `active` con el mismo `barcode_key`. MUST NOT devolver `id`, `source`, `source_ref`, `status` ni fechas. Exige que quien llama sea `platform_admin` o tenga una membresía activa en una organización activa; si no, `42501`. Un texto que no tiene el formato de `barcode_norm` o un código no elegible devuelve cero filas sin error.

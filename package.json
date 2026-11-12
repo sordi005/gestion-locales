@@ -18,6 +18,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:db": "supabase test db",
+    "shared-products:load": "tsx --env-file-if-exists=.env.local scripts/shared-products/load.ts",
     "db:types": "supabase gen types typescript --local --schema public > src/shared/db/types.ts",
     "check": "pnpm lint && pnpm typecheck && pnpm test"
   },
@@ -60,6 +61,7 @@
     "prettier-plugin-tailwindcss": "0.8.1",
     "supabase": "2.119.0",
     "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
     "typescript": "6.0.3",
     "vite": "8.3.2",
     "vitest": "5.0.3",

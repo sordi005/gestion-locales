@@ -11,6 +11,10 @@
 - **WHEN** se evalúa un UPC-A elegible y su EAN-13 con `0` inicial
 - **THEN** los dos dan `eligible`
 
+#### Scenario: GTIN-8 relleno en 12 o 13 dígitos
+- **WHEN** se evalúa un GTIN-8 relleno con ceros hasta 12 o 13 dígitos (por ejemplo `000001234565`, `0000001234565` o `000077901231`)
+- **THEN** se evalúa con las reglas del EAN-8 de sus últimos 8 dígitos: el mismo código da el mismo resultado en 8, 12 y 13 dígitos
+
 #### Scenario: Nivel 1 no cambia
 - **WHEN** se normaliza para el catálogo del comercio un EAN-13 con dígito inválido
 - **THEN** `normalizeBarcode` sigue devolviendo `ok` con la advertencia `invalid_check_digit`, aunque `sharedBaseEligibility` lo rechace

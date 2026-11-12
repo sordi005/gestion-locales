@@ -348,3 +348,41 @@ join public.products p on p.id = pg_temp.demo_id('f000', s.n);
 -- (el trigger de historial deja la fila con old_price y source = 'manual').
 update public.products set sale_price = 1950.00 where id = pg_temp.demo_id('f000', 3);
 update public.products set sale_price = 5600.00 where id = pg_temp.demo_id('f000', 19);
+
+-- ---------------------------------------------------------------------------
+-- Base de productos compartida demo (C-64)
+-- ---------------------------------------------------------------------------
+-- `public.shared_products` no tiene privilegios para la API: el seed la carga como superusuario.
+-- Diez entradas con ids fijos 00000000-0000-4000-e200-0000000000NN, nombres genéricos y marcas
+-- INVENTADAS, con las cuatro fuentes y una retirada. Los códigos (7797000000NN9) son EAN-13
+-- elegibles y NO están en el catálogo demo de Norte (779900...) ni de Sur (779910...), así que no
+-- los pisa ningún voto. Los datos demo de esta tabla nunca van en `supabase/migrations/`.
+insert into public.shared_products (id, barcode_norm, name, brand, presentation, source, source_ref, status)
+select pg_temp.demo_id('e200', s.n), pg_temp.gtin13('779700000' || lpad(s.n::text, 3, '0')),
+       s.name, s.brand, s.presentation, s.source, s.source_ref, s.status
+from (
+  values
+    (1,  'Galletitas de limón',    'Campo Verde',  '120 g',  'sepa',             'demo-sepa', 'active'),
+    (2,  'Mermelada de durazno',   'Dulce Nube',   '454 g',  'sepa',             'demo-sepa', 'active'),
+    (3,  'Fideos moñitos',         'Pan Dorado',   '500 g',  'sepa',             'demo-sepa', 'active'),
+    (4,  'Cereal de maíz',         'Campo Verde',  '300 g',  'off',              'demo-off',  'active'),
+    (5,  'Té en saquitos',         'Río Azul',     '25 u',   'off',              'demo-off',  'active'),
+    (6,  'Aceitunas verdes',       'Tierra Linda', '200 g',  'off',              'demo-off',  'active'),
+    (7,  'Jugo de manzana',        'Sierra Clara', '1 L',    'tenant_consensus', null,        'active'),
+    (8,  'Pan lactal',             'Pan Dorado',   '350 g',  'tenant_consensus', null,        'active'),
+    (9,  'Limpiador de vidrios',   'Brillo Sol',   '500 ml', 'platform_admin',   null,        'active'),
+    (10, 'Gaseosa pomelo',         'Sierra Clara', '2 L',    'sepa',             'demo-sepa', 'retired')
+) as s (n, name, brand, presentation, source, source_ref, status);
+
+-- Cola "en revisión" demo. El catálogo demo ya dejó (por el trigger de alta) un voto pendiente
+-- por producto; entre ellos, el código del producto 1 de Norte y el 101 de Sur es el mismo con el
+-- mismo nombre ("Agua mineral 500 ml"): candidato a consenso. Falta un código con nombres
+-- DISTINTOS pero parecidos (candidato a "parecidos" del admin): se cargan los dos votos directo
+-- en la cola, sin productos de catálogo de por medio (así no cambian los conteos del catálogo demo).
+insert into private.shared_product_submissions (id, barcode_norm, proposed_name, proposed_brand, organization_id)
+select pg_temp.demo_id('e300', v.n), pg_temp.gtin13('779700000101'), v.name, 'Dulce Nube', v.org::uuid
+from (
+  values
+    (1, 'Mermelada de frutilla', '00000000-0000-4000-a000-000000000001'),
+    (2, 'Mermelada frutilla',    '00000000-0000-4000-a000-000000000002')
+) as v (n, name, org);
