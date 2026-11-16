@@ -56,8 +56,8 @@ const SEPARATOR = "|";
 function buildPresentation(quantity: string, unit: string): string | null {
   const text = quantity.trim().replace(",", ".");
   if (text === "") return null;
-  if (/^[0-9]+(.[0-9]+)?$/.test(text) && Number(text) <= 0) return null;
   const amount = formatAmount(text);
+  if (amount === "0") return null;
   const unitText = normalizeUnit(unit);
   return unitText === "" ? amount : `${amount} ${unitText}`;
 }

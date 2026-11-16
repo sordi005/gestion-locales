@@ -35,7 +35,11 @@ export function cleanBrand(raw: string | null): {
     return { brand: null, placeholder: false };
   }
   const edges = raw.replace(/^[\s*.-]+|[\s*.-]+$/g, "");
-  if (edges === "" || PLACEHOLDER_BRANDS.has(fold(edges))) {
+  if (
+    edges === "" ||
+    !/\p{L}/u.test(edges) ||
+    PLACEHOLDER_BRANDS.has(fold(edges))
+  ) {
     return { brand: null, placeholder: true };
   }
   return { brand: raw.trim().replace(/^[\s*]+/, ""), placeholder: false };
@@ -85,11 +89,12 @@ export function normalizeUnit(raw: string): string {
 /** `500.00` pasa a `500`, `1,50` a `1.5`; un texto que no es número queda como viene. */
 export function formatAmount(raw: string): string {
   const text = raw.trim().replace(",", ".");
-  return /^[0-9]+(\.[0-9]+)?$/.test(text) ? String(Number(text)) : text;
+  return /^(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/.test(text)
+    ? String(Number(text))
+    : text;
 }
 
-const SIMPLE_PRESENTATION =
-  /^([0-9]+(?:[.,][0-9]+)?)\s*([\p{L}][\p{L}0-9]*)\.?$/u;
+const SIMPLE_PRESENTATION = /^([0-9]*[.,]?[0-9]+)\s*([\p{L}][\p{L}0-9]*)\.?$/u;
 
 /**
  * Normaliza una presentación solo si es del tipo simple `<número> <unidad>`; cualquier otro
@@ -101,9 +106,36 @@ export function normalizePresentation(text: string): string {
   return `${formatAmount(match[1] ?? "")} ${normalizeUnit(match[2] ?? "")}`;
 }
 
-/** Una presentación de "1 unidad" (en cualquiera de sus escrituras) no dice nada. */
+/** Envases que, con cantidad 1, no dicen nada ("1 pck", "1 caja"). */
+const PACK_WORDS = new Set([
+  "cu",
+  "pck",
+  "paq",
+  "pack",
+  "bl",
+  "bli",
+  "blister",
+  "env",
+  "caja",
+  "bolsa",
+]);
+
+/**
+ * Una presentación que no dice nada (después de normalizar): "1 unidad", "1 pck", "1 g" o
+ * "1 ml" (un gramo no es un producto envasado) y cualquier cantidad menor a 1 en g, ml o u.
+ */
 export function isPlaceholderPresentation(text: string): boolean {
-  return normalizePresentation(text) === "1 u";
+  const match = /^([0-9.]+) (\S+)$/.exec(normalizePresentation(text));
+  if (match === null) return false;
+  const amount = Number(match[1]);
+  const unit = match[2] ?? "";
+  if (Number.isNaN(amount)) return false;
+  if (amount === 1) {
+    return (
+      unit === "u" || unit === "g" || unit === "ml" || PACK_WORDS.has(unit)
+    );
+  }
+  return amount < 1 && (unit === "g" || unit === "ml" || unit === "u");
 }
 
 /** ¿Al menos el 80% de las letras está en mayúscula? */

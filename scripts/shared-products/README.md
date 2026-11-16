@@ -94,8 +94,8 @@ El reporte tiene dos partes.
 
 **Limpieza del texto libre (SEPA y Open Food Facts):** el script no inventa datos; solo descarta relleno y normaliza la forma.
 
-- **Marcas de relleno → sin marca:** `S/D`, `SD`, `S/M`, `SIN MARCA`, `SIN MARCA DEFINIDA`, `GENERICO/A`, `VARIOS`, `OTRO`, `OTRAS`, `N/A`, `NA`, `-`, `.`, `0` (sin mayúsculas ni acentos, ignorando `*`, `.` y `-` en los bordes). Un `*` al principio de cualquier otra marca se saca (`*AEROCOR` pasa a `AEROCOR`); la marca, por lo demás, queda como viene.
-- **Presentaciones de relleno → sin presentación:** cantidad 1 con una unidad "unidad" (`1 UNI`, `1 unidad`, `1 EA`, `1 pza`...). `2 UNI` o `6 un` quedan como `2 u` y `6 u`.
+- **Marcas de relleno → sin marca:** `S/D`, `SD`, `S/M`, `SIN MARCA`, `SIN MARCA DEFINIDA`, `GENERICO/A`, `VARIOS`, `OTRO`, `OTRAS`, `N/A`, `NA`, `-`, `.`, `0` (sin mayúsculas ni acentos, ignorando `*`, `.` y `-` en los bordes), y cualquier marca sin letras (`317`, `0001`, `---`). Un `*` al principio de cualquier otra marca se saca (`*AEROCOR` pasa a `AEROCOR`); la marca, por lo demás, queda como viene.
+- **Presentaciones de relleno → sin presentación** (ya normalizadas): cantidad 1 con una unidad "unidad" (`1 UNI`, `1 EA`, `1 pza`...) o un envase (`cu`, `pck`, `paq`, `pack`, `bl`, `bli`, `blister`, `env`, `caja`, `bolsa`); `1 g` y `1 ml`; y cualquier cantidad menor a 1 en `g`, `ml` o `u` (`.40 g`). `2 UNI` o `6 un` quedan como `2 u` y `6 u`; `3 pck` queda como viene; `0.75 l` y `1 l` se quedan (el `.75` se escribe `0.75`).
 - **Unidades normalizadas** (SEPA siempre; Open Food Facts solo si el texto es del tipo `<número> <unidad>`, y si no queda como viene): `gr/grs/gramos` → `g`, `kilo/kilos/kgs` → `kg`, `cc/cm3` → `ml`, `lt/lts/litro/litros` → `l`, unidades → `u`; las demás van en minúscula.
 - **Nombres del SEPA:** pasan a tipo oración cuando al menos el 80% de las letras está en mayúscula (antes tenía que ser el 100%). Solo cambia el uso de mayúsculas: las unidades dentro del nombre no se reescriben, y la marca va como viene en su columna.
 

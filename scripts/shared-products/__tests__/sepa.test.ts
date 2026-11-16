@@ -475,6 +475,8 @@ describe("limpieza de nombres y presentaciones del SEPA", () => {
     ["2", "UNI", "2 u"],
     ["1", "uni.", "1 u"],
     ["3", "Rollos", "3 rollos"],
+    [".75", "lt", "0.75 l"],
+    ["3", "PCK", "3 pck"],
   ])("la presentación %j %j queda %j", (qty, unit, expected) => {
     const { products } = parseSepaText(
       file({ code: "7791234567898", desc: "A", qty, unit }),

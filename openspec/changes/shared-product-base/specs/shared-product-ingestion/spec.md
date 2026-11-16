@@ -71,11 +71,11 @@ Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_
 
 #### Scenario: Marca de relleno
 - **WHEN** una fila trae como marca `"S/D"`, `"SIN MARCA"`, `"GENERICO"`, `"-"` u otro relleno (sin distinguir mayúsculas ni acentos, ignorando `*`, `.` y `-` en los bordes), del SEPA o de Open Food Facts
-- **THEN** la fila se carga sin marca y el reporte lo cuenta (`placeholder_brand`); una marca como `"*AEROCOR"` se carga como `"AEROCOR"`
+- **THEN** la fila se carga sin marca y el reporte lo cuenta (`placeholder_brand`); lo mismo vale para una marca sin letras (`"317"`, `"---"`); una marca como `"*AEROCOR"` se carga como `"AEROCOR"`
 
 #### Scenario: Presentación de relleno
-- **WHEN** una fila trae una presentación de cantidad 1 con una unidad "unidad" (`"1 UNI"`, `"1 unidad"`, `"1 EA"`)
-- **THEN** la fila se carga sin presentación y el reporte lo cuenta (`placeholder_presentation`); `"2 UNI"` se carga como `"2 u"`
+- **WHEN** una fila trae una presentación de cantidad 1 con una unidad "unidad" o un envase (`"1 UNI"`, `"1 EA"`, `"1 pck"`, `"1 caja"`), `"1 g"`, `"1 ml"`, o una cantidad menor a 1 en `g`, `ml` o `u` (`".40 g"`)
+- **THEN** la fila se carga sin presentación y el reporte lo cuenta (`placeholder_presentation`); `"2 UNI"` se carga como `"2 u"`, `"3 pck"` queda como viene y `".75 lt"` se carga como `"0.75 l"`
 
 #### Scenario: Unidades normalizadas
 - **WHEN** el SEPA trae `350` con unidad `gr`, o Open Food Facts trae la cantidad `"1,5 LT"`
