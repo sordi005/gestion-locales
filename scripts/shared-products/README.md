@@ -10,13 +10,29 @@ Los archivos reales **no se suben al repo**: van en `data/shared-products/`, que
 
 ### SEPA / Precios Claros (fuente principal)
 
-1. Entrá al portal oficial de datos abiertos del SEPA / Precios Claros y bajá el dataset del día (un `.zip`).
-2. **Descomprimilo a mano** (el script no lee `.zip`) y dejá `productos.csv` en `data/shared-products/`, por ejemplo `data/shared-products/productos.csv`.
+1. Entrá a https://datos.gob.ar/dataset/precios-claros-base-sepa, sección "Datos y Recursos". Hay un `.zip` por día de la semana: bajá el más nuevo.
+2. Ese zip trae **un zip por cadena** (17 en la corrida del 2026-11-16), y cada uno su propio `productos.csv`. El script no lee `.zip`: hay que extraer el de afuera y todos los de adentro en una carpeta, por ejemplo `data/shared-products/sepa-AAAA-MM-DD/`. En PowerShell:
+
+   ```powershell
+   $dest = "data/shared-products/sepa-AAAA-MM-DD"
+   Expand-Archive -Path "$HOME/Downloads/sepa_lunes.zip" -DestinationPath "$dest/_outer"
+   Get-ChildItem "$dest/_outer" -Filter *.zip -Recurse | ForEach-Object {
+     try {
+       Expand-Archive -Path $_.FullName -DestinationPath "$dest/$($_.BaseName)" -ErrorAction Stop
+     } catch {
+       Write-Warning "Se saltea $($_.Name): zip vacío o dañado ($($_.Exception.Message))"
+     }
+   }
+   ```
+
+   Un zip interno puede venir vacío o dañado (pasó con uno real): se saltea y la carga sigue con las demás cadenas.
+
 3. Anotá la fecha del dataset: es la "versión" de la carga (`--source-ref sepa-AAAA-MM-DD`).
+4. Pasale al script **la carpeta** (`--file data/shared-products/sepa-AAAA-MM-DD`): busca todos los `productos.csv` que haya adentro, en cualquier subcarpeta, y los lee en orden. Para cada código elige la descripción **más frecuente entre todas las cadenas** (en un empate, la primera que apareció). También acepta un `productos.csv` suelto.
 
-El archivo viene separado por `|`, con encabezado, y termina con una línea de pie ("Ultima actualizacion: ..."). El script la saltea y la cuenta en el reporte.
+Cada archivo viene separado por `|`, con encabezado, saltos de línea de Windows (CRLF) y una línea de pie (`Ultima actualizacion: ...`) que el script saltea y cuenta en el reporte. Un archivo puede traer espacios sobrantes al final del encabezado y las columnas en otro orden: se buscan por nombre. Cada archivo valida su propio encabezado; si a uno le falta una columna, el script se corta y nombra el archivo y la columna. Un archivo vacío (0 bytes) se saltea y se cuenta en el reporte.
 
-> Las columnas que el script espera (`id_producto`, `productos_ean`, `productos_descripcion`, `productos_cantidad_presentacion`, `productos_unidad_medida_presentacion`, `productos_marca`) salen de cómo publica el dataset el SEPA. Se confirman contra un archivo real recién en la tarea 11.3 (staging). Si falta una, el script se corta y nombra la columna que falta: es la señal de que el formato cambió.
+> Las columnas que el script lee (`id_producto`, `productos_ean`, `productos_descripcion`, `productos_cantidad_presentacion`, `productos_unidad_medida_presentacion`, `productos_marca`) se confirmaron contra el archivo real del 2026-11-16 (17 columnas, separador `|`, CRLF, pie `Ultima actualizacion: ...`). Si algún día falta una, el script se corta y la nombra: es la señal de que el formato cambió.
 
 ### Open Food Facts (respaldo)
 
@@ -26,22 +42,22 @@ El archivo viene separado por `|`, con encabezado, y termina con una línea de p
 
 ## 2. Correrlo
 
-Hace falta `NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SECRET_KEY` en el entorno. El script lee `.env.local` si existe; lo que ya esté en el entorno de la terminal tiene prioridad. Para la base **local**:
+Para cargar de verdad hace falta `NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SECRET_KEY` en el entorno (el ensayo `--dry-run` no las pide: solo lee los archivos). El script lee `.env.local` si existe; lo que ya esté en el entorno de la terminal tiene prioridad. Para la base **local**:
 
 ```bash
 supabase status -o json | node scripts/ci/local-supabase-env.ts > .env.local
 ```
 
-Primero un ensayo, que lee el archivo y muestra el reporte **sin cargar nada**:
+Primero un ensayo, que lee los archivos y muestra el reporte **sin cargar nada**:
 
 ```bash
-pnpm shared-products:load --source sepa --file data/shared-products/productos.csv --dry-run
+pnpm shared-products:load --source sepa --file data/shared-products/sepa-AAAA-MM-DD --dry-run
 ```
 
 Después la carga de verdad:
 
 ```bash
-pnpm shared-products:load --source sepa --file data/shared-products/productos.csv --source-ref sepa-2026-11-04
+pnpm shared-products:load --source sepa --file data/shared-products/sepa-AAAA-MM-DD --source-ref sepa-2026-11-16
 pnpm shared-products:load --source off --file data/shared-products/en.openfoodfacts.org.products.csv.gz --source-ref off-2026-11
 ```
 
@@ -73,6 +89,15 @@ El reporte tiene dos partes.
   - `blank_name` y `text_too_long`: sin nombre, o textos más largos de lo que admite la tabla.
   - `price_like_text`: el nombre tiene un `$` (un precio escrito en el texto). Una marca o presentación con `$` no rechaza la fila: se carga sin ese dato y cuenta en "campos descartados". La base aplica la misma regla.
   - `empty`, `invalid_characters`, `scientific_notation`, `decimal`, `too_long`, `all_zeros`: el código no es un código.
+
+- `Campos opcionales descartados` (la fila se carga igual, sin ese dato): `field_dropped_brand` y `field_dropped_presentation` (largo o `$`), `placeholder_brand` (marca de relleno) y `placeholder_presentation` (presentación de "1 unidad").
+
+**Limpieza del texto libre (SEPA y Open Food Facts):** el script no inventa datos; solo descarta relleno y normaliza la forma.
+
+- **Marcas de relleno → sin marca:** `S/D`, `SD`, `S/M`, `SIN MARCA`, `SIN MARCA DEFINIDA`, `GENERICO/A`, `VARIOS`, `OTRO`, `OTRAS`, `N/A`, `NA`, `-`, `.`, `0` (sin mayúsculas ni acentos, ignorando `*`, `.` y `-` en los bordes), y cualquier marca sin letras (`317`, `0001`, `---`). Un `*` al principio de cualquier otra marca se saca (`*AEROCOR` pasa a `AEROCOR`); la marca, por lo demás, queda como viene.
+- **Presentaciones de relleno → sin presentación** (ya normalizadas): cantidad 1 con una unidad "unidad" (`1 UNI`, `1 EA`, `1 pza`...) o un envase (`cu`, `pck`, `paq`, `pack`, `bl`, `bli`, `blister`, `env`, `caja`, `bolsa`); `1 g` y `1 ml`; y cualquier cantidad menor a 1 en `g`, `ml` o `u` (`.40 g`). `2 UNI` o `6 un` quedan como `2 u` y `6 u`; `3 pck` queda como viene; `0.75 l` y `1 l` se quedan (el `.75` se escribe `0.75`).
+- **Unidades normalizadas** (SEPA siempre; Open Food Facts solo si el texto es del tipo `<número> <unidad>`, y si no queda como viene): `gr/grs/gramos` → `g`, `kilo/kilos/kgs` → `kg`, `cc/cm3` → `ml`, `lt/lts/litro/litros` → `l`, unidades → `u`; las demás van en minúscula.
+- **Nombres del SEPA:** pasan a tipo oración cuando al menos el 80% de las letras está en mayúscula (antes tenía que ser el 100%). Solo cambia el uso de mayúsculas: las unidades dentro del nombre no se reescriben, y la marca va como viene en su columna.
 
 **De la base (después de cargar):** `inserted` (códigos nuevos), `updated` (el SEPA reemplazó uno de Open Food Facts o de los kioscos), `skipped_ineligible` (la base volvió a filtrar y lo rechazó) y `skipped_protected` (no se toca: lo aprobó el super-admin, está retirado, o es Open Food Facts sobre algo que ya existía).
 

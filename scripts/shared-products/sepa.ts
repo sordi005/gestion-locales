@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 
+import { formatAmount, normalizeUnit, sentenceCase } from "./clean";
 import { SourceFormatError, cleanLine, findColumns } from "./types";
 import type { ParsedProduct } from "./types";
 
@@ -24,6 +25,10 @@ type SepaColumn = (typeof REQUIRED_COLUMNS)[number];
 export { SourceFormatError as SepaFormatError };
 
 export type SepaReport = {
+  /** Archivos leídos (uno por cadena en el zip diario real). */
+  readonly files: number;
+  /** Archivos sin encabezado ni datos (0 bytes): se saltean y se cuentan. */
+  readonly emptyFiles: number;
   /** Filas de datos con el formato correcto (sin contar encabezado, blancos ni rotas). */
   readonly dataRows: number;
   readonly eanRows: number;
@@ -47,41 +52,14 @@ type Candidate = {
 
 const SEPARATOR = "|";
 
-/** `500.00` pasa a `500`, `1.50` a `1.5`; cero o vacío es null. */
-function formatQuantity(raw: string): string | null {
-  const text = raw.trim().replace(",", ".");
-  if (text === "") return null;
-  if (/^[0-9]+(\.[0-9]+)?$/.test(text)) {
-    const value = Number(text);
-    return value > 0 ? String(value) : null;
-  }
-  return text;
-}
-
+/** Cantidad + unidad normalizada ("350 gr" pasa a "350 g"); cero o vacío es null. */
 function buildPresentation(quantity: string, unit: string): string | null {
-  const amount = formatQuantity(quantity);
-  if (amount === null) return null;
-  const unitText = unit.trim();
+  const text = quantity.trim().replace(",", ".");
+  if (text === "") return null;
+  const amount = formatAmount(text);
+  if (amount === "0") return null;
+  const unitText = normalizeUnit(unit);
   return unitText === "" ? amount : `${amount} ${unitText}`;
-}
-
-/** Texto todo en mayúsculas (con al menos una letra): hay que pasarlo a tipo oración. */
-function isAllUppercase(text: string): boolean {
-  return text !== text.toLowerCase() && text === text.toUpperCase();
-}
-
-function sentenceCase(text: string, brand: string | null): string {
-  if (!isAllUppercase(text)) return text;
-  const lower = text.toLowerCase();
-  let result = lower.charAt(0).toUpperCase() + lower.slice(1);
-  if (brand !== null) {
-    // La marca va como viene en su columna, aunque el nombre pasara a minúsculas.
-    const at = result.toLowerCase().indexOf(brand.toLowerCase());
-    if (at !== -1) {
-      result = result.slice(0, at) + brand + result.slice(at + brand.length);
-    }
-  }
-  return result;
 }
 
 /**
@@ -93,20 +71,39 @@ export function createSepaAccumulator() {
   let columns: Record<SepaColumn, number> | null = null;
   let columnCount = 0;
   let isFirstLine = true;
+  let fileLabel = "SEPA";
+  let files = 0;
+  let filesWithHeader = 0;
   let dataRows = 0;
   let eanRows = 0;
   let nonEanRows = 0;
   let malformedLines = 0;
   const byCode = new Map<string, Map<string, Candidate>>();
 
+  /**
+   * Arranca un archivo nuevo: reinicia el encabezado (cada archivo trae el suyo, con las
+   * columnas en el orden que quiera) y conserva los códigos y contadores acumulados.
+   */
+  function startFile(label: string): void {
+    files += 1;
+    fileLabel = `SEPA (${label})`;
+    columns = null;
+    columnCount = 0;
+    isFirstLine = true;
+  }
+
   function addLine(rawLine: string): void {
+    if (files === 0) startFile("texto");
     const line = cleanLine(rawLine, isFirstLine);
     isFirstLine = false;
 
     if (columns === null) {
+      // Antes del encabezado, una línea en blanco no es encabezado (archivo vacío).
+      if (line.trim() === "") return;
       const header = line.split(SEPARATOR);
-      columns = findColumns(header, REQUIRED_COLUMNS, "SEPA");
+      columns = findColumns(header, REQUIRED_COLUMNS, fileLabel);
       columnCount = header.length;
+      filesWithHeader += 1;
       return;
     }
     if (line.trim() === "") return;
@@ -152,7 +149,7 @@ export function createSepaAccumulator() {
   }
 
   function finish(): SepaParseResult {
-    if (columns === null) {
+    if (filesWithHeader === 0) {
       throw new SourceFormatError(
         "El archivo de SEPA está vacío: no tiene encabezado.",
         [...REQUIRED_COLUMNS],
@@ -176,6 +173,8 @@ export function createSepaAccumulator() {
     return {
       products,
       report: {
+        files,
+        emptyFiles: files - filesWithHeader,
         dataRows,
         eanRows,
         nonEanRows,
@@ -185,7 +184,7 @@ export function createSepaAccumulator() {
     };
   }
 
-  return { addLine, finish };
+  return { startFile, addLine, finish };
 }
 
 /** Parsea el texto completo de un `productos.csv` (para fixtures y archivos chicos). */
@@ -195,13 +194,26 @@ export function parseSepaText(text: string): SepaParseResult {
   return accumulator.finish();
 }
 
-/** Parsea un archivo ya extraído, leído línea por línea. */
-export async function parseSepaFile(path: string): Promise<SepaParseResult> {
+/**
+ * Parsea varios archivos ya extraídos (un `productos.csv` por cadena), leídos línea por línea
+ * y con UN solo acumulador: la descripción más frecuente se elige entre todos los archivos.
+ */
+export async function parseSepaFiles(
+  paths: readonly string[],
+): Promise<SepaParseResult> {
   const accumulator = createSepaAccumulator();
-  const lines = createInterface({
-    input: createReadStream(path, { encoding: "utf8" }),
-    crlfDelay: Infinity,
-  });
-  for await (const line of lines) accumulator.addLine(line);
+  for (const path of paths) {
+    accumulator.startFile(path);
+    const lines = createInterface({
+      input: createReadStream(path, { encoding: "utf8" }),
+      crlfDelay: Infinity,
+    });
+    for await (const line of lines) accumulator.addLine(line);
+  }
   return accumulator.finish();
+}
+
+/** Parsea un solo archivo ya extraído. */
+export function parseSepaFile(path: string): Promise<SepaParseResult> {
+  return parseSepaFiles([path]);
 }

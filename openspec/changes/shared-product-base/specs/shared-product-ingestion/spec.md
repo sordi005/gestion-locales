@@ -35,7 +35,7 @@ Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_
 - **THEN** esos votos quedan `superseded` y sin organización
 
 ### Requirement: Script de carga inicial desde SEPA y Open Food Facts
-`scripts/shared-products/` SHALL leer archivos ya descargados a mano en una carpeta ignorada por git: los `productos.csv` del SEPA (solo filas marcadas como EAN, eligiendo por código la descripción más frecuente entre comercios, con marca y presentación) y el export CSV de Open Food Facts leído en streaming y filtrado a Argentina (nunca la API en vivo). Las descripciones del SEPA que vienen enteras en mayúsculas MUST pasarse a "tipo oración" (primera letra en mayúscula, el resto en minúscula); la marca MUST quedar como viene en su columna. Normaliza con `normalizeBarcode`, filtra con `sharedBaseEligibility`, deduplica por `barcodeKey` y carga en lotes con `load_shared_products`. Las columnas de precio del SEPA MUST descartarse al parsear y MUST NOT aparecer en ninguna estructura ni archivo intermedio. Al terminar imprime cuántas filas leyó, cuántas filtró por motivo, cuántas duplicadas y los conteos de la carga.
+`scripts/shared-products/` SHALL leer archivos ya descargados a mano en una carpeta ignorada por git: los `productos.csv` del SEPA (solo filas marcadas como EAN, eligiendo por código la descripción más frecuente entre comercios, con marca y presentación) y el export CSV de Open Food Facts leído en streaming y filtrado a Argentina (nunca la API en vivo). Las descripciones del SEPA en las que al menos el 80% de las letras está en mayúscula MUST pasarse a "tipo oración" (primera letra en mayúscula, el resto en minúscula); la marca MUST quedar como viene en su columna. Normaliza con `normalizeBarcode`, filtra con `sharedBaseEligibility`, deduplica por `barcodeKey` y carga en lotes con `load_shared_products`. Las columnas de precio del SEPA MUST descartarse al parsear y MUST NOT aparecer en ninguna estructura ni archivo intermedio. Al terminar imprime cuántas filas leyó, cuántas filtró por motivo, cuántas duplicadas y los conteos de la carga.
 
 #### Scenario: Fila del SEPA con precio
 - **WHEN** el parser lee una fila sintética del SEPA con precio de lista
@@ -48,6 +48,10 @@ Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_
 #### Scenario: Descripción en mayúsculas
 - **WHEN** el SEPA trae la descripción `"GASEOSA COLA BOT 500 ML"` con la marca `"Marca Ejemplo"` en su columna
 - **THEN** el nombre cargado es `"Gaseosa cola bot 500 ml"` y la marca queda `"Marca Ejemplo"`, tal como vino
+
+#### Scenario: Descripción casi toda en mayúsculas
+- **WHEN** el SEPA trae `"LIMPIADOR CIF GEL C/LAVAN.UL.BCO.500cc."` (más del 80% de las letras en mayúscula)
+- **THEN** el nombre cargado es `"Limpiador cif gel c/lavan.ul.bco.500cc."`; `"Espumante spritz FEDERICO DE ALVEAR bot x 750 cc"` (menos del 80%) queda como viene, y las unidades dentro del nombre no se reescriben
 
 #### Scenario: Producto de otro país en Open Food Facts
 - **WHEN** el export trae un producto sin Argentina en sus países
@@ -64,6 +68,22 @@ Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_
 #### Scenario: Precio en el texto libre
 - **WHEN** una fila trae un nombre con `$` (por ejemplo "Alfajor $500"), o una marca o presentación con `$`
 - **THEN** el nombre rechaza la fila con el motivo `price_like_text`; la marca o la presentación se descartan (la fila entra sin ese dato) y cuentan en el reporte; "1.5 L" sigue siendo una presentación válida (no se miran números)
+
+#### Scenario: Marca de relleno
+- **WHEN** una fila trae como marca `"S/D"`, `"SIN MARCA"`, `"GENERICO"`, `"-"` u otro relleno (sin distinguir mayúsculas ni acentos, ignorando `*`, `.` y `-` en los bordes), del SEPA o de Open Food Facts
+- **THEN** la fila se carga sin marca y el reporte lo cuenta (`placeholder_brand`); lo mismo vale para una marca sin letras (`"317"`, `"---"`); una marca como `"*AEROCOR"` se carga como `"AEROCOR"`
+
+#### Scenario: Presentación de relleno
+- **WHEN** una fila trae una presentación de cantidad 1 con una unidad "unidad" o un envase (`"1 UNI"`, `"1 EA"`, `"1 pck"`, `"1 caja"`), `"1 g"`, `"1 ml"`, o una cantidad menor a 1 en `g`, `ml` o `u` (`".40 g"`)
+- **THEN** la fila se carga sin presentación y el reporte lo cuenta (`placeholder_presentation`); `"2 UNI"` se carga como `"2 u"`, `"3 pck"` queda como viene y `".75 lt"` se carga como `"0.75 l"`
+
+#### Scenario: Unidades normalizadas
+- **WHEN** el SEPA trae `350` con unidad `gr`, o Open Food Facts trae la cantidad `"1,5 LT"`
+- **THEN** la presentación cargada es `"350 g"` y `"1.5 l"`; una cantidad de Open Food Facts que no es del tipo `<número> <unidad>` (por ejemplo `"6 x 330 ml"`) queda como viene
+
+#### Scenario: Ensayo sin credenciales
+- **WHEN** se corre el script con `--dry-run` sin `NEXT_PUBLIC_SUPABASE_URL` ni `SUPABASE_SECRET_KEY`
+- **THEN** lee el archivo, muestra el reporte y termina bien sin cargar nada; una carga de verdad sin esas variables sigue fallando
 
 #### Scenario: GTIN-8 relleno en 12 dígitos
 - **WHEN** el archivo trae un GTIN-8 elegible relleno con ceros hasta 12 o 13 dígitos
