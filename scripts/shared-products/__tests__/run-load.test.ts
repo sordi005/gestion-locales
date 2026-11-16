@@ -330,3 +330,25 @@ describe("runLoad", () => {
     expect(errors.join("\n")).toMatch(/1 lote/);
   });
 });
+
+describe("--dry-run sin credenciales", () => {
+  const SEPA_ARGS = ["--source", "sepa", "--file", "f.csv"];
+  it.each([
+    ["sin nada en el entorno", {}],
+    ["sin la secret key", { NEXT_PUBLIC_SUPABASE_URL: REMOTE }],
+    ["con una URL remota y sin --license-confirmed", env(REMOTE, KEY)],
+  ])("%s: muestra el reporte y no carga", async (_label, environment) => {
+    const { deps, loadBatch, logs, errors } = makeDeps();
+    const code = await runLoad([...SEPA_ARGS, "--dry-run"], environment, deps);
+    expect(code).toBe(0);
+    expect(errors).toEqual([]);
+    expect(loadBatch).not.toHaveBeenCalled();
+    expect(logs.join("\n")).toContain("Aceptados para cargar: 1");
+  });
+
+  it("una carga de verdad sin credenciales sigue fallando", async () => {
+    const { deps, loadBatch } = makeDeps();
+    expect(await runLoad(SEPA_ARGS, {}, deps)).toBe(1);
+    expect(loadBatch).not.toHaveBeenCalled();
+  });
+});

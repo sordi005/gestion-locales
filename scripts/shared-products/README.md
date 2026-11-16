@@ -42,7 +42,7 @@ Cada archivo viene separado por `|`, con encabezado, saltos de línea de Windows
 
 ## 2. Correrlo
 
-Hace falta `NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SECRET_KEY` en el entorno. El script lee `.env.local` si existe; lo que ya esté en el entorno de la terminal tiene prioridad. Para la base **local**:
+Para cargar de verdad hace falta `NEXT_PUBLIC_SUPABASE_URL` y `SUPABASE_SECRET_KEY` en el entorno (el ensayo `--dry-run` no las pide: solo lee los archivos). El script lee `.env.local` si existe; lo que ya esté en el entorno de la terminal tiene prioridad. Para la base **local**:
 
 ```bash
 supabase status -o json | node scripts/ci/local-supabase-env.ts > .env.local
@@ -89,6 +89,15 @@ El reporte tiene dos partes.
   - `blank_name` y `text_too_long`: sin nombre, o textos más largos de lo que admite la tabla.
   - `price_like_text`: el nombre tiene un `$` (un precio escrito en el texto). Una marca o presentación con `$` no rechaza la fila: se carga sin ese dato y cuenta en "campos descartados". La base aplica la misma regla.
   - `empty`, `invalid_characters`, `scientific_notation`, `decimal`, `too_long`, `all_zeros`: el código no es un código.
+
+- `Campos opcionales descartados` (la fila se carga igual, sin ese dato): `field_dropped_brand` y `field_dropped_presentation` (largo o `$`), `placeholder_brand` (marca de relleno) y `placeholder_presentation` (presentación de "1 unidad").
+
+**Limpieza del texto libre (SEPA y Open Food Facts):** el script no inventa datos; solo descarta relleno y normaliza la forma.
+
+- **Marcas de relleno → sin marca:** `S/D`, `SD`, `S/M`, `SIN MARCA`, `SIN MARCA DEFINIDA`, `GENERICO/A`, `VARIOS`, `OTRO`, `OTRAS`, `N/A`, `NA`, `-`, `.`, `0` (sin mayúsculas ni acentos, ignorando `*`, `.` y `-` en los bordes). Un `*` al principio de cualquier otra marca se saca (`*AEROCOR` pasa a `AEROCOR`); la marca, por lo demás, queda como viene.
+- **Presentaciones de relleno → sin presentación:** cantidad 1 con una unidad "unidad" (`1 UNI`, `1 unidad`, `1 EA`, `1 pza`...). `2 UNI` o `6 un` quedan como `2 u` y `6 u`.
+- **Unidades normalizadas** (SEPA siempre; Open Food Facts solo si el texto es del tipo `<número> <unidad>`, y si no queda como viene): `gr/grs/gramos` → `g`, `kilo/kilos/kgs` → `kg`, `cc/cm3` → `ml`, `lt/lts/litro/litros` → `l`, unidades → `u`; las demás van en minúscula.
+- **Nombres del SEPA:** pasan a tipo oración cuando al menos el 80% de las letras está en mayúscula (antes tenía que ser el 100%). Solo cambia el uso de mayúsculas: las unidades dentro del nombre no se reescriben, y la marca va como viene en su columna.
 
 **De la base (después de cargar):** `inserted` (códigos nuevos), `updated` (el SEPA reemplazó uno de Open Food Facts o de los kioscos), `skipped_ineligible` (la base volvió a filtrar y lo rechazó) y `skipped_protected` (no se toca: lo aprobó el super-admin, está retirado, o es Open Food Facts sobre algo que ya existía).
 

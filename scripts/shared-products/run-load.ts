@@ -160,24 +160,28 @@ export async function runLoad(
   }
   const { source, file, licenseConfirmed, dryRun } = args.value;
 
-  const url = env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const key = env.SUPABASE_SECRET_KEY ?? "";
-  if (url === "" || key === "") {
-    deps.error(
-      "Faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SECRET_KEY en el entorno.",
-    );
-    return 1;
-  }
+  // El ensayo (--dry-run) solo lee el archivo: no toca la base, así que no pide credenciales
+  // ni compuerta de licencia. La carga de verdad sí.
+  if (!dryRun) {
+    const url = env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+    const key = env.SUPABASE_SECRET_KEY ?? "";
+    if (url === "" || key === "") {
+      deps.error(
+        "Faltan NEXT_PUBLIC_SUPABASE_URL o SUPABASE_SECRET_KEY en el entorno.",
+      );
+      return 1;
+    }
 
-  // La compuerta va ANTES de leer el archivo y de tocar la base.
-  const gate = checkLicenseGate({
-    source,
-    supabaseUrl: url,
-    licenseConfirmed,
-  });
-  if (!gate.ok) {
-    deps.error(gate.message);
-    return 1;
+    // La compuerta va ANTES de leer el archivo y de tocar la base.
+    const gate = checkLicenseGate({
+      source,
+      supabaseUrl: url,
+      licenseConfirmed,
+    });
+    if (!gate.ok) {
+      deps.error(gate.message);
+      return 1;
+    }
   }
 
   let parsed: Awaited<ReturnType<LoadDeps["parseFile"]>>;

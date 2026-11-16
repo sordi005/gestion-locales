@@ -3,6 +3,11 @@ import {
   sharedBaseEligibility,
 } from "../../src/shared/lib/barcode";
 
+import {
+  cleanBrand,
+  isPlaceholderPresentation,
+  normalizePresentation,
+} from "./clean";
 import type { LoadRow, ParsedProduct } from "./types";
 
 // Pipeline de la carga (C-64, tarea 9.4): normalizar → filtrar por motivo → deduplicar por
@@ -106,12 +111,25 @@ export function buildLoad(products: Iterable<ParsedProduct>): PipelineResult {
       reject("price_like_text");
       continue;
     }
-    let brand = optional(item.brand);
+    const cleanedBrand = cleanBrand(optional(item.brand));
+    if (cleanedBrand.placeholder)
+      droppedFields.placeholder_brand =
+        (droppedFields.placeholder_brand ?? 0) + 1;
+    let brand = cleanedBrand.brand;
     if (brand !== null && (brand.length > MAX_BRAND || isPriceLike(brand))) {
       brand = null;
       dropField("brand");
     }
     let presentation = optional(item.presentation);
+    if (presentation !== null) {
+      if (isPlaceholderPresentation(presentation)) {
+        presentation = null;
+        droppedFields.placeholder_presentation =
+          (droppedFields.placeholder_presentation ?? 0) + 1;
+      } else {
+        presentation = normalizePresentation(presentation);
+      }
+    }
     if (
       presentation !== null &&
       (presentation.length > MAX_PRESENTATION || isPriceLike(presentation))
@@ -171,7 +189,7 @@ export function formatReport(report: PipelineReport): string {
   );
   if (dropped.length > 0) {
     lines.push(
-      "Campos opcionales descartados por largo o por llevar un $ (la fila se carga igual):",
+      'Campos opcionales descartados (largo, $ o relleno como "S/D" o "1 unidad"; la fila se carga igual):',
     );
     for (const [field, count] of dropped) lines.push(`  ${field}: ${count}`);
   }

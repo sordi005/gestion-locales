@@ -145,7 +145,7 @@ describe("buildLoad: normalizar y filtrar", () => {
         barcode_norm: "9771234567898",
         name: "ok",
         brand: "Cola",
-        presentation: "1.5 L",
+        presentation: "1.5 l",
       },
     ]);
     expect(report.droppedFields).toEqual({
@@ -261,5 +261,61 @@ describe("formatReport", () => {
     expect(
       formatReport(buildLoad([product("7791234567898")]).report),
     ).not.toContain("field_dropped");
+  });
+});
+
+describe("buildLoad: limpieza de marca y presentación", () => {
+  it.each([
+    ["S/D", null],
+    ["SIN MARCA", null],
+    ["*sin marca*", null],
+    ["-", null],
+    ["*AEROCOR", "AEROCOR"],
+    ["Aerocor", "Aerocor"],
+  ])("la marca %j queda %j", (brand, expected) => {
+    const { batches } = buildLoad([
+      product("7791234567898", "Alfajor", { brand }),
+    ]);
+    expect(batches[0]?.[0]?.brand).toBe(expected);
+  });
+
+  it.each([
+    ["1 UNI", null],
+    ["1 unidad", null],
+    ["1 EA", null],
+    ["1.0 un", null],
+    ["1 uni.", null],
+    ["1 LT", "1 l"],
+    ["350 gr", "350 g"],
+    ["2 UNI", "2 u"],
+    ["6 un", "6 u"],
+    ["pack ahorro", "pack ahorro"],
+    ["6 x 330 ml", "6 x 330 ml"],
+  ])("la presentación %j queda %j", (presentation, expected) => {
+    const { batches } = buildLoad([
+      product("7791234567898", "Alfajor", { presentation }),
+    ]);
+    expect(batches[0]?.[0]?.presentation).toBe(expected);
+  });
+
+  it("cuenta los rellenos descartados en el reporte", () => {
+    const { report } = buildLoad([
+      product("7791234567898", "A", { brand: "S/D", presentation: "1 UNI" }),
+      product("77901231", "B", { brand: "SIN MARCA", presentation: "1 un" }),
+      product("9771234567898", "C", { brand: "Cola", presentation: "2 un" }),
+    ]);
+    expect(report.droppedFields).toEqual({
+      placeholder_brand: 2,
+      placeholder_presentation: 2,
+    });
+  });
+
+  it("el reporte en texto nombra los rellenos", () => {
+    const { report } = buildLoad([
+      product("7791234567898", "A", { brand: "S/D", presentation: "1 UNI" }),
+    ]);
+    const text = formatReport(report);
+    expect(text).toContain("placeholder_brand: 1");
+    expect(text).toContain("placeholder_presentation: 1");
   });
 });

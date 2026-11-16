@@ -1,6 +1,7 @@
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 
+import { formatAmount, normalizeUnit, sentenceCase } from "./clean";
 import { SourceFormatError, cleanLine, findColumns } from "./types";
 import type { ParsedProduct } from "./types";
 
@@ -51,41 +52,14 @@ type Candidate = {
 
 const SEPARATOR = "|";
 
-/** `500.00` pasa a `500`, `1.50` a `1.5`; cero o vacío es null. */
-function formatQuantity(raw: string): string | null {
-  const text = raw.trim().replace(",", ".");
-  if (text === "") return null;
-  if (/^[0-9]+(\.[0-9]+)?$/.test(text)) {
-    const value = Number(text);
-    return value > 0 ? String(value) : null;
-  }
-  return text;
-}
-
+/** Cantidad + unidad normalizada ("350 gr" pasa a "350 g"); cero o vacío es null. */
 function buildPresentation(quantity: string, unit: string): string | null {
-  const amount = formatQuantity(quantity);
-  if (amount === null) return null;
-  const unitText = unit.trim();
+  const text = quantity.trim().replace(",", ".");
+  if (text === "") return null;
+  if (/^[0-9]+(.[0-9]+)?$/.test(text) && Number(text) <= 0) return null;
+  const amount = formatAmount(text);
+  const unitText = normalizeUnit(unit);
   return unitText === "" ? amount : `${amount} ${unitText}`;
-}
-
-/** Texto todo en mayúsculas (con al menos una letra): hay que pasarlo a tipo oración. */
-function isAllUppercase(text: string): boolean {
-  return text !== text.toLowerCase() && text === text.toUpperCase();
-}
-
-function sentenceCase(text: string, brand: string | null): string {
-  if (!isAllUppercase(text)) return text;
-  const lower = text.toLowerCase();
-  let result = lower.charAt(0).toUpperCase() + lower.slice(1);
-  if (brand !== null) {
-    // La marca va como viene en su columna, aunque el nombre pasara a minúsculas.
-    const at = result.toLowerCase().indexOf(brand.toLowerCase());
-    if (at !== -1) {
-      result = result.slice(0, at) + brand + result.slice(at + brand.length);
-    }
-  }
-  return result;
 }
 
 /**

@@ -156,9 +156,9 @@ describe("parseSepaText: filas", () => {
       ),
     );
     expect(products.map((p) => p.presentation)).toEqual([
-      "500 gr",
-      "1.5 lt",
-      "12 un",
+      "500 g",
+      "1.5 l",
+      "12 u",
     ]);
   });
 
@@ -447,5 +447,38 @@ describe("parseSepaFiles: lectura en streaming de varios archivos", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("limpieza de nombres y presentaciones del SEPA", () => {
+  it.each([
+    [
+      "LIMPIADOR CIF GEL C/LAVAN.UL.BCO.500cc.",
+      "Limpiador cif gel c/lavan.ul.bco.500cc.",
+    ],
+    ["PINTA PELO CANDELA 80gr", "Pinta pelo candela 80gr"],
+    ["Garbanzos l.banda x350g.", "Garbanzos l.banda x350g."],
+    [
+      "Espumante spritz FEDERICO DE ALVEAR bot x 750 cc",
+      "Espumante spritz FEDERICO DE ALVEAR bot x 750 cc",
+    ],
+    ["TV LED 32", "Tv led 32"],
+  ])("el nombre %j queda %j", (desc, expected) => {
+    const { products } = parseSepaText(file({ code: "7791234567898", desc }));
+    expect(products[0]?.name).toBe(expected);
+  });
+
+  it.each([
+    ["350", "gr", "350 g"],
+    ["1", "LT", "1 l"],
+    ["500", "cc", "500 ml"],
+    ["2", "UNI", "2 u"],
+    ["1", "uni.", "1 u"],
+    ["3", "Rollos", "3 rollos"],
+  ])("la presentación %j %j queda %j", (qty, unit, expected) => {
+    const { products } = parseSepaText(
+      file({ code: "7791234567898", desc: "A", qty, unit }),
+    );
+    expect(products[0]?.presentation).toBe(expected);
   });
 });
