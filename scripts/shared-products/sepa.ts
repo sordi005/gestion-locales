@@ -24,6 +24,10 @@ type SepaColumn = (typeof REQUIRED_COLUMNS)[number];
 export { SourceFormatError as SepaFormatError };
 
 export type SepaReport = {
+  /** Archivos leídos (uno por cadena en el zip diario real). */
+  readonly files: number;
+  /** Archivos sin encabezado ni datos (0 bytes): se saltean y se cuentan. */
+  readonly emptyFiles: number;
   /** Filas de datos con el formato correcto (sin contar encabezado, blancos ni rotas). */
   readonly dataRows: number;
   readonly eanRows: number;
@@ -93,20 +97,39 @@ export function createSepaAccumulator() {
   let columns: Record<SepaColumn, number> | null = null;
   let columnCount = 0;
   let isFirstLine = true;
+  let fileLabel = "SEPA";
+  let files = 0;
+  let filesWithHeader = 0;
   let dataRows = 0;
   let eanRows = 0;
   let nonEanRows = 0;
   let malformedLines = 0;
   const byCode = new Map<string, Map<string, Candidate>>();
 
+  /**
+   * Arranca un archivo nuevo: reinicia el encabezado (cada archivo trae el suyo, con las
+   * columnas en el orden que quiera) y conserva los códigos y contadores acumulados.
+   */
+  function startFile(label: string): void {
+    files += 1;
+    fileLabel = `SEPA (${label})`;
+    columns = null;
+    columnCount = 0;
+    isFirstLine = true;
+  }
+
   function addLine(rawLine: string): void {
+    if (files === 0) startFile("texto");
     const line = cleanLine(rawLine, isFirstLine);
     isFirstLine = false;
 
     if (columns === null) {
+      // Antes del encabezado, una línea en blanco no es encabezado (archivo vacío).
+      if (line.trim() === "") return;
       const header = line.split(SEPARATOR);
-      columns = findColumns(header, REQUIRED_COLUMNS, "SEPA");
+      columns = findColumns(header, REQUIRED_COLUMNS, fileLabel);
       columnCount = header.length;
+      filesWithHeader += 1;
       return;
     }
     if (line.trim() === "") return;
@@ -152,7 +175,7 @@ export function createSepaAccumulator() {
   }
 
   function finish(): SepaParseResult {
-    if (columns === null) {
+    if (filesWithHeader === 0) {
       throw new SourceFormatError(
         "El archivo de SEPA está vacío: no tiene encabezado.",
         [...REQUIRED_COLUMNS],
@@ -176,6 +199,8 @@ export function createSepaAccumulator() {
     return {
       products,
       report: {
+        files,
+        emptyFiles: files - filesWithHeader,
         dataRows,
         eanRows,
         nonEanRows,
@@ -185,7 +210,7 @@ export function createSepaAccumulator() {
     };
   }
 
-  return { addLine, finish };
+  return { startFile, addLine, finish };
 }
 
 /** Parsea el texto completo de un `productos.csv` (para fixtures y archivos chicos). */
@@ -195,13 +220,26 @@ export function parseSepaText(text: string): SepaParseResult {
   return accumulator.finish();
 }
 
-/** Parsea un archivo ya extraído, leído línea por línea. */
-export async function parseSepaFile(path: string): Promise<SepaParseResult> {
+/**
+ * Parsea varios archivos ya extraídos (un `productos.csv` por cadena), leídos línea por línea
+ * y con UN solo acumulador: la descripción más frecuente se elige entre todos los archivos.
+ */
+export async function parseSepaFiles(
+  paths: readonly string[],
+): Promise<SepaParseResult> {
   const accumulator = createSepaAccumulator();
-  const lines = createInterface({
-    input: createReadStream(path, { encoding: "utf8" }),
-    crlfDelay: Infinity,
-  });
-  for await (const line of lines) accumulator.addLine(line);
+  for (const path of paths) {
+    accumulator.startFile(path);
+    const lines = createInterface({
+      input: createReadStream(path, { encoding: "utf8" }),
+      crlfDelay: Infinity,
+    });
+    for await (const line of lines) accumulator.addLine(line);
+  }
   return accumulator.finish();
+}
+
+/** Parsea un solo archivo ya extraído. */
+export function parseSepaFile(path: string): Promise<SepaParseResult> {
+  return parseSepaFiles([path]);
 }

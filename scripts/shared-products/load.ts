@@ -2,13 +2,12 @@ import { createClient } from "@supabase/supabase-js";
 
 import type { Database } from "../../src/shared/db/types";
 
-import { parseOffFile } from "./off";
+import { parseSource } from "./parse-source";
 import { runLoad } from "./run-load";
 import type { LoadCounts, LoadDeps } from "./run-load";
-import { parseSepaFile } from "./sepa";
 
 // Punto de entrada del script de carga inicial de la base compartida (C-64, D8).
-//   pnpm shared-products:load --source sepa|off --file <ruta> [--source-ref <versión>]
+//   pnpm shared-products:load --source sepa|off --file <ruta o carpeta (solo sepa)> [--source-ref <versión>]
 //                             [--license-confirmed] [--dry-run]
 // Lo corre SOLO el lead, desde su máquina, con la secret key del proyecto en el entorno
 // (NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SECRET_KEY). Nada de esto corre en Vercel ni en el CI.
@@ -38,26 +37,7 @@ function getClient() {
 }
 
 const deps: LoadDeps = {
-  async parseFile(source, path) {
-    if (source === "sepa") {
-      const { products, report } = await parseSepaFile(path);
-      return {
-        products,
-        notes: [
-          `SEPA: ${report.dataRows} filas, ${report.eanRows} con EAN (${report.nonEanRows} no EAN), ` +
-            `${report.distinctCodes} códigos distintos, ${report.malformedLines} líneas salteadas por formato.`,
-        ],
-      };
-    }
-    const { products, report } = await parseOffFile(path);
-    return {
-      products,
-      notes: [
-        `Open Food Facts: ${report.dataRows} filas, ${report.argentinaRows} de Argentina ` +
-          `(${report.withoutName} sin nombre), ${report.malformedLines} líneas salteadas por formato.`,
-      ],
-    };
-  },
+  parseFile: parseSource,
 
   async loadBatch(rows, source, sourceRef): Promise<LoadCounts> {
     const { data, error } = await getClient().rpc("load_shared_products", {

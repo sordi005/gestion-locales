@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { SepaFormatError, parseSepaFile, parseSepaText } from "../sepa";
+import {
+  SepaFormatError,
+  createSepaAccumulator,
+  parseSepaFile,
+  parseSepaFiles,
+  parseSepaText,
+} from "../sepa";
 
 // Fixtures SINTÉTICOS (nombres y códigos inventados): ningún dato real del SEPA en el repo.
 
@@ -278,6 +284,8 @@ describe("parseSepaText: formato del archivo", () => {
       ),
     );
     expect(report).toEqual({
+      files: 1,
+      emptyFiles: 0,
       dataRows: 4,
       eanRows: 3,
       nonEanRows: 1,
@@ -293,6 +301,148 @@ describe("parseSepaFile: lectura de archivos", () => {
     try {
       await expect(parseSepaFile(join(dir, "no-existe.csv"))).rejects.toThrow(
         /ENOENT/,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("varios archivos (una cadena por archivo)", () => {
+  function parseMany(texts: readonly string[]) {
+    const accumulator = createSepaAccumulator();
+    for (const text of texts) {
+      accumulator.startFile(`cadena-${texts.indexOf(text) + 1}/productos.csv`);
+      for (const line of text.split("\n")) accumulator.addLine(line);
+    }
+    return accumulator.finish();
+  }
+
+  it("la descripción más frecuente se elige ENTRE archivos, no por el último", () => {
+    const { products, report } = parseMany([
+      file(
+        { code: "7791234567898", desc: "Alfajor triple" },
+        { code: "7791234567898", desc: "Alfajor triple" },
+      ),
+      file({ code: "7791234567898", desc: "Alfajor choco" }),
+    ]);
+    expect(products).toHaveLength(1);
+    expect(products[0]?.name).toBe("Alfajor triple");
+    expect(report.files).toBe(2);
+    expect(report.dataRows).toBe(3);
+    expect(report.distinctCodes).toBe(1);
+  });
+
+  it("la frecuencia suma entre archivos y le gana a la del primero", () => {
+    const { products } = parseMany([
+      file({ code: "7791234567898", desc: "Vieja" }),
+      file({ code: "7791234567898", desc: "Nueva" }),
+      file({ code: "7791234567898", desc: "Nueva" }),
+    ]);
+    expect(products[0]?.name).toBe("Nueva");
+  });
+
+  it("en un empate entre archivos gana la primera que apareció", () => {
+    const { products } = parseMany([
+      file({ code: "7791234567898", desc: "Primera" }),
+      file({ code: "7791234567898", desc: "Segunda" }),
+    ]);
+    expect(products[0]?.name).toBe("Primera");
+  });
+
+  it("cada archivo puede traer las columnas en otro orden", () => {
+    const reordered = [
+      "productos_marca|productos_descripcion|productos_ean|id_producto|productos_unidad_medida_presentacion|productos_cantidad_presentacion",
+      "Marca Dos|Galletita|1|036000291452|g|100",
+    ].join("\n");
+    const { products } = parseMany([
+      file({ code: "7791234567898", desc: "Alfajor", brand: "Marca Uno" }),
+      reordered,
+    ]);
+    expect(products.map((p) => [p.barcode, p.brand, p.presentation])).toEqual([
+      ["7791234567898", "Marca Uno", null],
+      ["036000291452", "Marca Dos", "100 g"],
+    ]);
+  });
+
+  it("un archivo con CRLF, BOM y pie no rompe al siguiente", () => {
+    const first =
+      "﻿" +
+      [
+        HEADER,
+        row({ code: "7791234567898", desc: "Alfajor" }),
+        "Ultima actualizacion: 2026-11-16 03:00:00",
+      ].join("\r\n") +
+      "\r\n";
+    const { products, report } = parseMany([
+      first,
+      file({ code: "036000291452", desc: "Otro" }),
+    ]);
+    expect(products.map((p) => p.barcode)).toEqual([
+      "7791234567898",
+      "036000291452",
+    ]);
+    expect(report.malformedLines).toBe(1);
+  });
+
+  it("el encabezado de cada archivo se valida solo y el error nombra el archivo", () => {
+    const broken = HEADER.replace("productos_marca", "otra_cosa") + "\n";
+    expect(() => parseMany([file({ code: "1", desc: "A" }), broken])).toThrow(
+      /cadena-2\/productos\.csv.+productos_marca/,
+    );
+  });
+
+  it("un archivo vacío se saltea y se cuenta", () => {
+    const { products, report } = parseMany([
+      "",
+      file({ code: "7791234567898", desc: "Alfajor" }),
+    ]);
+    expect(products).toHaveLength(1);
+    expect(report.files).toBe(2);
+    expect(report.emptyFiles).toBe(1);
+  });
+
+  it("si todos los archivos están vacíos falla fuerte", () => {
+    expect(() => parseMany(["", ""])).toThrow(SepaFormatError);
+  });
+});
+
+describe("parseSepaFiles: lectura en streaming de varios archivos", () => {
+  it("junta los archivos, saltea el vacío y cuenta todo", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sepa-multi-"));
+    try {
+      const a = join(dir, "a.csv");
+      const b = join(dir, "b.csv");
+      const empty = join(dir, "vacio.csv");
+      writeFileSync(
+        a,
+        file(
+          { code: "7791234567898", desc: "Doble" },
+          { code: "7791234567898", desc: "Doble" },
+        ).replaceAll("\n", "\r\n") + "\r\nUltima actualizacion: 2026-11-16\r\n",
+      );
+      writeFileSync(b, file({ code: "7791234567898", desc: "Simple" }));
+      writeFileSync(empty, "");
+      const { products, report } = await parseSepaFiles([a, empty, b]);
+      expect(products.map((p) => p.name)).toEqual(["Doble"]);
+      expect(report).toMatchObject({
+        files: 3,
+        emptyFiles: 1,
+        dataRows: 3,
+        malformedLines: 1,
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("si un archivo no tiene una columna, el error nombra la ruta", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "sepa-multi-bad-"));
+    try {
+      const bad = join(dir, "malo.csv");
+      writeFileSync(bad, HEADER.replace("id_producto", "x") + "\n");
+      await expect(parseSepaFiles([bad])).rejects.toThrow(
+        /malo\.csv.+id_producto/,
       );
     } finally {
       rmSync(dir, { recursive: true, force: true });
