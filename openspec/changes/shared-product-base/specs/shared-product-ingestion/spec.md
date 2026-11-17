@@ -81,6 +81,14 @@ Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_
 - **WHEN** el SEPA trae `350` con unidad `gr`, o Open Food Facts trae la cantidad `"1,5 LT"`
 - **THEN** la presentación cargada es `"350 g"` y `"1.5 l"`; una cantidad de Open Food Facts que no es del tipo `<número> <unidad>` (por ejemplo `"6 x 330 ml"`) queda como viene
 
+#### Scenario: Códigos de unidad de las cadenas
+- **WHEN** el SEPA trae la unidad `grm`, `kgm`, `kgr`, `ltr`, `cmq`, `dm3`, `cu`, `mt`, `mts`, `mtr`, `cmt` o `mt2`
+- **THEN** se cargan como `g`, `kg`, `kg`, `l`, `ml`, `l`, `u`, `m`, `m`, `m`, `cm` y `m2` (`"340 grm"` pasa a `"340 g"`, `"6 cu"` a `"6 u"`); una cantidad negativa (`"-190.00 g"`) se descarta como relleno
+
+#### Scenario: Código de envase al final del nombre
+- **WHEN** un nombre termina con el código de envase de una cadena (tres mayúsculas, número y unidad: `"Sal fina Dos Anclas FCO-500-gr."`, `"Ajo picado x 100 gr BSA-0.1-Kg"`), o con puntos sueltos (`"Celular galaxy . . ."`, `".Mani KING"`)
+- **THEN** el nombre se carga sin ese código ni esos puntos (`"Sal fina Dos Anclas"`); el código MUST NOT usarse como presentación, porque muchas veces no coincide con el producto (`"BOT-1-ml."` en un frasco de 350 ml); un código de modelo (`"Cable USB-2-mts"`) o en minúscula no se toca, y si el nombre era solo el código queda como venía
+
 #### Scenario: Ensayo sin credenciales
 - **WHEN** se corre el script con `--dry-run` sin `NEXT_PUBLIC_SUPABASE_URL` ni `SUPABASE_SECRET_KEY`
 - **THEN** lee el archivo, muestra el reporte y termina bien sin cargar nada; una carga de verdad sin esas variables sigue fallando

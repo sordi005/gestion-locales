@@ -57,6 +57,7 @@ const UNIT_WORDS = new Set([
   "pieza",
   "ud",
   "und",
+  "cu",
 ]);
 
 const UNIT_ALIASES: Readonly<Record<string, string>> = {
@@ -77,6 +78,18 @@ const UNIT_ALIASES: Readonly<Record<string, string>> = {
   litro: "l",
   litros: "l",
   mg: "mg",
+  // Códigos de unidad de las cadenas (SEPA): "340 grm", "0.125 kgm", "900 cmq" (cm³).
+  grm: "g",
+  kgm: "kg",
+  kgr: "kg",
+  ltr: "l",
+  cmq: "ml",
+  dm3: "l",
+  mt: "m",
+  mts: "m",
+  mtr: "m",
+  cmt: "cm",
+  mt2: "m2",
 };
 
 /** Unidad en su forma corta; una desconocida queda en minúscula, sin el punto final. */
@@ -125,6 +138,8 @@ const PACK_WORDS = new Set([
  * "1 ml" (un gramo no es un producto envasado) y cualquier cantidad menor a 1 en g, ml o u.
  */
 export function isPlaceholderPresentation(text: string): boolean {
+  // Una cantidad negativa ("-190.00 g") es un error de la fuente, no una presentación.
+  if (/^-\s*[0-9.]/.test(text.trim())) return true;
   const match = /^([0-9.]+) (\S+)$/.exec(normalizePresentation(text));
   if (match === null) return false;
   const amount = Number(match[1]);
@@ -136,6 +151,34 @@ export function isPlaceholderPresentation(text: string): boolean {
     );
   }
   return amount < 1 && (unit === "g" || unit === "ml" || unit === "u");
+}
+
+/**
+ * Código de envase que algunas cadenas pegan al final del nombre ("FCO-500-gr.", "BSA-0.1-Kg").
+ * No se usa como presentación: muchas veces no coincide con el producto ("BOT-1-ml." en un
+ * frasco de 350 ml). Solo se reconoce con tres mayúsculas, número y una unidad de las que
+ * usan las cadenas, para no tocar códigos de modelo ("USB-2-mts").
+ */
+const CHAIN_PACK_CODE =
+  /\s+([a-z]{3})-[0-9]+(?:[.,][0-9]+)?-(?:gr|g|kg|ml|cc|lt|l|un|u)\.?$/i;
+
+function stripChainPackCode(text: string): string {
+  const match = CHAIN_PACK_CODE.exec(text);
+  // La unidad puede venir en cualquier caja ("Kg"); el envase, siempre en mayúsculas.
+  if (match === null || match[1] !== match[1]?.toUpperCase()) return text;
+  return text.slice(0, match.index);
+}
+
+/**
+ * Nombre limpio: sin el código de envase de la cadena al final, sin puntos sueltos al final
+ * (" . . .") ni al principio (".Mani"). Si no queda nada, devuelve el nombre como venía.
+ */
+export function cleanName(text: string): string {
+  const cleaned = stripChainPackCode(text)
+    .replace(/(?:\s+\.)+\s*$/, "")
+    .replace(/^[\s.]+/, "")
+    .trim();
+  return cleaned === "" ? text : cleaned;
 }
 
 /** ¿Al menos el 80% de las letras está en mayúscula? */

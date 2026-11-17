@@ -69,7 +69,16 @@ Cargar **cualquier fuente** (SEPA u Open Food Facts) en un proyecto que **no es 
 
 **Ojo con qué es "local":** lo decide el host de la URL (`localhost`, `127.0.0.1` o `[::1]`). Un túnel a producción que pase por localhost **NO es local** para el script: la compuerta quedaría abierta sin que lo sea. Nunca cargues contra producción por un túnel así.
 
-Para cargar contra staging, exportá la URL y la secret key **de staging** en la terminal (nunca las pegues en un archivo del repo) y verificá la URL antes de correr.
+Para cargar contra staging, exportá la URL y la secret key **de staging** en la terminal (nunca las pegues en un archivo del repo ni en un chat) y verificá la URL antes de correr. Desde PowerShell, llamá al script directo, desde la raíz del repo:
+
+```powershell
+$env:NEXT_PUBLIC_SUPABASE_URL = "https://<ref-de-staging>.supabase.co"
+$env:SUPABASE_SECRET_KEY = "<secret key de staging>"
+.\node_modules\.bin\tsx.cmd scripts/shared-products/load.ts --source sepa --file "<carpeta>" --source-ref sepa-AAAA-MM-DD --license-confirmed
+Remove-Item Env:SUPABASE_SECRET_KEY
+```
+
+Hay dos motivos para no usar `npm run shared-products:load -- ...` acá. En PowerShell 7, npm se come el `--` y las banderas no llegan al script. Además, el comando directo no lee `.env.local`: si falta una variable, el script se corta en vez de usar sin avisar la de la base local.
 
 ## 3. Qué revisar en el reporte
 
@@ -96,7 +105,8 @@ El reporte tiene dos partes.
 
 - **Marcas de relleno → sin marca:** `S/D`, `SD`, `S/M`, `SIN MARCA`, `SIN MARCA DEFINIDA`, `GENERICO/A`, `VARIOS`, `OTRO`, `OTRAS`, `N/A`, `NA`, `-`, `.`, `0` (sin mayúsculas ni acentos, ignorando `*`, `.` y `-` en los bordes), y cualquier marca sin letras (`317`, `0001`, `---`). Un `*` al principio de cualquier otra marca se saca (`*AEROCOR` pasa a `AEROCOR`); la marca, por lo demás, queda como viene.
 - **Presentaciones de relleno → sin presentación** (ya normalizadas): cantidad 1 con una unidad "unidad" (`1 UNI`, `1 EA`, `1 pza`...) o un envase (`cu`, `pck`, `paq`, `pack`, `bl`, `bli`, `blister`, `env`, `caja`, `bolsa`); `1 g` y `1 ml`; y cualquier cantidad menor a 1 en `g`, `ml` o `u` (`.40 g`). `2 UNI` o `6 un` quedan como `2 u` y `6 u`; `3 pck` queda como viene; `0.75 l` y `1 l` se quedan (el `.75` se escribe `0.75`).
-- **Unidades normalizadas** (SEPA siempre; Open Food Facts solo si el texto es del tipo `<número> <unidad>`, y si no queda como viene): `gr/grs/gramos` → `g`, `kilo/kilos/kgs` → `kg`, `cc/cm3` → `ml`, `lt/lts/litro/litros` → `l`, unidades → `u`; las demás van en minúscula.
+- **Unidades normalizadas** (SEPA siempre; Open Food Facts solo si el texto es del tipo `<número> <unidad>`, y si no queda como viene): `gr/grs/gramos` → `g`, `kilo/kilos/kgs` → `kg`, `cc/cm3` → `ml`, `lt/lts/litro/litros` → `l`, unidades → `u`; también los códigos de las cadenas: `grm` → `g`, `kgm/kgr` → `kg`, `ltr/dm3` → `l`, `cmq` → `ml`, `cu` → `u`, `mt/mts/mtr` → `m`, `cmt` → `cm`, `mt2` → `m2`. Las demás van en minúscula. Una cantidad negativa se descarta.
+- **Nombres:** se saca el código de envase que algunas cadenas pegan al final (`FCO-500-gr.`, `BOT-750-ml.`, `BSA-0.1-Kg`) y los puntos sueltos al final o al principio (`... violet . . .`, `.Mani`). El código no se usa como presentación: muchas veces no coincide con el producto.
 - **Nombres del SEPA:** pasan a tipo oración cuando al menos el 80% de las letras está en mayúscula (antes tenía que ser el 100%). Solo cambia el uso de mayúsculas: las unidades dentro del nombre no se reescriben, y la marca va como viene en su columna.
 
 **De la base (después de cargar):** `inserted` (códigos nuevos), `updated` (el SEPA reemplazó uno de Open Food Facts o de los kioscos), `skipped_ineligible` (la base volvió a filtrar y lo rechazó) y `skipped_protected` (no se toca: lo aprobó el super-admin, está retirado, o es Open Food Facts sobre algo que ya existía).
