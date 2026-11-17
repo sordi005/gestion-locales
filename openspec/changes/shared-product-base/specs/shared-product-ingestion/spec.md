@@ -86,8 +86,8 @@ Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_
 - **THEN** se cargan como `g`, `kg`, `kg`, `l`, `ml`, `l`, `u`, `m`, `m`, `m`, `cm` y `m2` (`"340 grm"` pasa a `"340 g"`, `"6 cu"` a `"6 u"`); una cantidad negativa (`"-190.00 g"`) se descarta como relleno
 
 #### Scenario: Código de envase al final del nombre
-- **WHEN** un nombre termina con el código de envase de una cadena (tres mayúsculas, número y unidad: `"Sal fina Dos Anclas FCO-500-gr."`, `"Ajo picado x 100 gr BSA-0.1-Kg"`), o con puntos sueltos (`"Celular galaxy . . ."`, `".Mani KING"`)
-- **THEN** el nombre se carga sin ese código ni esos puntos (`"Sal fina Dos Anclas"`); el código MUST NOT usarse como presentación, porque muchas veces no coincide con el producto (`"BOT-1-ml."` en un frasco de 350 ml); un código de modelo (`"Cable USB-2-mts"`) o en minúscula no se toca, y si el nombre era solo el código queda como venía
+- **WHEN** un nombre termina con el código de envase de una cadena (tres letras, número y unidad, en cualquier caja: `"Sal fina Dos Anclas FCO-500-gr."`, `"Ajo picado x 100 gr BSA-0.1-Kg"`, `"Huevos x30 Map-30-un."`), aunque venga repetido (`"BOT-750-cc. BOT-750-ml."`) o cortado por el largo (`"BOT-750-c"`, `"PVC-125-mi"`), o con puntos sueltos (`"Celular galaxy . . ."`, `".Mani KING"`)
+- **THEN** el nombre se carga sin ese código ni esos puntos (`"Sal fina Dos Anclas"`); el código MUST NOT usarse como presentación, porque muchas veces no coincide con el producto (`"BOT-1-ml."` en un frasco de 350 ml); un código de modelo (`"Cable USB-2-mts"`, `"Tornillo M6-20-mm"`) no se toca, y si el nombre era solo el código queda como venía
 
 #### Scenario: Ensayo sin credenciales
 - **WHEN** se corre el script con `--dry-run` sin `NEXT_PUBLIC_SUPABASE_URL` ni `SUPABASE_SECRET_KEY`
