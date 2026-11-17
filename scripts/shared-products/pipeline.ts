@@ -5,6 +5,7 @@ import {
 
 import {
   cleanBrand,
+  cleanName,
   isPlaceholderPresentation,
   normalizePresentation,
 } from "./clean";
@@ -96,7 +97,7 @@ export function buildLoad(products: Iterable<ParsedProduct>): PipelineResult {
       continue;
     }
 
-    const name = squash(item.name);
+    const name = cleanName(squash(item.name));
     if (name === "") {
       reject("blank_name");
       continue;

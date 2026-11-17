@@ -160,6 +160,23 @@ describe("buildLoad: normalizar y filtrar", () => {
     ]);
     expect(batches[0]?.[0]?.name).toBe("Alfajor triple");
   });
+
+  it("saca el código de envase de la cadena al final del nombre y no lo usa como presentación", () => {
+    const { batches } = buildLoad([
+      product("7791234567898", "Sal fina Dos Anclas  FCO-500-gr."),
+      product("4006381333931", "Celular galaxy . . .", {
+        presentation: "340 grm",
+      }),
+    ]);
+    expect(batches[0]?.[0]).toMatchObject({
+      name: "Sal fina Dos Anclas",
+      presentation: null,
+    });
+    expect(batches[0]?.[1]).toMatchObject({
+      name: "Celular galaxy",
+      presentation: "340 g",
+    });
+  });
 });
 
 describe("buildLoad: duplicados y GTIN-8 relleno", () => {

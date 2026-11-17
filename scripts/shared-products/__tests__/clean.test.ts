@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   cleanBrand,
+  cleanName,
   isMostlyUppercase,
   isPlaceholderPresentation,
   normalizePresentation,
@@ -90,6 +91,19 @@ describe("normalizeUnit", () => {
     ["unid.", "u"],
     ["CM", "cm"],
     ["M", "m"],
+    ["grm", "g"],
+    ["GRM", "g"],
+    ["kgm", "kg"],
+    ["kgr", "kg"],
+    ["ltr", "l"],
+    ["cmq", "ml"],
+    ["dm3", "l"],
+    ["cu", "u"],
+    ["mtr", "m"],
+    ["mt", "m"],
+    ["mts", "m"],
+    ["cmt", "cm"],
+    ["mt2", "m2"],
     ["mm", "mm"],
     ["Rollos", "rollos"],
   ])("%j pasa a %j", (raw, expected) => {
@@ -114,6 +128,11 @@ describe("normalizePresentation", () => {
     ["0,5 KG", "0.5 kg"],
     ["3 pck", "3 pck"],
     ["2 CAJA", "2 caja"],
+    ["340 grm", "340 g"],
+    ["0.125 kgm", "0.125 kg"],
+    ["900 cmq", "900 ml"],
+    ["6 cu", "6 u"],
+    ["200 mtr", "200 m"],
   ])("%j se normaliza a %j", (raw, expected) => {
     expect(normalizePresentation(raw)).toBe(expected);
   });
@@ -198,6 +217,9 @@ describe("isPlaceholderPresentation", () => {
     "0.11 g",
     "0.5 ml",
     "0.5 u",
+    "1 grm",
+    "-190.00 g",
+    "-1 u",
   ])("%j es relleno", (text) => {
     expect(isPlaceholderPresentation(text)).toBe(true);
   });
@@ -217,5 +239,49 @@ describe("isPlaceholderPresentation", () => {
     "1 rollo",
   ])("%j se queda", (text) => {
     expect(isPlaceholderPresentation(text)).toBe(false);
+  });
+});
+
+describe("cleanName", () => {
+  it.each([
+    [
+      "Sal Fina de Mesa salero Dos Anclas FCO-500-gr.",
+      "Sal Fina de Mesa salero Dos Anclas",
+    ],
+    [
+      "vino SIGNUM Malbec Rose 750cc BOT-750-ml.",
+      "vino SIGNUM Malbec Rose 750cc",
+    ],
+    ["Ajo picado x 100 gr BSA-0.1-Kg", "Ajo picado x 100 gr"],
+    ["Alfajor CHOCOARROZ Marroc 6u PAQ-6-un.", "Alfajor CHOCOARROZ Marroc 6u"],
+    [
+      "agua BENEDICTINO Sin Gas 6.25lt PET-6250-ml.",
+      "agua BENEDICTINO Sin Gas 6.25lt",
+    ],
+    [
+      "Celular galaxy SAMSUNG a07 64gb l violet . . .",
+      "Celular galaxy SAMSUNG a07 64gb l violet",
+    ],
+    ["Producto raro .", "Producto raro"],
+    [".Mani KING Sabor Pizza PAQ-80-gr.", "Mani KING Sabor Pizza"],
+  ])("%j queda %j", (raw, expected) => {
+    expect(cleanName(raw)).toBe(expected);
+  });
+
+  it.each([
+    "Nachos quento x80g.",
+    "Fuenton COLOMBRARO 28lts.",
+    "Grissinos firenze blancos 180 gr.",
+    "Note GFAST n-537r 15 6",
+    "Colgate tot. 12 x90g.original",
+    "Monitor LG-27-pulgadas",
+    "Cable USB-2-mts",
+    "Mate de calabaza abc-2-gr",
+  ])("%j no se toca", (raw) => {
+    expect(cleanName(raw)).toBe(raw);
+  });
+
+  it("si el nombre era solo el código, lo deja como venía", () => {
+    expect(cleanName("BOT-750-ml.")).toBe("BOT-750-ml.");
   });
 });
