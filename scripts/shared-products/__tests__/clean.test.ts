@@ -264,6 +264,31 @@ describe("cleanName", () => {
     ],
     ["Producto raro .", "Producto raro"],
     [".Mani KING Sabor Pizza PAQ-80-gr.", "Mani KING Sabor Pizza"],
+    // Código repetido por la fuente.
+    ["Vino SUTER Malbec   BOT-750-cc. BOT-750-ml.", "Vino SUTER Malbec"],
+    // Código en minúscula o mezclado (siempre de cadena).
+    [
+      "Aji molido ahumado x 50 gr HUMOS cja-50-gr.",
+      "Aji molido ahumado x 50 gr HUMOS",
+    ],
+    ["Huevos color Maxima X30 Map-30-un.", "Huevos color Maxima X30"],
+    ["Budin con chips x 220 gr. paq-0.220-kg", "Budin con chips x 220 gr."],
+    // Código cortado porque la cadena recortó el nombre.
+    [
+      "Vino SUTER Cabernet Sauvignon BOT-750-cc. BOT-750-c",
+      "Vino SUTER Cabernet Sauvignon",
+    ],
+    ["Aceite de Coco Neutro PVC-125-mi", "Aceite de Coco Neutro"],
+    [
+      "Vino ALMA MORA Select Reserve BOT-750-m",
+      "Vino ALMA MORA Select Reserve",
+    ],
+    // Otras unidades de las cadenas.
+    [
+      "Guante TASK Tradicional Chico 1 par BSA-1-par",
+      "Guante TASK Tradicional Chico 1 par",
+    ],
+    ["hilo dental GUM BLI-129-mt.", "hilo dental GUM"],
   ])("%j queda %j", (raw, expected) => {
     expect(cleanName(raw)).toBe(expected);
   });
@@ -276,7 +301,9 @@ describe("cleanName", () => {
     "Colgate tot. 12 x90g.original",
     "Monitor LG-27-pulgadas",
     "Cable USB-2-mts",
-    "Mate de calabaza abc-2-gr",
+    "Cable usb-2-mts",
+    "Modelo ABCD-2-g",
+    "Tornillo M6-20-mm",
   ])("%j no se toca", (raw) => {
     expect(cleanName(raw)).toBe(raw);
   });

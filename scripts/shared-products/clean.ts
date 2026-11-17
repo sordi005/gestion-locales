@@ -154,19 +154,25 @@ export function isPlaceholderPresentation(text: string): boolean {
 }
 
 /**
- * Código de envase que algunas cadenas pegan al final del nombre ("FCO-500-gr.", "BSA-0.1-Kg").
- * No se usa como presentación: muchas veces no coincide con el producto ("BOT-1-ml." en un
- * frasco de 350 ml). Solo se reconoce con tres mayúsculas, número y una unidad de las que
- * usan las cadenas, para no tocar códigos de modelo ("USB-2-mts").
+ * Código de envase que algunas cadenas pegan al final del nombre ("FCO-500-gr.", "cja-50-gr.",
+ * "BSA-0.1-Kg"), a veces repetido ("BOT-750-cc. BOT-750-ml.") o cortado porque la cadena
+ * recortó el nombre ("BOT-750-c", "PVC-125-mi"). No se usa como presentación: muchas veces no
+ * coincide con el producto ("BOT-1-ml." en un frasco de 350 ml). Solo se reconoce con tres
+ * letras sueltas, número y una unidad de las que usan las cadenas, para no tocar códigos de
+ * modelo ("USB-2-mts", "M6-20-mm").
  */
 const CHAIN_PACK_CODE =
-  /\s+([a-z]{3})-[0-9]+(?:[.,][0-9]+)?-(?:gr|g|kg|ml|cc|lt|l|un|u)\.?$/i;
+  /\s+[a-z]{3}-[0-9]+(?:[.,][0-9]+)?-(?:gr|g|kg|ml|mi|cc|c|lt|l|un|u|mt|m|par)\.?$/i;
 
+/** Saca el código del final, también cuando viene repetido. */
 function stripChainPackCode(text: string): string {
-  const match = CHAIN_PACK_CODE.exec(text);
-  // La unidad puede venir en cualquier caja ("Kg"); el envase, siempre en mayúsculas.
-  if (match === null || match[1] !== match[1]?.toUpperCase()) return text;
-  return text.slice(0, match.index);
+  let result = text;
+  let match = CHAIN_PACK_CODE.exec(result);
+  while (match !== null) {
+    result = result.slice(0, match.index);
+    match = CHAIN_PACK_CODE.exec(result);
+  }
+  return result;
 }
 
 /**
