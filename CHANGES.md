@@ -774,7 +774,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 > Dominio **ALTO** (RPCs de dinero, constraint triggers, anulaciones): se propone y se espera revisión antes de escribir. Después de C-15, C-16 y C-17 pueden ir en paralelo; C-18 espera a ambos. C-13 es puro y se puede hacer apenas termine C-03.
 
 ### [C-13] `pos-payments-domain`
-- **Estado**: `[ ]` pendiente · Prioridad **D1**
+- **Estado**: `[~]` propuesto (2026-11-18, decisiones del fundador en `openspec/changes/pos-payments-domain/design.md`; falta `/opsx:apply`) · Prioridad **D1**
 - **Scope**: Dominio puro de carrito, cobro combinado y payload de venta (cliente y servidor comparten estas funciones)
   - `features/pos/domain/cart.ts`: agregar línea, reescaneo suma 1 (RN-VT-03), `N*`, cantidades en kg (hasta 3 decimales), quitar línea, ítem manual sin stock (RN-VT-04), línea de venta rápida, totales en centavos; errores VT-E02, VT-E03, VT-E04
   - `features/payments/domain/payments.ts`: pendiente, vuelto, "todo efectivo" por defecto, propuesta del pendiente al agregar un medio (RN-PA-06), máximo 1 efectivo, `requires_reference`; errores PA-E01 a PA-E07 (13 §10)
@@ -908,6 +908,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - `Cobrar` (`F9`) navega al cobro de C-20; indicador de conexión permanente (el reintento lo completa C-34)
   - Tests: Vitest (reducer y persistencia con `fake-indexeddb`), Testing Library (atajos, foco), Playwright en viewport PC **solo teclado**; cronometraje informativo de 3 ítems + efectivo < 10 s (**Suposición**)
   - **Notas de C-05 (para este change)**: registrar la limpieza del carrito y del borrador de la venta en `src/app/logout-cleanups.tsx` (`registerLogoutCleanup`, ver la nota de C-11). Con cookies `httpOnly` no hay Supabase directo desde el navegador: el cobro y la sincronización pasan por Server Actions o Route Handlers. **Antes** de registrar una limpieza que toque ventas sin sincronizar (DD-31) hay que resolver el contrato de la nota de C-11: distinguir "no se pudo verificar la sesión" de "no hay sesión", no borrar por montar `/login` y dejar que la limpieza conserve lo pendiente.
+  - **Notas de C-13 (decisión del fundador, 2026-11-18)**: un producto sin precio (`NULL` o $ 0) **no se rechaza**. `addProduct` devuelve `needs_price` y la pantalla ofrece dos caminos. (a) Ponerle el precio en el mostrador: **cualquier empleado** puede, el precio **se guarda en el catálogo** y la línea entra con `priceSource: "set_at_sale"`, así que el stock se mueve normal. (b) Venderlo como ítem manual (`F8`). Si guardar el precio falla, igual se vende con `set_at_sale` y un aviso: nunca dejar de vender. **Conflicto de permisos a resolver acá**: con precio `NULL` ya sirve `set_initial_sale_price`, pero con $ 0 chocan RN-PC-01, la matriz de KB 03 y la spec `catalog-price-editing` (el `employee` recibe CA-E04). Recomendado: tratar $ 0 igual que `NULL` y registrar el cambio en `price_changes` con origen `sale_counter`. Detalle en "Entregas a otros changes" del design de C-13.
 - **Dependencias**: C-10, C-11, C-12, C-13, C-14, C-06
 - **Governance**: MEDIO
 - **Leer antes**:
