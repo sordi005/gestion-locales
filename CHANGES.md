@@ -338,7 +338,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-09 → C-12 → C-19 → C-20 →
                                     └─ C-64 ─┘
 ```
 
-C-64 (base de productos compartida) corre en paralelo con C-09: los dos dependen de C-06 + C-08 y los dos tienen que estar archivados antes de C-12. El largo del camino no cambia (12), pero con C-09 ya archivado, **C-64 es hoy lo único que frena a C-12**.
+C-64 (base de productos compartida) corre en paralelo con C-09: los dos dependen de C-06 + C-08 y los dos tienen que estar archivados antes de C-12. El largo del camino no cambia (12), pero con C-09 ya archivado, **C-64 es hoy lo único que frena a C-12**. Actualización 2026-11-18: C-64 archivado, **C-12 queda desbloqueado**.
 
 Ramas terminales obligatorias que corren **en paralelo** y deben estar archivadas antes de C-37: la rama dinero (`C-04 → C-08 → C-14 → C-15 → C-16 → C-18 → C-25*`, `C-17 → C-22 → C-23`), `C-21`, `C-26`, `C-34`, `C-35`, `C-36`, y las diferibles `C-29` (importación) y `C-33` (compras). \*C-25 también cierra la cadena del dinero.
 
@@ -712,7 +712,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 ---
 
 ### [C-64] `shared-product-base`
-- **Estado**: `[~]` implementado en `feat/C-64-shared-product-base-impl` (PR abierto 2026-11-12; `judgment-day` aprobado); falta staging después del merge (tarea 11.3: migración, job de `pg_cron`, carga real del SEPA y revisión de 50 productos con el fundador) y archivar · Prioridad **D1**
+- **Estado**: `[x]` completado (archivado 2026-11-18, PRs #29 a #32, en `openspec/changes/archive/2026-11-18-shared-product-base/`) · Prioridad **D1**
 - **Scope**: Base de productos compartida en dos niveles (DD-34, RE-04, US-010, US-012)
   - Tabla global `public.shared_products` (código → nombre, marca, presentación) **sin `organization_id`** (excepción documentada a la regla 5), RLS sin políticas y sin privilegios para la API; nunca precios, costos ni qué comercio carga o vende cada producto
   - Consulta para tenants solo por la RPC `lookup_shared_product` (cuatro columnas; nunca la fuente ni las fechas) y la Server Action `lookupSharedProduct` + `toQuickCreateSuggestion` para C-12
@@ -723,6 +723,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Tests pgTAP de privacidad: ningún tenant ve la tabla, la cola, la fuente ni quién cargó qué
   - **Respuestas del fundador (2026-11-05):** aporte a la cola sin opt-in (se avisa en el acuerdo del piloto); 2 comercios alcanzan; en C-12 el dígito inválido es un aviso con "cargar igual" (el rechazo duro es solo para la base compartida); nombres del SEPA en "tipo oración"; los códigos de 14 dígitos quedan afuera hasta PQ-26; la excepción a la regla 5 va en la KB y en la migración, no en `CLAUDE.md`
   - **Resultado de C-64 (2026-11-12)**: una sola migración `20261105233009_shared_product_base.sql` (rescatada de la base local el 2026-11-10, cuando la primera implementación se perdió al borrarse su sesión, y rehecha la parte de tests, TS, script y pantallas). pgTAP 18 archivos / 2.060 tests (antes 13 / 1.376), Vitest 187 / 4.845, Playwright de la base compartida 20/20. Tras el `judgment-day`: votos por tanda (sin costo por fila en importaciones), votos fantasma descartados, el rechazo se recuerda por código y nombre, solo cuentan comercios activos, un texto con `$` nunca se promueve solo ni se carga. Licencias SEPA (CC BY 4.0 / 2.5 AR) y Open Food Facts (ODbL / DbCL) aprobadas (PQ-27 decidida). **Pendiente para antes de abrir el registro al público: limitar cuántas consultas hace cada usuario a `lookup_shared_product`** (hoy una cuenta podría recorrer la base).
+  - **Staging (tarea 11.3, cerrada 2026-11-17)**: carga real del SEPA del 2026-11-16 (17 cadenas, un zip por cadena): **75.791 productos** (56.891 con marca, 25.658 con presentación) y el job `shared-products-consensus` activo. La revisión de 50 al azar con el fundador trajo dos arreglos de limpieza con recarga: unidades de las cadenas unificadas y el código de envase sacado del final de los nombres (#30 a #32). **Pendiente antes del Día 1: rotar la secret key de staging**, que quedó expuesta en un chat.
 - **Dependencias**: C-03, C-04, C-06, C-08 (no depende de C-07: usa `requirePlatformAdmin()` de C-06; C-07 la suma al menú del admin)
 - **Governance**: ALTO (toca la separación entre tenants)
 - **Leer antes**:
