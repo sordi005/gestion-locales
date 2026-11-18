@@ -2,7 +2,6 @@
 
 ## Purpose
 Define cómo la app normaliza, valida y compara los códigos de barras leídos (escáner, teclado o importación desde Excel): replica el formato que exige la base (solo dígitos, sin notación científica), la clave de equivalencia sin ceros a la izquierda y el dígito verificador GTIN, sin lanzar excepciones.
-
 ## Requirements
 ### Requirement: Formato de la base replicado en la app (contrato de C-08)
 `src/shared/lib/barcode.ts` SHALL exportar el tipo `BarcodeNorm` (texto con marca de tipo) y el guard `isBarcodeNorm(value: unknown): value is BarcodeNorm`, que replica exactamente el `CHECK` de `product_barcodes.barcode_norm` definido en `catalog-model` (C-08, design D4): `value ~ '^[0-9]{1,14}$' AND value ~ '[1-9]'`, solo dígitos ASCII, de 1 a 14, con al menos uno distinto de cero. La base **no transforma** el valor (lo que no cumple da `23514`), así que todo `BarcodeNorm` que produzca la app MUST pasar ese `CHECK` y todo lo que el guard rechaza MUST ser algo que la base también rechaza. El test de este requisito MUST usar, copiada tal cual, la tabla de casos válidos e inválidos de la tarea 3.4 de `openspec/changes/archive/2026-10-22-catalog-schema-rls/tasks.md`, con los literales exactos del pgTAP que la implementa (`supabase/tests/040-catalog-model.test.sql`, bloque "tabla de casos del formato").
@@ -70,3 +69,23 @@ Todo `norm` devuelto MUST cumplir `isBarcodeNorm`, y `key` MUST ser `barcodeKey(
 #### Scenario: Calcular el dígito
 - **WHEN** se llama `computeGtinCheckDigit` con `"779000100001"`, `"01234567890"` y `"9638507"`
 - **THEN** devuelve `9`, `5` y `4`
+
+### Requirement: Elegibilidad para la base compartida (espejo de la base)
+`src/shared/lib/barcode.ts` SHALL exportar `sharedBaseEligibility(norm: BarcodeNorm): "eligible" | "unsupported_length" | "invalid_check_digit" | "restricted_internal" | "variable_measure" | "restricted_other"`, con exactamente las mismas reglas y el mismo orden que `private.shared_barcode_eligibility` (capacidad `shared-product-base`). El test MUST usar la misma tabla de casos que el pgTAP, copiada literal. Este resultado aplica **solo** a la base compartida (nivel 2): en el catálogo de cada comercio (nivel 1) el dígito verificador inválido sigue siendo la advertencia del requisito "Dígito verificador GTIN" y nunca un rechazo.
+
+#### Scenario: Mismo resultado que la base
+- **WHEN** se evalúa cada código de la tabla de casos en TypeScript y en SQL
+- **THEN** los dos dan el mismo resultado para todos
+
+#### Scenario: UPC-A y su EAN-13
+- **WHEN** se evalúa un UPC-A elegible y su EAN-13 con `0` inicial
+- **THEN** los dos dan `eligible`
+
+#### Scenario: GTIN-8 relleno en 12 o 13 dígitos
+- **WHEN** se evalúa un GTIN-8 relleno con ceros hasta 12 o 13 dígitos (por ejemplo `000001234565`, `0000001234565` o `000077901231`)
+- **THEN** se evalúa con las reglas del EAN-8 de sus últimos 8 dígitos: el mismo código da el mismo resultado en 8, 12 y 13 dígitos
+
+#### Scenario: Nivel 1 no cambia
+- **WHEN** se normaliza para el catálogo del comercio un EAN-13 con dígito inválido
+- **THEN** `normalizeBarcode` sigue devolviendo `ok` con la advertencia `invalid_check_digit`, aunque `sharedBaseEligibility` lo rechace
+
