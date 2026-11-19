@@ -42,23 +42,50 @@
 
 ### 2.3 Registro (`register_sale`)
 
-Payload que arma el cliente:
+Payload que arma el cliente (contrato implementado en `src/features/pos/domain/sale-payload.ts`, C-13):
 
 ```json
 {
-  "id": "0192f0c4-…",                  // UUID generado al abrir el carrito (RN-OF-01)
-  "cash_session_id": "…",
+  "version": 1,                         // versión del contrato, para la cola sin conexión (DD-31)
+  "id": "0192f0c4-7a3e-7b21-9c4d-5e8f1a2b3c4d", // UUID v7 generado al abrir el carrito (RN-OF-01)
+  "cash_session_id": "0192f0b8-2d10-7e55-8a31-6f0c9d7e4b21",
   "sold_at": "2026-10-15T14:32:05-03:00",
+  "total_cents": 330000,
   "items": [
-    { "item_type": "product", "product_id": "…", "quantity": 2, "unit_price": 1500.00 },
-    { "item_type": "manual", "description": "Fotocopias", "quantity": 1, "unit_price": 300.00 }
+    {
+      "line_no": 1,
+      "item_type": "product",
+      "product_id": "0192e9a1-5c6b-7d02-b4f8-3a1e7c9d0f56",
+      "quantity_milli": 2000,
+      "unit_price_cents": 150000,
+      "price_source": "catalog"          // "catalog" | "set_at_sale"
+    },
+    {
+      "line_no": 2,
+      "item_type": "manual",
+      "description": "Fotocopias",
+      "quantity_milli": 1000,
+      "unit_price_cents": 30000
+    }
   ],
   "payments": [
-    { "payment_method_id": "…qr", "amount": 1650.00, "reference": "123456789" },
-    { "payment_method_id": "…cash", "amount": 1650.00, "cash_received": 2000.00 }
+    {
+      "payment_method_id": "0192e5d3-9b84-7c1a-a6e2-4d7b0f3c8a19",
+      "method_kind": "qr_wallet",
+      "amount_cents": 165000,
+      "reference": "123456789"
+    },
+    {
+      "payment_method_id": "0192e5d3-9b85-7f36-8c0d-2b5e6a1f9d47",
+      "method_kind": "cash",
+      "amount_cents": 165000,
+      "cash_received_cents": 200000
+    }
   ]
 }
 ```
+
+Los importes viajan en **centavos enteros** (`$ 1.500,00` = `150000`) y las cantidades en **milésimas** (`2` unidades = `2000`): nada de decimales ni `float` (regla dura 8), y el cliente y la base redondean igual (RN-GL-03). `price_source` deja el rastro de si el precio fue el de catálogo o uno puesto en el mostrador (RN-ES-09); `method_kind` viaja en cada pago para que el payload se explique solo y el servidor lo compare con el medio real; `line_no` numera las líneas de 1 a n sin saltos. `version` permite que la cola sin conexión de la Etapa 1 reenvíe el mismo payload (mismo `id`, mismo `sold_at`) aunque el contrato cambie (DD-31).
 
 Pasos de la RPC (una transacción, `security invoker`):
 1. Si existe una venta con ese `id` → devuelve la existente (reintento idempotente).
