@@ -11,12 +11,16 @@ Sistema simple de **ventas + stock + caja + estadísticas** para kioscos y almac
 Acuerdo de trabajo entre el fundador y Claude, como en un estudio de desarrollo profesional.
 
 - **Roles:** Santiago (fundador) es el product owner y decide. Claude es el programador líder senior: piensa, programa y le dice a Santiago qué hacer a continuación; siempre propone el próximo paso y avisa los riesgos en lenguaje simple, sin jerga.
-- **Un change de OpenSpec = una sesión.** Arrancar una sesión nueva por change para mantener el contexto liviano.
-- **Al empezar la sesión:** `mem_context` → leer en `CHANGES.md` el change actual → `openspec list` / `openspec status` → leer solo los archivos de la KB listados en "Leer antes" de ese change.
-- **Al cerrar la sesión:** actualizar el estado en `CHANGES.md`, `mem_session_summary` y proponer el commit (se commitea solo cuando el fundador aprueba).
+- **Un change de OpenSpec = una sesión.** Arrancar una sesión nueva por change para mantener el contexto liviano. La sesión se abre desde la carpeta principal del proyecto, así la app le crea una carpeta propia (worktree). NUNCA reutilizar la carpeta de otro change.
+- **Al empezar la sesión:** `mem_context` (proyecto engram `gestion-locales`) → **mirar qué ya está en marcha**: `git worktree list`, `git branch -a`, `gh pr list --state all` y `openspec list`. Si ya hay una rama, una carpeta o un PR de este change, se sigue desde ahí y NO se arranca de nuevo; ante la duda, preguntar al fundador → leer en `CHANGES.md` el change actual → `openspec status` → leer solo los archivos de la KB listados en "Leer antes" de ese change. Las decisiones que el fundador ya tomó (en `design.md`, `tasks.md` o engram) no se le vuelven a preguntar.
+- **Orden del método:** propuesta → PR de la propuesta mergeado → recién ahí `/opsx:apply`. Una sesión de propuesta no escribe código de producción, salvo que el fundador lo pida.
+- **Guardar el trabajo (obligatorio):** commit local `wip(C-XX): ...` en la rama del change al terminar cada tanda de trabajo o cada sub-agente. Nunca dejar horas de trabajo sin commitear. Borrar o archivar una sesión descarta lo que su carpeta no tenga en git. Antes de cerrarla: `git status` limpio y todo commiteado.
+- **Verificar antes de decir "listo":** cuando un sub-agente dice que terminó, comprobar con `git status`/`git diff` que el cambio está en los archivos y correr las pruebas. Al fundador se le informa solo lo que se verificó.
+- **Base de datos local compartida:** todas las carpetas usan el mismo Supabase local (`project_id = "nombre-producto"`). Solo una sesión a la vez corre `supabase db reset` o pgTAP; avisar al fundador antes del reset. Una migración que no está commiteada se pierde con el reset.
+- **Al cerrar la sesión:** actualizar el estado en `CHANGES.md`, `mem_session_summary` y proponer push + PR (push, PR y merge solo con el OK del fundador).
 - **Hilo principal liviano:** delegar exploración, implementación multi-archivo y corridas de tests/build a sub-agentes (reglas globales).
 - **Governance:** los changes CRITICO/ALTO (tenancy, RLS, auth, anulaciones, caja) muestran el diseño al fundador y esperan su aprobación antes de escribir código.
-- **Comunicación:** español rioplatense, lenguaje llano.
+- **Comunicación:** español rioplatense, lenguaje llano y sin jerga, en TODO mensaje al fundador (también resúmenes, recaps y preguntas). Mensajes cortos, con 1 o 2 acciones concretas para él.
 
 ---
 
@@ -107,8 +111,8 @@ Plan completo en [CHANGES.md](CHANGES.md) (leerlo antes de cualquier `/opsx:prop
 12. NUNCA marcas de terceros ("YES", etc.) → usar `[NOMBRE-PRODUCTO]`.
 
 **Git y flujo**
-13. Conventional commits con el id del change: `feat(C-08): ...`.
-14. NUNCA commitear directo a `main` → rama `feat/C-XX-nombre` por change y merge vía PR; commit/push solo cuando el fundador lo pide.
+13. Conventional commits con el id del change: `feat(C-08): ...`. En la rama se permiten commits `wip(C-XX): ...`; antes de abrir el PR se juntan en commits convencionales.
+14. NUNCA commitear directo a `main` → rama `feat/C-XX-nombre` por change y merge vía PR. Los commits locales en la rama del change son obligatorios por tanda (ver "Guardar el trabajo"); push, PR y merge solo cuando el fundador lo pide.
 15. NUNCA commitear `.env*` ni claves → solo `.env.example`; `.atl/` queda fuera del repo.
 16. Definition of Done: tests en verde + lint + typecheck + build + spec archivada en OpenSpec.
 
@@ -118,7 +122,18 @@ Plan completo en [CHANGES.md](CHANGES.md) (leerlo antes de cualquier `/opsx:prop
 
 ```
 KB relevante → CHANGES.md (dependencias + "Leer antes") → /opsx:propose <change>
-  → /opsx:apply (Strict TDD, cargando skills) → /opsx:archive <change> → commit/PR (con aprobación)
+  → PR de la propuesta (con aprobación) → /opsx:apply (Strict TDD, cargando skills, commit wip por tanda)
+  → PR de la implementación (con aprobación) → /opsx:archive <change> → PR del archivo (con aprobación)
 ```
 
 Ante conflicto entre la KB y este archivo, las reglas duras prevalecen.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
