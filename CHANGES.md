@@ -774,7 +774,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 > Dominio **ALTO** (RPCs de dinero, constraint triggers, anulaciones): se propone y se espera revisión antes de escribir. Después de C-15, C-16 y C-17 pueden ir en paralelo; C-18 espera a ambos. C-13 es puro y se puede hacer apenas termine C-03.
 
 ### [C-13] `pos-payments-domain`
-- **Estado**: `[~]` implementado (apply 2026-11-18 en `feat/C-13-pos-payments-domain-apply`; decisiones del fundador en `openspec/changes/pos-payments-domain/design.md`; falta PR, merge y `/opsx:archive`) · Prioridad **D1**
+- **Estado**: `[x]` completado (archivado 2026-11-19, PR #36, en `openspec/changes/archive/2026-11-19-pos-payments-domain/`; decisiones del fundador en su `design.md`) · Prioridad **D1**
 - **Scope**: Dominio puro de carrito, cobro combinado y payload de venta (cliente y servidor comparten estas funciones)
   - `features/pos/domain/cart.ts`: agregar línea, reescaneo suma 1 (RN-VT-03), `N*`, cantidades en kg (hasta 3 decimales), quitar línea, ítem manual sin stock (RN-VT-04), línea de venta rápida, totales en centavos; errores VT-E02, VT-E03, VT-E04
   - `features/payments/domain/payments.ts`: pendiente, vuelto, "todo efectivo" por defecto, propuesta del pendiente al agregar un medio (RN-PA-06), máximo 1 efectivo, `requires_reference`; errores PA-E01 a PA-E07 (13 §10)
