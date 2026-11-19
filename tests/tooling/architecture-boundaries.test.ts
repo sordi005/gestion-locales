@@ -6,8 +6,9 @@ import { describe, expect, it } from "vitest";
 const cwd = fileURLToPath(new URL("../..", import.meta.url));
 const eslint = new ESLint({ cwd });
 
-// Arrancar ESLint con la config completa de Next en frío tarda varios segundos.
-const LINT_TIMEOUT_MS = 30_000;
+// El primer lint (arranque en frío de ESLint con la config de Next) medido solo
+// en este archivo: ~16 s. Con la suite completa en paralelo superó 30 s.
+const LINT_TIMEOUT_MS = 60_000;
 
 async function lintImport(filePath: string, specifier: string) {
   const code = `import * as dep from "${specifier}";\nexport const value = dep;\n`;
