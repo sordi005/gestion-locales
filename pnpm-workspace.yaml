@@ -6,3 +6,12 @@ minimumReleaseAgeExclude:
   - jsdom@30.1.2
   - tr46@7.0.0
   - whatwg-url@17.2.0
+# Security patches for transitive deps (pnpm audit 2026-11-19). Scoped to the
+# vulnerable ranges so they never force a major bump. Drop once parents catch up.
+overrides:
+  "zod@>=4.0.0 <4.6.6": ^4.6.7
+  "undici@>=7.0.0 <7.30.1": ^7.30.2
+  "undici@>=8.0.0 <8.12.2": ^8.12.4
+  "ip-address@>=10.0.0 <10.7.4": ^10.7.6
+  "fast-uri@>=3.0.0 <3.1.9": ^3.1.9
+  "systeminformation@>=5.0.0 <5.33.16": ^5.33.23
