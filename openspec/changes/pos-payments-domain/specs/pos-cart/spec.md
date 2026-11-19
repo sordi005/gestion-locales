@@ -175,7 +175,11 @@ Una clave que no existe en el carrito MUST lanzar `RangeError` (la UI solo opera
 - **THEN** cada llamada lanza `RangeError`
 
 ### Requirement: Totales del carrito en centavos
-`cart.ts` SHALL exportar `cartTotals(cart: Cart): { lines: readonly { key: number; lineTotalCents: Cents }[]; totalCents: Cents }`. Cada línea SHALL calcularse con `lineTotalCents(unitPriceCents, quantityMilli)` de C-03 (redondeo **por línea**) y el total con `sumCents` de esos totales: es exactamente `Σ round(quantity × unit_price, 2)` de la base (KB 04), así `register_sale` llega al mismo total (sin VT-E07 falsos). Ningún cálculo MUST usar un `number` con decimales. También SHALL exportar `checkCartForCheckout(cart: Cart): Result<CartTotals, DomainError>`, que devuelve `err` `VT-E02` si el carrito no tiene líneas y, si no, sus totales (todo precio de línea es `> 0`, así que el total de un carrito con líneas siempre es `> 0`, RN-VT-02).
+`cart.ts` SHALL exportar `cartTotals(cart: Cart): { lines: readonly { key: number; lineTotalCents: Cents }[]; totalCents: Cents }`. Cada línea SHALL calcularse con `lineTotalCents(unitPriceCents, quantityMilli)` de C-03 (redondeo **por línea**) y el total con `sumCents` de esos totales: es exactamente `Σ round(quantity × unit_price, 2)` de la base (KB 04), así `register_sale` llega al mismo total (sin VT-E07 falsos). Ningún cálculo MUST usar un `number` con decimales. También SHALL exportar `checkCartForCheckout(cart: Cart): Result<CartTotals, DomainError>`, que devuelve `err` `VT-E02` si el carrito no tiene líneas, `err` `VT-E03` con `details.reason: "zero_total"` si el total es `0` (una línea por kg puede redondear a `0` centavos, por ejemplo 4 g a $ 1,00/kg; RN-VT-02 exige total `> 0`) y, si no, sus totales. `checkSalePayload` SHALL aplicar el mismo control después de recalcular los totales y antes de VT-E07 y de los pagos.
+
+#### Scenario: Total que redondea a cero
+- **WHEN** el carrito tiene solo un producto por kg a $ 1,00/kg (`salePriceCents: 100`) con `quantityMilli: 4`
+- **THEN** `checkCartForCheckout` devuelve `err` `VT-E03` con `details.reason: "zero_total"` (no llega a `startCheckout`, que lanzaría `RangeError` con total `0`)
 
 #### Scenario: Redondeo por línea, no del total
 - **WHEN** el carrito tiene tres productos por kg distintos, cada uno a $ 1,00/kg (`salePriceCents: 100`) con `quantityMilli: 1004` (`1,004` por línea)

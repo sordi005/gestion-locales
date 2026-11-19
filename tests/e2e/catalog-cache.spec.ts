@@ -170,9 +170,16 @@ test.describe("caché local del catálogo", () => {
           "la limpieza del botón no vació la base antes de cerrar la sesión",
       })
       .toEqual({ meta: [], products: [], barcodes: [], categories: [] });
-    // Sigue en el local y el pedido que cierra la sesión sigue retenido: lo que
-    // vació la base fue el botón, no la pantalla de ingreso.
-    expect(logoutActionHeld).toBe(true);
+    // Sigue en el local y el pedido que cierra la sesión queda retenido: lo que
+    // vació la base fue el botón, no la pantalla de ingreso. Se espera (no se lee una
+    // vez) porque el botón manda el pedido DESPUÉS de vaciar la base: entre una cosa y
+    // la otra hay un instante en que la base ya está vacía y el pedido todavía no llegó
+    // al `route` (bajo carga, alcanza para ganarle a una lectura directa).
+    await expect
+      .poll(() => logoutActionHeld, {
+        message: "el pedido que cierra la sesión no llegó a retenerse",
+      })
+      .toBe(true);
     await expect(page).toHaveURL(local);
 
     releaseLogoutAction();
