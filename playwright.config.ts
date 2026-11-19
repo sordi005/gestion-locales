@@ -33,6 +33,12 @@ export default defineConfig({
   // redirecciones pasan los 5 s de `expect` y los tests quedan intermitentes). Con 3 la
   // corrida completa es hasta más corta. En CI se deja el valor por defecto.
   workers: process.env.CI ? undefined : 3,
+  // Aun con 3 workers, en local el ingreso más las dos redirecciones (la acción lleva
+  // a `/` y `/` al local) llegan a tardar algo más de 5 s, y los tests que lo afirman
+  // con `toHaveURL` fallan de a uno distinto por corrida. Una traza mostró que el
+  // local se montaba 65 ms después de que `expect` se rindiera: la app llegaba bien,
+  // solo tarde. En CI se sirve el build de producción y alcanzan los 5 s por defecto.
+  expect: { timeout: process.env.CI ? 5_000 : 15_000 },
   retries: process.env.CI ? 2 : 0,
   // En CI: anotaciones de GitHub + reporte HTML que se sube como artefacto si falla.
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
