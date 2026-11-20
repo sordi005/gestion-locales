@@ -557,7 +557,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 ---
 
 ### [C-07] `platform-admin-onboarding`
-- **Estado**: `[ ]` pendiente · Prioridad **D1**
+- **Estado**: `[~]` propuesto (2026-11-20, en `openspec/changes/platform-admin-onboarding/`) · Prioridad **D1**
 - **Scope**: Alta de clientes por el super-admin (US-001, F-01)
   - `/admin/organizaciones`: crear organización (nombre, slug, zona horaria) y locales vía RPC `create_organization`/`create_location` (C-04); listado
   - Invitar usuarios: Server Action **server-only** (`shared/db/admin.ts` con la secret key) → `auth.admin.inviteUserByEmail` → `profiles`, `memberships` (`owner`/`manager`/`employee`) y `membership_locations`; si el email ya existe en otra organización, solo se agrega la membresía; deshabilitar una membresía
