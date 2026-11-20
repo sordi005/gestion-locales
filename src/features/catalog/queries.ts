@@ -233,6 +233,52 @@ export async function listCatalogProducts(
   return { ...base, items, total: count ?? rows.length };
 }
 
+// --- Búsqueda por código (alta rápida, C-12) ------------------------------------
+
+/**
+ * El producto de la organización con ese código (por `barcode_key`, así que con
+ * o sin ceros a la izquierda), activo o inactivo, o `null`. SIEMPRE la vista
+ * básica: ningún dato de administración viaja por este camino, tampoco para
+ * `owner` y `manager`. Dos consultas por índice: el código y después el producto.
+ */
+export async function findProductByBarcodeKey(
+  ctx: OrgContext,
+  key: string,
+): Promise<ProductBasicView | null> {
+  const client = await createClient();
+  const orgId = ctx.organization.id;
+
+  const found = await client
+    .from("product_barcodes")
+    .select("product_id")
+    .eq("organization_id", orgId)
+    .eq("barcode_key", key)
+    .maybeSingle();
+  if (found.error) throw readFailure("product_barcodes", found.error);
+  const owner = parseRow(rowSchemas.productId, found.data);
+  if (owner === null) return null;
+  return findProductBasicById(ctx, owner.product_id);
+}
+
+/**
+ * El producto de la organización con ese id, activo o inactivo, o `null` (otro
+ * comercio o inexistente). SIEMPRE la vista básica, para los tres roles.
+ */
+export async function findProductBasicById(
+  ctx: OrgContext,
+  productId: string,
+): Promise<ProductBasicView | null> {
+  const client = await createClient();
+  const product = await client
+    .from("products")
+    .select(PRODUCT_COLUMNS_BASIC)
+    .eq("id", productId)
+    .eq("organization_id", ctx.organization.id)
+    .maybeSingle();
+  if (product.error) throw readFailure("products", product.error);
+  return product.data === null ? null : toBasicView(product.data);
+}
+
 // --- Ficha --------------------------------------------------------------------
 
 async function readBarcodes(

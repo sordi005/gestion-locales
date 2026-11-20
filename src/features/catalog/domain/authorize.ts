@@ -20,11 +20,12 @@ export const CATALOG_ACTIONS = [
   "correctBarcode",
   "createCategory",
   "renameCategory",
+  "setInitialSalePrice",
 ] as const;
 
 export type CatalogAction = (typeof CATALOG_ACTIONS)[number];
 
-/** Dueño y encargado hacen todo; el empleado solo da de alta (alta rápida, C-12). */
+/** Dueño y encargado hacen todo; el empleado solo da de alta y pone el primer precio (alta rápida, C-12). */
 const ADMIN_ROLES: readonly Role[] = ["owner", "manager"];
 const ALL_ROLES: readonly Role[] = ["owner", "manager", "employee"];
 
@@ -38,6 +39,8 @@ const ALLOWED_ROLES: Readonly<Record<CatalogAction, readonly Role[]>> = {
   correctBarcode: ADMIN_ROLES,
   createCategory: ADMIN_ROLES,
   renameCategory: ADMIN_ROLES,
+  // El primer precio de un producto sin precio lo pone cualquier rol (C-12).
+  setInitialSalePrice: ALL_ROLES,
 };
 
 export type CatalogActor = {

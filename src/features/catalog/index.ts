@@ -89,9 +89,12 @@ export type {
   CreateCategoryInput,
   CreateProductFormValues,
   CreateProductInput,
+  FindProductByBarcodeInput,
+  FindProductByIdInput,
   ParsedBarcode,
   ProductIdInput,
   RenameCategoryInput,
+  SetInitialSalePriceInput,
   UpdateProductFormValues,
   UpdateProductInput,
 } from "./domain/schemas";
@@ -130,5 +133,41 @@ export type {
   ProductDetailAdmin,
   ProductDetailBasic,
   ProductStatusResult,
+  SetInitialSalePriceResult,
   UpdateProductResult,
 } from "./dto";
+
+// Alta rápida de productos (C-12): dominio puro de la resolución, del formulario y del
+// envío. La hoja (cliente) sale por `./components`.
+export { QUICK_CREATE_MESSAGES } from "./quick-create/domain/messages";
+export {
+  applySuggestion,
+  editField,
+  initialFormState,
+  markNoSuggestion,
+  priceLabel,
+  setSoldByWeight,
+  showMisreadNotice,
+  toCreateInput,
+  validateForOrigin,
+} from "./quick-create/domain/quick-create-form";
+export type {
+  FormSuggestion,
+  QuickCreateField,
+  QuickCreateFieldErrors,
+  QuickCreateFormState,
+  QuickCreateInput,
+  QuickCreateOrigin,
+} from "./quick-create/domain/quick-create-form";
+export { resolveScan } from "./quick-create/domain/resolve-scan";
+export type {
+  ResolveScanDeps,
+  ScanResolution,
+} from "./quick-create/domain/resolve-scan";
+export { submitQuickCreate } from "./quick-create/domain/submit-quick-create";
+export type {
+  QuickCreateOutcome,
+  SetPriceOutcome,
+  SubmitQuickCreateDeps,
+  SubmitQuickCreateInput,
+} from "./quick-create/domain/submit-quick-create";

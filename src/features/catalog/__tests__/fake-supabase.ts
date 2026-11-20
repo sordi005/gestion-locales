@@ -18,6 +18,9 @@ export type FakeResult = {
 
 export type FakeOperation = "select" | "insert" | "update";
 
+/** Una llamada a `client.rpc(...)`: la función y sus argumentos. */
+export type RecordedRpc = { fn: string; args: unknown };
+
 export type RecordedFilter = {
   kind: "eq" | "neq" | "is" | "in" | "ilike" | "gt" | "gte";
   column: string;
@@ -49,6 +52,7 @@ const queueKey = (table: string, operation: FakeOperation) =>
 
 export function createFakeCatalogDb() {
   const calls: RecordedCall[] = [];
+  const rpcCalls: RecordedRpc[] = [];
   const queues = new Map<string, Responder[]>();
 
   const resolve = (call: RecordedCall) => {
@@ -173,13 +177,40 @@ export function createFakeCatalogDb() {
     return builder;
   });
 
+  // `client.rpc(fn, args)`: responde con lo encolado en `queueRpc(fn, ...)`.
+  const rpc = vi.fn((fn: string, args: unknown) => {
+    rpcCalls.push({ fn, args });
+    const queue = queues.get(`rpc.${fn}`);
+    const next = queue?.shift();
+    if (next === undefined) {
+      throw new Error(`fake supabase: no result queued for "rpc.${fn}"`);
+    }
+    const result =
+      typeof next === "function"
+        ? next({ table: `rpc.${fn}` } as RecordedCall)
+        : next;
+    const error = result.error ?? null;
+    return Promise.resolve({
+      data: error === null ? (result.data ?? null) : null,
+      error,
+      count: null,
+    });
+  });
+
   return {
-    client: { from } as unknown as ServerClient,
+    client: { from, rpc } as unknown as ServerClient,
     from,
+    rpc,
+    rpcCalls,
     calls,
     /** Encola una respuesta para la próxima consulta a `tabla.operación`. */
     queue(table: string, operation: FakeOperation, ...results: Responder[]) {
       const key = queueKey(table, operation);
+      queues.set(key, [...(queues.get(key) ?? []), ...results]);
+    },
+    /** Encola una respuesta para la próxima llamada a la RPC `fn`. */
+    queueRpc(fn: string, ...results: Responder[]) {
+      const key = `rpc.${fn}`;
       queues.set(key, [...(queues.get(key) ?? []), ...results]);
     },
     /** Las consultas hechas a una tabla (con la operación, si se pide). */

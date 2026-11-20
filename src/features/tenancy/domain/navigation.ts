@@ -12,6 +12,7 @@ export type SectionScope = "location" | "org";
 export type SectionKey =
   | "inicio"
   | "vender"
+  | "productos"
   | "caja"
   | "ventas"
   | "vencimientos"
@@ -67,6 +68,7 @@ const org = (
 export const SECTIONS: readonly Section[] = [
   location("inicio", "Inicio", true, ""),
   location("vender", "Vender"),
+  location("productos", "Productos", true),
   location("caja", "Caja"),
   location("ventas", "Ventas"),
   location("vencimientos", "Vencimientos"),

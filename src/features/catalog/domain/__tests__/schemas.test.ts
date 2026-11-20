@@ -10,12 +10,14 @@ import {
   correctBarcodeSchema,
   createCategorySchema,
   createProductSchema,
+  employeeCreateProductSchema,
   deactivateProductSchema,
   discardAdminCreateFields,
   parseCatalogInput,
   quantityMilliSchema,
   reactivateProductSchema,
   renameCategorySchema,
+  setInitialSalePriceSchema,
   updateProductSchema,
   uuidSchema,
 } from "../schemas";
@@ -930,4 +932,57 @@ describe("deactivateProductSchema / reactivateProductSchema", () => {
       expect(Object.keys(fieldErrorsOf(schema, {}))).toEqual(["productId"]);
     },
   );
+});
+
+describe("setInitialSalePriceSchema: el primer precio es mayor a $0", () => {
+  const PRICE_MESSAGE = "El precio tiene que ser mayor a $0.";
+
+  it("0 centavos da CA-E01 con el mensaje en salePriceCents", () => {
+    const fields = fieldErrorsOf(setInitialSalePriceSchema, {
+      productId: PRODUCT,
+      salePriceCents: 0,
+    });
+
+    expect(fields).toEqual({ salePriceCents: PRICE_MESSAGE });
+  });
+
+  it("1 centavo es válido", () => {
+    const parsed = parseCatalogInput(setInitialSalePriceSchema, {
+      productId: PRODUCT,
+      salePriceCents: 1,
+    });
+
+    expect(isOk(parsed)).toBe(true);
+  });
+});
+
+describe("employeeCreateProductSchema: el empleado no da de alta con $0", () => {
+  it("salePriceCents 0 da CA-E01 con el mensaje en salePriceCents", () => {
+    const fields = fieldErrorsOf(
+      employeeCreateProductSchema,
+      validCreate({ salePriceCents: 0 }),
+    );
+
+    expect(fields).toEqual({
+      salePriceCents: "El precio tiene que ser mayor a $0.",
+    });
+  });
+
+  it.each([null, undefined, 1, 90000])("con precio %j sigue siendo ok", (v) => {
+    const parsed = parseCatalogInput(
+      employeeCreateProductSchema,
+      validCreate({ salePriceCents: v }),
+    );
+
+    expect(isOk(parsed)).toBe(true);
+  });
+
+  it("el esquema del dueño y encargado sigue aceptando 0", () => {
+    const parsed = parseCatalogInput(
+      createProductSchema,
+      validCreate({ salePriceCents: 0 }),
+    );
+
+    expect(isOk(parsed)).toBe(true);
+  });
 });

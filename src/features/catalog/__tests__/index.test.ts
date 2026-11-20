@@ -21,8 +21,10 @@ describe("@/features/catalog (entrada pública)", () => {
       "PRICE_SOURCE_LABELS",
       "PRODUCT_COLUMNS_ADMIN",
       "PRODUCT_COLUMNS_BASIC",
+      "QUICK_CREATE_MESSAGES",
       "WARNINGS_PARAM",
       "addBarcodeSchema",
+      "applySuggestion",
       "authorizeCatalogAction",
       "barcodeRejectionMessage",
       "barcodeSearchKey",
@@ -43,25 +45,35 @@ describe("@/features/catalog (entrada pública)", () => {
       "dbErrorLogFields",
       "deactivateProductSchema",
       "diffMinStocks",
+      "editField",
       "escapeLike",
       "historyActorLabel",
+      "initialFormState",
       "invalidBarcodeError",
       "isCatalogErrorCode",
       "likePattern",
       "mapCatalogDbError",
+      "markNoSuggestion",
       "parseCatalogInput",
       "parseCatalogSearchParams",
       "parseWarningsParam",
       "priceChangedMessage",
+      "priceLabel",
       "priceSourceLabel",
       "quantityMilliSchema",
       "reactivateProductSchema",
       "renameCategorySchema",
       "resolveProductCost",
+      "resolveScan",
+      "setSoldByWeight",
+      "showMisreadNotice",
+      "submitQuickCreate",
+      "toCreateInput",
       "toPriceHistoryEntry",
       "toProductView",
       "updateProductSchema",
       "uuidSchema",
+      "validateForOrigin",
       "warningMessage",
       "warningsToSearch",
     ]);
@@ -74,6 +86,10 @@ describe("@/features/catalog (entrada pública)", () => {
       ...readdirSync(join(dir, "domain"))
         .filter((name) => name.endsWith(".ts"))
         .map((name) => join(dir, "domain", name)),
+      // El dominio del alta rápida (C-12) también cuelga del barril puro.
+      ...readdirSync(join(dir, "quick-create", "domain"))
+        .filter((name) => name.endsWith(".ts"))
+        .map((name) => join(dir, "quick-create", "domain", name)),
     ];
     const forbidden =
       /from\s+["'](server-only|next[/"']|react|@supabase\/|@\/shared\/db\/(server|client|admin))/;

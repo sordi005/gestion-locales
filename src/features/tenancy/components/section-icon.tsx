@@ -7,6 +7,7 @@ import {
   HouseIcon,
   PackageIcon,
   ReceiptTextIcon,
+  ScanBarcodeIcon,
   SettingsIcon,
   ShoppingCartIcon,
   StoreIcon,
@@ -25,6 +26,7 @@ import type { SectionKey } from "../domain/navigation";
 const ICONS: Record<SectionKey, LucideIcon> = {
   inicio: HouseIcon,
   vender: ShoppingCartIcon,
+  productos: ScanBarcodeIcon,
   caja: WalletIcon,
   ventas: ReceiptTextIcon,
   vencimientos: CalendarClockIcon,

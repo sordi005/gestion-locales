@@ -48,7 +48,7 @@ function contextOf(
 }
 
 describe("buildShellModel", () => {
-  it("empleado de Norte: sus nombres, ids, rol y solo el inicio (lo único construido)", () => {
+  it("empleado de Norte: sus nombres, ids, rol y solo el inicio y Productos (lo único construido para él)", () => {
     const model = buildShellModel(
       contextOf("employee.norte", LOC_NORTE_CENTRO),
       SECTIONS,
@@ -69,6 +69,11 @@ describe("buildShellModel", () => {
           key: "inicio",
           label: "Inicio",
           href: `/l/${LOC_NORTE_CENTRO}`,
+        },
+        {
+          key: "productos",
+          label: "Productos",
+          href: `/l/${LOC_NORTE_CENTRO}/productos`,
         },
       ],
     });
@@ -250,7 +255,7 @@ function orgContextOf(
 // secciones de organización siempre y las de local solo si la persona tiene
 // exactamente UN local en la organización.
 describe("buildOrgShellModel", () => {
-  it('"Owner con un local en el catálogo": sin local, la organización, Inicio enlazado a su local y Catálogo', () => {
+  it('"Owner con un local en el catálogo": sin local, la organización, Inicio y Productos enlazados a su local y Catálogo', () => {
     const model = buildOrgShellModel(
       orgContextOf("owner.norte", ORG_NORTE),
       SECTIONS,
@@ -268,6 +273,11 @@ describe("buildOrgShellModel", () => {
       canSwitchLocation: false,
       sections: [
         { key: "inicio", label: "Inicio", href: `/l/${LOC_NORTE_CENTRO}` },
+        {
+          key: "productos",
+          label: "Productos",
+          href: `/l/${LOC_NORTE_CENTRO}/productos`,
+        },
         {
           key: "catalogo",
           label: "Catálogo",
@@ -330,13 +340,13 @@ describe("buildOrgShellModel", () => {
     expect(model.canSwitchLocation).toBe(false);
   });
 
-  it("un employee no recibe el catálogo (sí el inicio de su local)", () => {
+  it("un employee no recibe el catálogo (sí el inicio y Productos de su local)", () => {
     const model = buildOrgShellModel(
       orgContextOf("employee.norte", ORG_NORTE),
       SECTIONS,
     );
 
-    expect(model.sections.map((s) => s.key)).toEqual(["inicio"]);
+    expect(model.sections.map((s) => s.key)).toEqual(["inicio", "productos"]);
   });
 
   it("organización suspendida: writable en falso (el marco muestra el aviso)", () => {
