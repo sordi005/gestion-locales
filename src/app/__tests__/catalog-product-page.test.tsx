@@ -26,6 +26,9 @@ import { notFound } from "next/navigation";
 
 vi.mock("@/features/tenancy/server", () => ({ requireOrgContext: vi.fn() }));
 vi.mock("@/features/catalog/server", () => ({ getProductDetail: vi.fn() }));
+vi.mock("@/features/shared-products/server", () => ({
+  lookupSharedProduct: vi.fn(),
+}));
 vi.mock("@/features/catalog/actions", () => ({
   updateProduct: vi.fn(),
   changeSalePrice: vi.fn(),

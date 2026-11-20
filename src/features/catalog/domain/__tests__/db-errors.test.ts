@@ -111,6 +111,95 @@ describe("mapCatalogDbError: tabla de traducción", () => {
   });
 });
 
+// Formas de `set_initial_sale_price` (C-12): los mensajes salen de la migración
+// 20261021150913 (`errcode` fijado con `using errcode`).
+const rpc = (code: string, message: string) => ({
+  code,
+  message,
+  details: null,
+  hint: null,
+});
+
+describe("mapCatalogDbError: set_initial_sale_price (C-12)", () => {
+  it.each<[string, unknown, CatalogErrorCode]>([
+    [
+      "55000 el producto ya tiene precio",
+      rpc(
+        "55000",
+        "El producto ya tiene precio: cambiarlo es del dueño o del encargado",
+      ),
+      "CA-E08",
+    ],
+    [
+      "P0002 el producto no existe",
+      rpc("P0002", "El producto no existe"),
+      "CA-E06",
+    ],
+    [
+      "22003 numeric fuera de rango",
+      rpc("22003", "numeric field overflow"),
+      "CA-E01",
+    ],
+    [
+      "23514 precio negativo",
+      rpc("23514", "El precio no puede ser negativo"),
+      "CA-E01",
+    ],
+    [
+      "23514 más de 2 decimales",
+      rpc("23514", "El precio no puede tener más de 2 decimales"),
+      "CA-E01",
+    ],
+  ])("%s → %s", (_label, error, expected) => {
+    expect(mapCatalogDbError(error).code).toBe(expected);
+  });
+
+  it("55000 lleva el mensaje genérico de CA-E08 (el texto del precio lo pone la mutación)", () => {
+    const mapped = mapCatalogDbError(rpc("55000", "texto crudo de Postgres"));
+
+    expect(mapped.message).toBe("El precio cambió mientras lo editabas.");
+  });
+
+  it.each(["55000", "P0002", "22003", "23514"])(
+    "%s no devuelve el mensaje de Postgres",
+    (code) => {
+      const serialized = JSON.stringify(
+        mapCatalogDbError({
+          code,
+          message: "secreto-mensaje",
+          details: "secreto-details",
+          hint: "secreto-hint",
+        }),
+      );
+
+      expect(serialized).not.toContain("secreto-");
+    },
+  );
+
+  it("un 23514 de un CHECK de columna sigue dando CA-E01 y el del trigger CA-E07", () => {
+    expect(
+      mapCatalogDbError(
+        rpc(
+          "23514",
+          'new row for relation "products" violates check constraint "products_sale_price_check"',
+        ),
+      ).code,
+    ).toBe("CA-E01");
+    expect(
+      mapCatalogDbError(
+        rpc("23514", "Un producto con precio no puede quedar sin precio"),
+      ).code,
+    ).toBe("CA-E07");
+  });
+
+  it("42501 sigue dando CA-E04", () => {
+    expect(
+      mapCatalogDbError(rpc("42501", "permission denied for table products"))
+        .code,
+    ).toBe("CA-E04");
+  });
+});
+
 describe("mapCatalogDbError: la restricción también puede venir en details", () => {
   it("lee el nombre de details cuando el message no lo trae", () => {
     const mapped = mapCatalogDbError({

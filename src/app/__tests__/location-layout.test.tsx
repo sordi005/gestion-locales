@@ -112,6 +112,11 @@ describe("layout /l/[locationId]", () => {
       canSwitchLocation: false,
       sections: [
         { key: "inicio", label: "Inicio", href: `/l/${LOC_NORTE_CENTRO}` },
+        {
+          key: "productos",
+          label: "Productos",
+          href: `/l/${LOC_NORTE_CENTRO}/productos`,
+        },
       ],
     };
     expect(shell.received).toStrictEqual([expected]);

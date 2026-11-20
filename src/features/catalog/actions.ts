@@ -2,17 +2,27 @@
 
 import { requireOrgContext } from "@/features/tenancy/server";
 
+import { barcodeKey, normalizeBarcode } from "@/shared/lib/barcode";
+import { err, ok } from "@/shared/lib/result";
+
+import { catalogError } from "./domain/errors";
 import type { CatalogResult } from "./domain/errors";
+import type { ProductBasicView } from "./domain/product-view";
 import {
   addBarcodeSchema,
   changeSalePriceSchema,
   correctBarcodeSchema,
   createCategorySchema,
   createProductSchema,
+  employeeCreateProductSchema,
   deactivateProductSchema,
   discardAdminCreateFields,
+  findProductByBarcodeSchema,
+  findProductByIdSchema,
+  parseCatalogInput,
   reactivateProductSchema,
   renameCategorySchema,
+  setInitialSalePriceSchema,
   updateProductSchema,
 } from "./domain/schemas";
 import type {
@@ -21,8 +31,11 @@ import type {
   CorrectBarcodeInput,
   CreateCategoryInput,
   CreateProductFormValues,
+  FindProductByBarcodeInput,
+  FindProductByIdInput,
   ProductIdInput,
   RenameCategoryInput,
+  SetInitialSalePriceInput,
   UpdateProductFormValues,
 } from "./domain/schemas";
 import type {
@@ -31,6 +44,7 @@ import type {
   ChangeSalePriceResult,
   CreateProductResult,
   ProductStatusResult,
+  SetInitialSalePriceResult,
   UpdateProductResult,
 } from "./dto";
 import {
@@ -42,8 +56,11 @@ import {
   deactivateProductMutation,
   reactivateProductMutation,
   renameCategoryMutation,
+  setInitialSalePriceMutation,
   updateProductMutation,
 } from "./mutations";
+import { logCatalogFailure } from "./failure";
+import { findProductBasicById, findProductByBarcodeKey } from "./queries";
 import { runCatalogAction } from "./run-action";
 
 // Server Actions del catálogo (design D5). Cada una abre con su guarda
@@ -67,7 +84,11 @@ export async function createProduct(
   return runCatalogAction({
     action: "createProduct",
     ctx,
-    schema: createProductSchema,
+    // El empleado además no puede dar de alta con precio $0 (decisión del fundador).
+    schema:
+      ctx.role === "employee"
+        ? employeeCreateProductSchema
+        : createProductSchema,
     // Un empleado no tiene los campos de administración: se descartan antes de validar.
     input: ctx.role === "employee" ? discardAdminCreateFields(input) : input,
     mutate: createProductMutation,
@@ -196,5 +217,73 @@ export async function renameCategory(
     schema: renameCategorySchema,
     input,
     mutate: renameCategoryMutation,
+  });
+}
+
+/**
+ * Busca un producto de la organización por código (alta rápida, C-12): la vista
+ * básica para todos los roles, activo o inactivo, o `ok(null)`. Es una lectura:
+ * no pasa por `runCatalogAction` (que exige organización escribible y revalida),
+ * así que una organización suspendida también puede leer. Un código que no pasa
+ * `normalizeBarcode` es un código que no existe: `ok(null)` sin tocar la base.
+ */
+export async function findProductByBarcode(
+  orgId: string,
+  input: FindProductByBarcodeInput,
+): Promise<CatalogResult<ProductBasicView | null>> {
+  const ctx = await requireOrgContext(orgId, ["owner", "manager", "employee"]);
+  const parsed = parseCatalogInput(findProductByBarcodeSchema, input);
+  if (!parsed.ok) return parsed;
+
+  const normalized = normalizeBarcode(parsed.value.barcode);
+  if (!normalized.ok) return ok(null);
+
+  try {
+    return ok(
+      await findProductByBarcodeKey(ctx, barcodeKey(normalized.value.norm)),
+    );
+  } catch (error) {
+    logCatalogFailure("acción findProductByBarcode falló", error);
+    return err(catalogError("CA-E10"));
+  }
+}
+
+/**
+ * Lee un producto de la organización por id (C-12, modo "Poné el precio"): la
+ * vista básica para todos los roles, activo o inactivo, o `ok(null)`. Es una
+ * lectura como `findProductByBarcode`: anda también con la organización suspendida.
+ */
+export async function findProductById(
+  orgId: string,
+  input: FindProductByIdInput,
+): Promise<CatalogResult<ProductBasicView | null>> {
+  const ctx = await requireOrgContext(orgId, ["owner", "manager", "employee"]);
+  const parsed = parseCatalogInput(findProductByIdSchema, input);
+  if (!parsed.ok) return parsed;
+
+  try {
+    return ok(await findProductBasicById(ctx, parsed.value.productId));
+  } catch (error) {
+    logCatalogFailure("acción findProductById falló", error);
+    return err(catalogError("CA-E10"));
+  }
+}
+
+/**
+ * Pone el PRIMER precio de un producto sin precio (C-12, modo "Poné el precio"):
+ * sirve a cualquier rol; cambiar un precio que ya existe es de `changeSalePrice`
+ * (dueño y encargado). Devuelve la vista básica.
+ */
+export async function setInitialSalePrice(
+  orgId: string,
+  input: SetInitialSalePriceInput,
+): Promise<CatalogResult<SetInitialSalePriceResult>> {
+  const ctx = await requireOrgContext(orgId, ["owner", "manager", "employee"]);
+  return runCatalogAction({
+    action: "setInitialSalePrice",
+    ctx,
+    schema: setInitialSalePriceSchema,
+    input,
+    mutate: setInitialSalePriceMutation,
   });
 }

@@ -31,6 +31,7 @@ describe("SECTIONS (registro real de C-06)", () => {
     expect(keysOf(SECTIONS.filter((s) => s.scope === "location"))).toEqual([
       "inicio",
       "vender",
+      "productos",
       "caja",
       "ventas",
       "vencimientos",
@@ -50,9 +51,10 @@ describe("SECTIONS (registro real de C-06)", () => {
     ]);
   });
 
-  it("están construidos el inicio del local y el catálogo (C-09)", () => {
+  it("están construidos el inicio del local, Productos (C-12) y el catálogo (C-09)", () => {
     expect(keysOf(SECTIONS.filter((s) => s.built))).toEqual([
       "inicio",
+      "productos",
       "catalogo",
     ]);
   });
@@ -111,13 +113,25 @@ describe("SECTIONS (registro real de C-06)", () => {
 });
 
 describe("visibleSections", () => {
-  describe("con el registro real (después de C-09)", () => {
+  describe("con el registro real (después de C-12)", () => {
     it.each([
-      ["owner", ["inicio", "catalogo"]],
-      ["manager", ["inicio", "catalogo"]],
-      ["employee", ["inicio"]],
+      ["owner", ["inicio", "productos", "catalogo"]],
+      ["manager", ["inicio", "productos", "catalogo"]],
+      ["employee", ["inicio", "productos"]],
     ] as const)("para %s aparecen %j", (role, expected) => {
       expect(keysOf(visibleSections(role))).toEqual(expected);
+    });
+
+    it("Productos es una sección del local, construida, de los tres roles y después de Vender", () => {
+      expect(SECTIONS.find((s) => s.key === "productos")).toMatchObject({
+        label: "Productos",
+        scope: "location",
+        segment: "productos",
+        roles: ["owner", "manager", "employee"],
+        built: true,
+      });
+      const keys = keysOf(SECTIONS);
+      expect(keys.indexOf("productos")).toBe(keys.indexOf("vender") + 1);
     });
 
     it("el catálogo es una sección de organización, construida, solo de owner y manager", () => {
@@ -157,7 +171,11 @@ describe("visibleSections", () => {
     });
 
     it("el registro real no cambia por haber construido uno propio", () => {
-      expect(keysOf(visibleSections("owner"))).toEqual(["inicio", "catalogo"]);
+      expect(keysOf(visibleSections("owner"))).toEqual([
+        "inicio",
+        "productos",
+        "catalogo",
+      ]);
       expect(SECTIONS.find((s) => s.key === "estadisticas")?.built).toBe(false);
     });
   });
@@ -190,7 +208,7 @@ describe("visibleSections", () => {
         ),
       ).toBe(true);
       expect(visibleSections("employee", { registry: ALL_BUILT })).toHaveLength(
-        9,
+        10,
       );
     });
 

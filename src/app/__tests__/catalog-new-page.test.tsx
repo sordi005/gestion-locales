@@ -22,6 +22,9 @@ vi.mock("@/features/catalog/server", () => ({
   listCategories: vi.fn(),
   listSuppliers: vi.fn(),
 }));
+vi.mock("@/features/shared-products/server", () => ({
+  lookupSharedProduct: vi.fn(),
+}));
 vi.mock("@/features/catalog/actions", () => ({
   createProduct: vi.fn(),
   updateProduct: vi.fn(),

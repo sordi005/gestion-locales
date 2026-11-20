@@ -3,12 +3,18 @@ import { z } from "zod";
 import { normalizeBarcode } from "@/shared/lib/barcode";
 import type { BarcodeNorm, BarcodeWarning } from "@/shared/lib/barcode";
 import { MAX_CENTS, MAX_QUANTITY_MILLI } from "@/shared/lib/money";
+
 import type { QuantityMilli } from "@/shared/lib/money";
 import { err, ok } from "@/shared/lib/result";
 
 import { barcodeRejectionMessage } from "./barcode-messages";
 import { catalogError } from "./errors";
 import type { CatalogFieldErrors, CatalogResult } from "./errors";
+import {
+  MAX_BRAND_CHARACTERS,
+  MAX_NAME_CHARACTERS,
+  PRICE_MUST_BE_POSITIVE_MESSAGE,
+} from "./limits";
 
 // Esquemas Zod de toda entrada del catálogo (regla dura 3), con mensajes en
 // castellano. Los montos llegan en centavos enteros y las cantidades en
@@ -17,8 +23,7 @@ import type { CatalogFieldErrors, CatalogResult } from "./errors";
 
 // --- Límites (los mismos CHECK que la base) -----------------------------------
 
-const MAX_NAME_CHARACTERS = 200;
-const MAX_BRAND_CHARACTERS = 80;
+export { MAX_BRAND_CHARACTERS, MAX_NAME_CHARACTERS };
 const MAX_CATEGORY_NAME_CHARACTERS = 80;
 /** `product_barcodes.barcode_raw` admite hasta 64 caracteres. */
 const MAX_BARCODE_RAW_CHARACTERS = 64;
@@ -264,6 +269,23 @@ export const createProductSchema = z
     ) as Readonly<Record<string, QuantityMilli>>,
   }));
 
+/**
+ * Alta de un `employee` (C-12): igual que `createProductSchema`, pero el precio de
+ * venta no puede ser $0 (decisión del fundador). Dueño y encargado siguen con el
+ * esquema común: el catálogo de C-09 no cambia.
+ */
+export const employeeCreateProductSchema = createProductSchema.superRefine(
+  (value, ctx) => {
+    if (value.salePriceCents === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: PRICE_MUST_BE_POSITIVE_MESSAGE,
+        path: ["salePriceCents"],
+      });
+    }
+  },
+);
+
 /** Lo que reciben `buildProductInsert` y la acción, ya validado. */
 export type CreateProductInput = z.output<typeof createProductSchema>;
 /** Lo que manda el formulario. */
@@ -370,6 +392,39 @@ export const correctBarcodeSchema = z.object({
   barcodeId: uuidSchema,
   raw: barcodeRawSchema,
 });
+
+/**
+ * Búsqueda de un producto por código (C-12). Un texto demasiado largo no es un
+ * error del formulario: se trata como un código que no existe (`""` lo rechaza
+ * `normalizeBarcode`), así que la acción devuelve `ok(null)` sin tocar la base.
+ */
+export const findProductByBarcodeSchema = z.object({
+  barcode: z
+    .string()
+    .transform((raw) => (raw.length > MAX_BARCODE_RAW_CHARACTERS ? "" : raw)),
+});
+
+export type FindProductByBarcodeInput = z.output<
+  typeof findProductByBarcodeSchema
+>;
+
+/**
+ * Lectura de un producto por id (C-12): el modo "Poné el precio" relee así el
+ * producto cuando otra persona le puso precio primero (no siempre hay código leído).
+ */
+export const findProductByIdSchema = z.object({ productId: uuidSchema });
+
+export type FindProductByIdInput = z.output<typeof findProductByIdSchema>;
+
+/** Primer precio de un producto sin precio (C-12): `productId` y centavos enteros. */
+export const setInitialSalePriceSchema = z.object({
+  productId: uuidSchema,
+  salePriceCents: centsSchema.min(1, PRICE_MUST_BE_POSITIVE_MESSAGE),
+});
+
+export type SetInitialSalePriceInput = z.output<
+  typeof setInitialSalePriceSchema
+>;
 
 export type AddBarcodeInput = z.output<typeof addBarcodeSchema>;
 export type CorrectBarcodeInput = z.output<typeof correctBarcodeSchema>;

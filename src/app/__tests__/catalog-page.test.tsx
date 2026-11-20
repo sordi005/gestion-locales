@@ -35,6 +35,9 @@ vi.mock("next/navigation", async (importOriginal) => ({
   }),
 }));
 // El barril de componentes trae los formularios, que importan las acciones.
+vi.mock("@/features/shared-products/server", () => ({
+  lookupSharedProduct: vi.fn(),
+}));
 vi.mock("@/features/catalog/actions", () => ({}));
 vi.mock("@/features/catalog/server", () => ({
   listCatalogProducts: vi.fn(),

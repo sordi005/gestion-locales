@@ -9,6 +9,7 @@ import type { QuantityMilli } from "@/shared/lib/money";
 import { err, ok } from "@/shared/lib/result";
 
 import { invalidBarcodeError } from "./domain/barcode-messages";
+import { mapCatalogDbError } from "./domain/db-errors";
 import {
   barcodeTakenMessage,
   catalogError,
@@ -36,6 +37,7 @@ import type {
   ParsedBarcode,
   ProductIdInput,
   RenameCategoryInput,
+  SetInitialSalePriceInput,
   UpdateProductInput,
 } from "./domain/schemas";
 import type {
@@ -45,6 +47,7 @@ import type {
   ChangeSalePriceResult,
   CreateProductResult,
   ProductStatusResult,
+  SetInitialSalePriceResult,
   UpdateProductResult,
 } from "./dto";
 import { warningMessage } from "./domain/warnings-param";
@@ -747,6 +750,60 @@ export async function changeSalePriceMutation(
 
   // Cero filas sin error: el precio cambió, o el producto no se ve.
   return resolveCurrentPrice({ productId, newPriceCents }, env);
+}
+
+/**
+ * Primer precio de un producto que no tiene (C-12), con la RPC
+ * `set_initial_sale_price`: sirve a cualquier rol, deja el historial en
+ * `quick_create` y falla si el producto ya tenía precio (`55000` → `CA-E08`).
+ * El monto va como texto decimal de `fromCents` (nunca `/ 100`). Un monto que la
+ * base rechaza (`23514`, `22003`) se marca en el campo `salePriceCents`. La RPC
+ * devuelve la fila completa de `products`: acá se parsea con el esquema BÁSICO,
+ * así que costo, proveedor y venta rápida nunca salen.
+ */
+export async function setInitialSalePriceMutation(
+  input: SetInitialSalePriceInput,
+  env: MutationEnv,
+): Promise<CatalogResult<SetInitialSalePriceResult>> {
+  // La RPC no mira la organización de la sesión: se confirma acá que el producto
+  // es de este comercio y está activo (otro comercio, inexistente o desactivado:
+  // `CA-E06`, sin llamar a la RPC).
+  const own = await env.client
+    .from("products")
+    .select("id")
+    .eq("id", input.productId)
+    .eq("organization_id", env.ctx.organization.id)
+    .eq("status", "active")
+    .maybeSingle();
+  if (own.error) return dbFailure(own.error);
+  if (own.data === null) return productNotFound();
+
+  const { data, error } = await env.client.rpc("set_initial_sale_price", {
+    p_product_id: input.productId,
+    // La firma generada dice `number`; PostgREST acepta el texto decimal exacto.
+    p_sale_price: numericText(fromCents(input.salePriceCents)),
+  });
+  if (error) {
+    const mapped = mapCatalogDbError(error);
+    if (mapped.code === "CA-E01") {
+      return err(
+        catalogError("CA-E01", {
+          fieldErrors: { salePriceCents: "El precio no es válido." },
+        }),
+      );
+    }
+    if (mapped.code === "CA-E08") {
+      // El texto es de este flujo (el mapa global de la base lleva el genérico).
+      return err(
+        catalogError("CA-E08", { message: "Otra persona ya le puso precio." }),
+      );
+    }
+    return dbFailure(error);
+  }
+
+  const row = parseRow(rowSchemas.productBasic, data);
+  if (row === null) return dbFailure(null);
+  return ok({ product: toProductView(row, "employee") });
 }
 
 // --- Categorías --------------------------------------------------------------------
