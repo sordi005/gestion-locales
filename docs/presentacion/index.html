@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presentación del sistema</title>
+<meta name="description" content="Cómo funciona [NOMBRE-PRODUCTO]: ventas, pagos combinados, caja por turno, stock, vencimientos y estadísticas para kioscos y almacenes.">
+<!--
+  Presentación del sistema para kioscos y almacenes.
+  Fuente: knowledge-base/ (01, 06, 12, 13). Nombre del producto pendiente (PQ-16):
+  cuando se decida, reemplazar "[NOMBRE-PRODUCTO]" en este archivo.
+  Página autocontenida: se abre con doble clic, sin internet ni dependencias.
+-->
+<style>
+:root {
+  --bg: #f7f6f2;
+  --surface: #ffffff;
+  --surface-2: #efede6;
+  --ink: #1d2320;
+  --ink-2: #4a524e;
+  --ink-3: #6f7773;
+  --line: #dedbd2;
+  --brand: #0f6b52;
+  --brand-ink: #ffffff;
+  --brand-soft: #dcefe7;
+  --accent: #b5651d;
+  --accent-soft: #f6e6d6;
+  --warn: #a8321f;
+  --warn-soft: #f7dfd9;
+  --ok: #1f7a3f;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgb(0 0 0 / .05), 0 8px 24px rgb(0 0 0 / .06);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121614;
+    --surface: #1a1f1d;
+    --surface-2: #232a27;
+    --ink: #eef1ef;
+    --ink-2: #c3cac6;
+    --ink-3: #939b97;
+    --line: #2f3734;
+    --brand: #46c39a;
+    --brand-ink: #0b1612;
+    --brand-soft: #173a2f;
+    --accent: #e5a06a;
+    --accent-soft: #3b2a1c;
+    --warn: #ff8f7a;
+    --warn-soft: #3d201b;
+    --ok: #6ad08f;
+    --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121614;
+  --surface: #1a1f1d;
+  --surface-2: #232a27;
+  --ink: #eef1ef;
+  --ink-2: #c3cac6;
+  --ink-3: #939b97;
+  --line: #2f3734;
+  --brand: #46c39a;
+  --brand-ink: #0b1612;
+  --brand-soft: #173a2f;
+  --accent: #e5a06a;
+  --accent-soft: #3b2a1c;
+  --warn: #ff8f7a;
+  --warn-soft: #3d201b;
+  --ok: #6ad08f;
+  --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 8px 24px rgb(0 0 0 / .3);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 17px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3 { line-height: 1.15; margin: 0 0 .5em; letter-spacing: -.01em; }
+h1 { font-size: clamp(2rem, 6vw, 3.4rem); font-weight: 800; }
+h2 { font-size: clamp(1.6rem, 4vw, 2.3rem); font-weight: 800; }
+h3 { font-size: 1.12rem; font-weight: 700; }
+p { margin: 0 0 1em; }
+a { color: var(--brand); }
+.num { font-variant-numeric: tabular-nums; }
+
+.wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+section { padding: 64px 0; }
+section + section { border-top: 1px solid var(--line); }
+.kicker {
+  display: inline-block; font-size: .78rem; font-weight: 700; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--brand); margin-bottom: .7em;
+}
+.lead { font-size: 1.15rem; color: var(--ink-2); max-width: 62ch; }
+.muted { color: var(--ink-3); }
+
+/* Barra superior */
+.top {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.top .wrap { display: flex; align-items: center; gap: 16px; height: 56px; }
+.logo { font-weight: 800; letter-spacing: -.01em; white-space: nowrap; }
+.logo span { color: var(--brand); }
+.top nav { margin-left: auto; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.top nav::-webkit-scrollbar { display: none; }
+.top nav a {
+  color: var(--ink-2); text-decoration: none; font-size: .9rem; padding: 6px 10px;
+  border-radius: 999px; white-space: nowrap;
+}
+.top nav a:hover { background: var(--surface-2); color: var(--ink); }
+.theme-btn {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 999px; width: 36px; height: 36px; flex: none; cursor: pointer; font-size: 1rem;
+}
+@media (max-width: 720px) { .top nav { display: none; } .theme-btn { margin-left: auto; } }
+
+/* Portada */
+.hero { padding: 56px 0 72px; }
+.hero .wrap { display: grid; grid-template-columns: 1.15fr .85fr; gap: 48px; align-items: center; }
+@media (max-width: 860px) { .hero .wrap { grid-template-columns: 1fr; gap: 40px; } }
+.hero h1 em { font-style: normal; color: var(--brand); }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.chip {
+  font-size: .88rem; padding: 6px 12px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink-2);
+}
+
+/* Celular dibujado */
+.phone {
+  width: 100%; max-width: 300px; margin: 0 auto;
+  background: var(--ink); border-radius: 34px; padding: 10px; box-shadow: var(--shadow);
+}
+.screen {
+  background: var(--surface); border-radius: 26px; overflow: hidden; color: var(--ink);
+  font-size: .86rem;
+}
+.screen-top {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px 8px; font-size: .74rem; color: var(--ink-3);
+}
+.screen-head { padding: 0 16px 10px; display: flex; justify-content: space-between; align-items: baseline; }
+.screen-head b { font-size: 1rem; }
+.scan {
+  margin: 0 12px 10px; height: 104px; border-radius: 14px; position: relative; overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, #4a524e, #232826);
+}
+.scan::before {
+  content: ""; position: absolute; left: 24%; right: 24%; top: 14px; height: 46px; border-radius: 4px;
+  background:
+    repeating-linear-gradient(90deg, #1d2320 0 2px, transparent 2px 4px, #1d2320 4px 7px, transparent 7px 9px, #1d2320 9px 10px, transparent 10px 13px),
+    #f4f2ec;
+  background-clip: content-box; padding: 5px 7px; box-sizing: border-box;
+}
+.scan::after {
+  content: ""; position: absolute; left: 16%; right: 16%; top: 37px; height: 2px;
+  background: #ff5a3c; box-shadow: 0 0 8px #ff5a3c;
+}
+.scan span {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  font-size: .72rem; color: #fff; background: rgb(0 0 0 / .45); padding: 3px 10px; border-radius: 999px;
+}
+.items { list-style: none; margin: 0; padding: 0 12px; }
+.items li {
+  display: flex; justify-content: space-between; gap: 8px; padding: 8px 4px;
+  border-bottom: 1px dashed var(--line);
+}
+.items small { display: block; color: var(--ink-3); font-size: .72rem; }
+.total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 12px 16px 6px; font-weight: 800; font-size: 1.15rem;
+}
+.cta {
+  margin: 6px 12px 14px; background: var(--brand); color: var(--brand-ink);
+  border-radius: 12px; text-align: center; padding: 12px; font-weight: 800; font-size: .95rem;
+}
+.pay-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin: 0 12px 8px; padding: 10px 12px; border-radius: 12px;
+  background: var(--surface-2); font-size: .84rem;
+}
+.pay-row b { font-size: .95rem; }
+.pay-row.done { background: var(--brand-soft); }
+.change {
+  margin: 4px 12px 10px; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--line); display: flex; justify-content: space-between; font-size: .84rem;
+}
+
+/* Tarjetas */
+.grid { display: grid; gap: 16px; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .g3, .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .g2, .g3, .g4 { grid-template-columns: 1fr; } }
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 20px; box-shadow: var(--shadow);
+}
+.card p { color: var(--ink-2); margin: 0; font-size: .97rem; }
+.card ul { margin: .4em 0 0; padding-left: 1.1em; color: var(--ink-2); font-size: .97rem; }
+.card li { margin: .25em 0; }
+.icon {
+  width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center;
+  background: var(--brand-soft); color: var(--brand); margin-bottom: 12px;
+}
+.icon svg { width: 22px; height: 22px; }
+.icon.warm { background: var(--accent-soft); color: var(--accent); }
+.icon.red { background: var(--warn-soft); color: var(--warn); }
+.pain { border-left: 4px solid var(--accent); }
+.tag {
+  display: inline-block; font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent); margin-left: 6px; vertical-align: middle;
+}
+
+/* Pasos */
+.steps { counter-reset: s; display: grid; gap: 14px; }
+.step {
+  display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px;
+}
+.step::before {
+  counter-increment: s; content: counter(s);
+  width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--brand); color: var(--brand-ink); font-weight: 800; font-size: 1.1rem;
+}
+.step h3 { margin-bottom: .25em; }
+.step p { margin: 0; color: var(--ink-2); font-size: .97rem; }
+.split { display: grid; grid-template-columns: 1fr 320px; gap: 40px; align-items: start; }
+@media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+
+/* Línea de tiempo del turno */
+.shift { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 24px; }
+@media (max-width: 760px) { .shift { grid-template-columns: 1fr; } }
+.shift > div { padding: 20px; background: var(--surface); border: 1px solid var(--line); }
+.shift > div:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.shift > div:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+@media (max-width: 760px) {
+  .shift > div:first-child { border-radius: var(--radius) var(--radius) 0 0; }
+  .shift > div:last-child { border-radius: 0 0 var(--radius) var(--radius); }
+}
+.shift .when { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--brand); }
+.shift p { color: var(--ink-2); font-size: .97rem; margin: .4em 0 0; }
+.arqueo { margin-top: 20px; }
+.arqueo table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.arqueo td { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.arqueo td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.arqueo tr.diff td { font-weight: 800; color: var(--warn); border-bottom: 0; }
+
+/* Barras de estadísticas */
+.bars { display: grid; gap: 10px; margin-top: 8px; }
+.bar { display: grid; grid-template-columns: 110px 1fr 76px; gap: 10px; align-items: center; font-size: .9rem; }
+.bar .track { height: 12px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--brand); border-radius: 999px; }
+.bar .fill.warm { background: var(--accent); }
+.bar span:last-child { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+@media (max-width: 420px) { .bar { grid-template-columns: 88px 1fr 64px; font-size: .84rem; } }
+
+/* Roles */
+.roles { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; font-size: .95rem; }
+.roles th, .roles td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--line); vertical-align: top; }
+.roles tr:last-child td { border-bottom: 0; }
+.roles th { background: var(--surface-2); font-size: .82rem; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-2); }
+.roles td:first-child { font-weight: 700; white-space: nowrap; }
+.table-scroll { overflow-x: auto; border-radius: var(--radius); }
+@media (max-width: 600px) {
+  .roles thead { display: none; }
+  .roles, .roles tbody, .roles tr, .roles td { display: block; width: 100%; }
+  .roles tr { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  .roles td { border: 0; padding: 4px 14px; }
+  .roles td:first-child { padding-top: 10px; color: var(--brand); }
+}
+
+/* No hace todavía */
+.honest .card { box-shadow: none; }
+.honest h3 { display: flex; gap: 8px; align-items: center; }
+
+/* Piloto */
+.pilot { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
+@media (max-width: 900px) { .pilot { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .pilot { grid-template-columns: 1fr; } }
+.pilot .card { border-top: 4px solid var(--brand); }
+.pilot .when { font-weight: 800; color: var(--brand); font-size: .9rem; margin-bottom: .3em; }
+
+.stages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 760px) { .stages { grid-template-columns: 1fr; } }
+.stages .card.now { border: 2px solid var(--brand); }
+.stages .label { font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); }
+.stages .now .label { color: var(--brand); }
+
+.quote {
+  background: var(--brand); color: var(--brand-ink); border-radius: var(--radius);
+  padding: 32px 24px; text-align: center;
+}
+.quote p { font-size: clamp(1.2rem, 3vw, 1.6rem); font-weight: 800; margin: 0 auto; max-width: 30ch; line-height: 1.3; }
+
+footer { padding: 32px 0 48px; color: var(--ink-3); font-size: .88rem; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="logo"><span>●</span> [NOMBRE-PRODUCTO]</div>
+    <nav aria-label="Secciones">
+      <a href="#que-hace">Qué hace</a>
+      <a href="#vender">Vender</a>
+      <a href="#caja">Caja</a>
+      <a href="#stock">Stock</a>
+      <a href="#numeros">Números</a>
+      <a href="#piloto">Piloto</a>
+    </nav>
+    <button class="theme-btn" type="button" aria-label="Cambiar entre modo claro y oscuro" id="theme">◐</button>
+  </div>
+</header>
+
+<main>
+
+<!-- Portada -->
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="kicker">Para kioscos y almacenes de barrio</span>
+      <h1>La caja de tu kiosco, <em>en el celular.</em></h1>
+      <p class="lead">Cobrá, controlá la plata del turno y sabé cuánto ganás y cuánto perdés. Simple, en el celular o en la PC, y te lo configuramos en persona.</p>
+      <div class="chips">
+        <span class="chip">Escaneás con la cámara</span>
+        <span class="chip">Cobrás combinando medios</span>
+        <span class="chip">Cerrás la caja sin calculadora</span>
+        <span class="chip">Ves lo que vence</span>
+      </div>
+    </div>
+    <div class="phone" role="img" aria-label="Dibujo de la pantalla de venta en un celular: un producto escaneado, el carrito con tres productos y el total de 4.850 pesos">
+      <div class="screen">
+        <div class="screen-top"><span>Caja abierta · Turno mañana</span><span>9:41</span></div>
+        <div class="screen-head"><b>Nueva venta</b><span class="muted">Local Centro</span></div>
+        <div class="scan"><span>Apuntá al código de barras</span></div>
+        <ul class="items num">
+          <li><span>Gaseosa cola 1,5 l<small>1 × $ 2.600</small></span><b>$ 2.600</b></li>
+          <li><span>Alfajor triple<small>2 × $ 850</small></span><b>$ 1.700</b></li>
+          <li><span>Chicle menta<small>1 × $ 550</small></span><b>$ 550</b></li>
+        </ul>
+        <div class="total num"><span>Total</span><span>$ 4.850</span></div>
+        <div class="cta">Cobrar</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- El problema -->
+<section id="problema">
+  <div class="wrap">
+    <span class="kicker">El problema</span>
+    <h2>Hoy el kiosco se lleva a ojo</h2>
+    <p class="lead">La mayoría de los kioscos y almacenes independientes no tiene sistema: todo va en un cuaderno, en Excel o en la memoria. Y eso cuesta plata.</p>
+    <div class="grid g4" style="margin-top:24px">
+      <div class="card pain"><h3>¿Cuánto entró por transferencia?</h3><p>Al final del día no se sabe cuánto se cobró en efectivo, cuánto por alias y cuánto por QR.</p></div>
+      <div class="card pain"><h3>La plata del turno no cierra</h3><p>Falta o sobra plata en el cajón y nadie sabe por qué ni en qué turno pasó.</p></div>
+      <div class="card pain"><h3>No sabés qué tenés</h3><p>Sin stock no sabés qué reponer, qué se vende y qué está juntando polvo.</p></div>
+      <div class="card pain"><h3>Lo vencido se tira en silencio</h3><p>Los productos vencen en la góndola y esa pérdida nunca aparece en ningún número.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Qué hace -->
+<section id="que-hace">
+  <div class="wrap">
+    <span class="kicker">Qué hace</span>
+    <h2>Todo lo del mostrador, en un solo lugar</h2>
+    <p class="lead">[NOMBRE-PRODUCTO] es la caja registradora del comercio. A partir de cada venta, compra y conteo arma solo el resto: la caja, el stock y los números.</p>
+    <div class="grid g3" style="margin-top:24px">
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14M7 5v14M11 5v14M14 5v14M18 5v14M21 5v14"/></svg></div>
+        <h3>Ventas</h3>
+        <p>Escaneás o buscás por nombre, se arma el carrito y cobrás. Para lo que no tiene código hay botones de venta rápida.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/></svg></div>
+        <h3>Pagos combinados</h3>
+        <p>Una venta se puede pagar con varios medios: una parte por QR y el resto en efectivo, con el vuelto calculado.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M12 12v3"/></svg></div>
+        <h3>Caja por turno</h3>
+        <p>Se abre con el fondo inicial y se cierra contando la plata. El sistema dice cuánto tendría que haber y anota la diferencia.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5V8z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg></div>
+        <h3>Stock</h3>
+        <p>Se calcula solo: las ventas restan, las compras suman, las mermas y los conteos ajustan. Nadie lo tipea a mano.</p>
+      </div>
+      <div class="card">
+        <div class="icon warm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v3"/></svg></div>
+        <h3>Compras y vencimientos</h3>
+        <p>Cargás lo que llega del proveedor, con su costo y su fecha de vencimiento. Te avisa antes de que algo venza.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+        <h3>Estadísticas</h3>
+        <p>Cuánto vendiste, cuánto ganaste, qué se vende más, qué no rota y cuánto perdiste. En el celular del dueño.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V8H4v12h8"/><path d="M4 8l2-4h12l2 4M16 19l2 2 4-4"/></svg></div>
+        <h3>Catálogo y precios</h3>
+        <p>Productos con código, precio y costo. Se importa tu lista de Excel y, cuando hay aumentos, se suben los precios por porcentaje.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3M8 11h6M11 8v6"/></svg></div>
+        <h3>Alta rápida de productos</h3>
+        <p>¿Escaneaste algo que no estaba cargado? El sistema te sugiere el nombre y la marca de una base de más de 75.000 productos. Ponés el precio y listo.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M16 4a3 3 0 0 1 0 6M21 20a6 6 0 0 0-4-5.6"/></svg></div>
+        <h3>Usuarios y permisos</h3>
+        <p>Cada persona entra con su usuario. El empleado cobra; el dueño ve los números y controla. Cada comercio ve solo lo suyo.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Cómo se vende -->
+<section id="vender">
+  <div class="wrap split">
+    <div>
+      <span class="kicker">Cómo se vende</span>
+      <h2>Una venta en cuatro toques</h2>
+      <p class="lead">Pensado para cobrar rápido con una sola mano, con fila en el mostrador.</p>
+      <div class="steps" style="margin-top:24px">
+        <div class="step"><div><h3>Escaneá o buscá</h3><p>Apuntás la cámara al código de barras. Si no tiene código, lo buscás por nombre o usás un botón de venta rápida.</p></div></div>
+        <div class="step"><div><h3>Mirá el carrito</h3><p>Cada producto aparece con su precio. Podés sumar cantidades o sacar algo.</p></div></div>
+        <div class="step"><div><h3>Cobrá como te paguen</h3><p>Elegís el medio: efectivo, transferencia, QR, débito o crédito. Si pagan con dos, lo dividís. Con efectivo, te calcula el vuelto.</p></div></div>
+        <div class="step"><div><h3>Listo</h3><p>La venta queda guardada, la caja y el stock se actualizan solos y, si el cliente lo pide, sale el comprobante.</p></div></div>
+      </div>
+      <p class="muted" style="margin-top:16px;font-size:.92rem">¿Te equivocaste? Las ventas no se borran ni se editan: se anulan con un motivo y se hacen de nuevo. Así queda todo registrado y nadie puede tocar los números por atrás.</p>
+    </div>
+    <div class="phone" role="img" aria-label="Dibujo de la pantalla de cobro: total de 4.850 pesos, 3.000 pagados por QR, 1.850 en efectivo con un billete de 2.000 y 150 de vuelto">
+      <div class="screen">
+        <div class="screen-top"><span>Cobrar</span><span>9:42</span></div>
+        <div class="total num" style="padding-top:4px"><span>Total</span><span>$ 4.850</span></div>
+        <div class="pay-row done num"><span>Mercado Pago (QR)</span><b>$ 3.000</b></div>
+        <div class="pay-row done num"><span>Efectivo</span><b>$ 1.850</b></div>
+        <div class="change num"><span>Te dieron $ 2.000 · Vuelto</span><b>$ 150</b></div>
+        <div class="pay-row num"><span>Falta cobrar</span><b>$ 0</b></div>
+        <div class="cta">Confirmar venta</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Caja -->
+<section id="caja">
+  <div class="wrap">
+    <span class="kicker">La caja</span>
+    <h2>Un turno, de principio a fin</h2>
+    <p class="lead">Cada turno tiene su caja. Al final, el sistema ya sabe cuánta plata tendría que haber: solo hay que contar.</p>
+    <div class="shift">
+      <div><span class="when">Al abrir</span><h3>Fondo inicial</h3><p>El que entra cuenta el cambio que hay en el cajón y lo anota.</p></div>
+      <div><span class="when">Durante el turno</span><h3>Se suma solo</h3><p>Cada venta en efectivo se suma sola. Los gastos, pagos a proveedores y retiros se anotan con un toque.</p></div>
+      <div><span class="when">Al cerrar</span><h3>Arqueo</h3><p>Se cuenta la plata del cajón. El sistema la compara con lo esperado y deja registrada la diferencia.</p></div>
+    </div>
+    <div class="grid g2 arqueo">
+      <div class="card">
+        <h3>Ejemplo de cierre</h3>
+        <table class="num">
+          <tr><td>Fondo inicial</td><td>$ 10.000</td></tr>
+          <tr><td>Ventas en efectivo</td><td>+ $ 48.300</td></tr>
+          <tr><td>Pago a proveedor</td><td>− $ 12.000</td></tr>
+          <tr><td>Retiro del dueño</td><td>− $ 20.000</td></tr>
+          <tr><td><b>Tendría que haber</b></td><td><b>$ 26.300</b></td></tr>
+          <tr><td>Contaron</td><td>$ 26.000</td></tr>
+          <tr class="diff"><td>Diferencia</td><td>− $ 300</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>Y además, por medio de pago</h3>
+        <p style="margin-bottom:12px">Al cerrar ves cuánto entró por cada medio, para controlarlo contra la app del banco o de Mercado Pago.</p>
+        <table class="num">
+          <tr><td>Efectivo</td><td>$ 48.300</td></tr>
+          <tr><td>Mercado Pago (QR)</td><td>$ 31.750</td></tr>
+          <tr><td>Transferencia / alias</td><td>$ 18.400</td></tr>
+          <tr><td>Débito</td><td>$ 9.200</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Stock y vencimientos -->
+<section id="stock">
+  <div class="wrap">
+    <span class="kicker">Stock y vencimientos</span>
+    <h2>Lo que tenés y lo que se te vence</h2>
+    <p class="lead">El stock nunca se escribe a mano: sale de lo que pasa en el negocio. Así no se puede "acomodar".</p>
+    <div class="grid g4" style="margin-top:24px">
+      <div class="card"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></div><h3>Compras</h3><p>Cargás lo que llega, con costo y fecha de vencimiento por lote. Suma stock.</p></div>
+      <div class="card"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></div><h3>Ventas</h3><p>Cada venta descuenta del stock en el momento.</p></div>
+      <div class="card"><div class="icon red"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></div><h3>Mermas</h3><p>Lo vencido, roto o perdido se registra y se valoriza en pesos.</p></div>
+      <div class="card"><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg></div><h3>Conteos</h3><p>Un conteo inicial, conteos parciales y uno final. El sistema muestra las diferencias.</p></div>
+    </div>
+    <div class="card" style="margin-top:16px;border-left:4px solid var(--warn)">
+      <h3>Panel de vencimientos <span class="tag">aviso</span></h3>
+      <p>Todos los días ves qué ya venció, qué vence hoy y qué vence pronto, y un contador en la pantalla de venta te lo recuerda sin interrumpir. Con un toque marcás "lo puse en oferta", "retiré tantos" o "no queda", y lo vencido se da de baja como merma.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Números del dueño -->
+<section id="numeros">
+  <div class="wrap split">
+    <div>
+      <span class="kicker">Para el dueño</span>
+      <h2>Los números del negocio, sin pedirle a nadie</h2>
+      <p class="lead">Desde el celular, estés donde estés.</p>
+      <div class="grid g2" style="margin-top:24px">
+        <div class="card"><h3>Ventas</h3><ul><li>Por día, por turno y por medio de pago</li><li>Ticket promedio</li><li>Horas pico</li></ul></div>
+        <div class="card"><h3>Ganancia</h3><ul><li>Ganancia bruta del período</li><li>Margen por producto</li></ul></div>
+        <div class="card"><h3>Productos</h3><ul><li>Los más vendidos</li><li>Los que no rotan</li><li>Compras por proveedor</li></ul></div>
+        <div class="card"><h3>Control</h3><ul><li>Pérdidas por vencidos y roturas, en pesos</li><li>Anulaciones y diferencias de caja</li></ul></div>
+      </div>
+    </div>
+    <div class="card" role="img" aria-label="Ejemplo de gráfico de ventas de la semana por medio de pago">
+      <h3>Ventas de la semana</h3>
+      <p class="muted" style="font-size:.85rem;margin-bottom:12px">Ejemplo, por medio de pago</p>
+      <div class="bars">
+        <div class="bar"><span>Efectivo</span><div class="track"><div class="fill" style="width:92%"></div></div><span>$ 312.400</span></div>
+        <div class="bar"><span>QR</span><div class="track"><div class="fill" style="width:61%"></div></div><span>$ 207.150</span></div>
+        <div class="bar"><span>Transferencia</span><div class="track"><div class="fill" style="width:38%"></div></div><span>$ 128.900</span></div>
+        <div class="bar"><span>Débito</span><div class="track"><div class="fill" style="width:17%"></div></div><span>$ 57.300</span></div>
+      </div>
+      <h3 style="margin-top:20px">Pérdidas del mes</h3>
+      <div class="bars">
+        <div class="bar"><span>Vencidos</span><div class="track"><div class="fill warm" style="width:70%"></div></div><span>$ 18.600</span></div>
+        <div class="bar"><span>Roturas</span><div class="track"><div class="fill warm" style="width:22%"></div></div><span>$ 5.900</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Quién hace qué -->
+<section id="roles">
+  <div class="wrap">
+    <span class="kicker">Quién hace qué</span>
+    <h2>Cada uno ve lo que necesita</h2>
+    <p class="lead">Cada persona entra con su propio usuario, así siempre se sabe quién vendió, quién abrió la caja y quién anuló.</p>
+    <div class="table-scroll" style="margin-top:24px">
+      <table class="roles">
+        <thead><tr><th>Quién</th><th>Qué hace</th><th>Para qué le sirve</th></tr></thead>
+        <tbody>
+          <tr><td>Dueño</td><td>Mira los números, controla anulaciones y diferencias de caja, ajusta precios.</td><td>Saber cuánto vende, cuánto gana y cuánto pierde, y que la plata cierre.</td></tr>
+          <tr><td>Encargado</td><td>Organiza la caja, carga compras con vencimiento, hace conteos y anula ventas mal cargadas.</td><td>Que el local funcione ordenado.</td></tr>
+          <tr><td>Empleado</td><td>Cobra, abre y cierra la caja de su turno, anota gastos y mermas, mira qué vence hoy.</td><td>Cobrar rápido y sin errores.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Dispositivos -->
+<section id="dispositivos">
+  <div class="wrap">
+    <span class="kicker">Dónde se usa</span>
+    <h2>En el celular o en la PC, igual de bien</h2>
+    <p class="lead">No hace falta comprar nada. Se instala como una app desde el navegador.</p>
+    <div class="grid g2" style="margin-top:24px">
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg></div>
+        <h3>Celular (lo principal)</h3>
+        <p>Escaneás con la cámara, buscás por nombre y usás botones grandes, con una sola mano. Para los kioscos que no tienen PC ni lector.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3>PC (opcional)</h3>
+        <p>Si tenés una PC en el mostrador, se vende con teclado y atajos, sin mouse. Si tenés lector de códigos USB, también se usa.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Reglas -->
+<section id="reglas">
+  <div class="wrap">
+    <span class="kicker">Reglas que te cuidan</span>
+    <h2>Pensado para que los números sean confiables</h2>
+    <div class="grid g4" style="margin-top:24px">
+      <div class="card"><h3>Nunca deja de vender</h3><p>Un producto sin precio o un error de stock no frenan un cobro.</p></div>
+      <div class="card"><h3>Nada se borra</h3><p>Las ventas, compras y movimientos se anulan con motivo, nunca se editan ni se borran.</p></div>
+      <div class="card"><h3>Los números se calculan</h3><p>El stock y la plata esperada salen de lo registrado, no de lo que alguien escribe.</p></div>
+      <div class="card"><h3>Tus datos son tuyos</h3><p>Cada comercio ve solo su información. Ni precios ni costos se comparten con nadie.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Lo que no hace -->
+<section id="todavia-no" class="honest">
+  <div class="wrap">
+    <span class="kicker">Para ser claros</span>
+    <h2>Lo que todavía no hace</h2>
+    <p class="lead">Preferimos decirlo de entrada. Algunas cosas quedan para más adelante.</p>
+    <div class="grid g2" style="margin-top:24px">
+      <div class="card"><h3>No hace factura electrónica</h3><p>Es un sistema de control interno. El comprobante dice "no válido como factura" y la facturación sigue como la hacés hoy.</p></div>
+      <div class="card"><h3>No se conecta con Mercado Pago ni con el posnet</h3><p>Cobrás como siempre y marcás en el sistema con qué medio te pagaron.</p></div>
+      <div class="card"><h3>Necesita internet</h3><p>Durante la prueba funciona conectado. Si se corta, te avisa y reintenta, sin perder la venta que estabas armando.</p></div>
+      <div class="card"><h3>Fiado, todavía no</h3><p>Lo vamos a definir con los primeros kioscos: cuántos lo usan y cómo lo llevan hoy.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Piloto -->
+<section id="piloto">
+  <div class="wrap">
+    <span class="kicker">La prueba</span>
+    <h2>Un mes gratis, configurado en persona</h2>
+    <p class="lead">Arrancamos con 1 a 3 kioscos de Mendoza. Vamos al local, dejamos todo andando y acompañamos el mes completo.</p>
+    <div class="pilot">
+      <div class="card"><div class="when">Antes</div><h3>Visita de configuración</h3><p>Cargamos tu lista de productos, tus medios de pago y los usuarios, y probamos en tus equipos.</p></div>
+      <div class="card"><div class="when">Día 1</div><h3>Abrís la caja y vendés</h3><p>Cobros con pagos combinados, comprobante y anulaciones, desde el primer cliente.</p></div>
+      <div class="card"><div class="when">Todos los días</div><h3>El ritmo normal</h3><p>Compras con vencimiento, mermas y cierre de caja con arqueo.</p></div>
+      <div class="card"><div class="when">Día 30</div><h3>El resumen del mes</h3><p>Conteo final, estadísticas y pérdidas. Vos decidís si seguís.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Etapas -->
+<section id="etapas">
+  <div class="wrap">
+    <span class="kicker">Lo que viene</span>
+    <h2>Cómo va a crecer</h2>
+    <div class="stages" style="margin-top:24px">
+      <div class="card now"><div class="label">Ahora · Etapa 0</div><h3>La prueba</h3><p>Ventas, pagos combinados, caja, stock, compras con vencimiento, mermas, conteos, estadísticas, importación del catálogo y aumentos por porcentaje.</p></div>
+      <div class="card"><div class="label">Etapa 1 · 5 a 20 locales</div><h3>Más comercios</h3><p>Lo de la prueba, más lo que pidan los primeros kioscos: fiado, cuenta corriente con proveedores y venta sin conexión.</p></div>
+      <div class="card"><div class="label">Etapa 2</div><h3>Para todos</h3><p>Factura electrónica, cobros conectados con Mercado Pago y el posnet, y alta por cuenta propia.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="quote"><p>Cobrá, controlá la caja y sabé cuánto ganás y cuánto perdés.</p></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>[NOMBRE-PRODUCTO] · Sistema de ventas, caja, stock y estadísticas para kioscos y almacenes independientes.</p>
+    <p>Presentación armada a partir de la base de conocimiento del proyecto (<code>knowledge-base/</code>). Los montos son ejemplos. Algunas funciones todavía están en construcción y pueden cambiar con lo que aprendamos de los primeros kioscos.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var btn = document.getElementById('theme');
+  try {
+    var saved = localStorage.getItem('presentacion-theme');
+    if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
+  } catch (e) {}
+  btn.addEventListener('click', function () {
+    var current = root.getAttribute('data-theme');
+    if (!current) current = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    var next = current === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('presentacion-theme', next); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>
