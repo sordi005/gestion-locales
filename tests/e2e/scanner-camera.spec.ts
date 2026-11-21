@@ -56,7 +56,7 @@ async function openHarness(page: Page) {
   await expect(page.getByRole("main")).toHaveAttribute("data-ready", "true");
 }
 
-test("continuo: lee A, B y A otra vez, y A cuenta una sola vez aunque estuvo a la vista", async ({
+test("continuo: alterna A y B, y cada código cuenta una sola vez mientras está a la vista", async ({
   page,
 }) => {
   await openHarness(page);
@@ -65,15 +65,23 @@ test("continuo: lee A, B y A otra vez, y A cuenta una sola vez aunque estuvo a l
   await page.getByLabel("Continuo").check();
   await page.getByRole("button", { name: "Escanear con la cámara" }).click();
 
-  // Después de la tercera lectura el video sigue y puede sumar más (B a los
-  // ~7,4 s): se compara solo el comienzo, sin tiempos fijos.
-  // El tercer renglón llega a los ~5 s de abrir la cámara: más que los 5 s
-  // por defecto de `expect`.
+  // El video arranca con A en cuanto se abre la cámara, pero el lector empieza
+  // recién cuando terminó de bajar ZXing. Con la máquina cargada (`next dev`
+  // compilando para otros workers) esa descarga puede pasar el ~1,4 s que dura
+  // A, y entonces la primera lectura es B: la secuencia es B, A, B. Las dos
+  // prueban lo mismo (un código cuenta una vez por aparición y vuelve a contar
+  // después de una ausencia real), así que se acepta cualquiera.
+  // Después de la tercera lectura el video sigue y puede sumar más: se compara
+  // solo el comienzo, sin tiempos fijos. El tercer renglón llega a los ~5 s de
+  // abrir la cámara (~8 s si empezó por B): más que los 5 s por defecto de `expect`.
   await expect
-    .poll(async () => (await readings(page).allTextContents()).slice(0, 3), {
-      timeout: 20_000,
-    })
-    .toEqual([`camera ${CODE_A}`, `camera ${CODE_B}`, `camera ${CODE_A}`]);
+    .poll(async () => readings(page).count(), { timeout: 20_000 })
+    .toBeGreaterThanOrEqual(3);
+  const firstThree = (await readings(page).allTextContents()).slice(0, 3);
+  expect([
+    [`camera ${CODE_A}`, `camera ${CODE_B}`, `camera ${CODE_A}`],
+    [`camera ${CODE_B}`, `camera ${CODE_A}`, `camera ${CODE_B}`],
+  ]).toContainEqual(firstThree);
 });
 
 test("un disparo: una lectura, 'Escanear otro' y otra lectura sin volver a abrir la cámara", async ({
