@@ -77,6 +77,7 @@ describe("convención de guardas en src/app y en los archivos use server de src/
         "src/app/auth/sin-acceso/page.tsx",
         "src/app/(app)/l/[locationId]/page.tsx",
         "src/app/(app)/l/[locationId]/layout.tsx",
+        "src/app/(app)/l/[locationId]/productos/page.tsx",
         "src/app/(app)/locales/page.tsx",
         "src/app/(app)/org/[orgId]/layout.tsx",
         "src/app/(app)/org/[orgId]/catalogo/page.tsx",
@@ -131,6 +132,7 @@ describe("convención de guardas en src/app y en los archivos use server de src/
       expect.arrayContaining([
         "src/app/(app)/l/[locationId]/layout.tsx",
         "src/app/(app)/l/[locationId]/page.tsx",
+        "src/app/(app)/l/[locationId]/productos/page.tsx",
       ]),
     );
     for (const { file, source } of locationFiles) {

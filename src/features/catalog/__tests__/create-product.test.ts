@@ -270,6 +270,60 @@ describe("createProduct: carrera por el mismo código", () => {
   });
 });
 
+describe("createProduct: precio de $0 según el rol", () => {
+  it("el empleado con 0 centavos: CA-E01 con el mensaje en salePriceCents y sin tocar la base", async () => {
+    vi.mocked(requireOrgContext).mockResolvedValue(
+      makeOrgContext({ role: "employee" }),
+    );
+
+    const result = await createProduct(
+      ORG_ID,
+      fullInput({ salePriceCents: 0 }),
+    );
+
+    expect(!result.ok && result.error).toMatchObject({
+      code: "CA-E01",
+      fieldErrors: { salePriceCents: "El precio tiene que ser mayor a $0." },
+    });
+    expect(steps()).toEqual([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("el empleado sin precio sigue pudiendo dar de alta", async () => {
+    vi.mocked(requireOrgContext).mockResolvedValue(
+      makeOrgContext({ role: "employee" }),
+    );
+    db.queue("product_barcodes", "select", { data: [] });
+    db.queue("products", "insert", { data: adminRow() });
+    db.queue("product_barcodes", "insert", { data: null });
+
+    const result = await createProduct(
+      ORG_ID,
+      fullInput({ salePriceCents: null }),
+    );
+
+    expect(result.ok).toBe(true);
+  });
+
+  it.each(["owner", "manager"] as const)(
+    "%s con 0 centavos sigue pudiendo (catálogo de C-09 intacto)",
+    async (role) => {
+      vi.mocked(requireOrgContext).mockResolvedValue(makeOrgContext({ role }));
+      db.queue("product_barcodes", "select", { data: [] });
+      db.queue("products", "insert", { data: adminRow() });
+      db.queue("product_barcodes", "insert", { data: null });
+      db.queue("product_location_settings", "insert", { data: null });
+
+      const result = await createProduct(
+        ORG_ID,
+        fullInput({ salePriceCents: 0 }),
+      );
+
+      expect(result.ok).toBe(true);
+    },
+  );
+});
+
 describe("createProduct: empleado da de alta con precio", () => {
   it("descarta en silencio los campos de administración y el resultado no lleva costo, proveedor ni venta rápida", async () => {
     vi.mocked(requireOrgContext).mockResolvedValue(
@@ -316,6 +370,74 @@ describe("createProduct: empleado da de alta con precio", () => {
     const keys = deepKeys(result);
     for (const name of ADMIN_ONLY_NAMES) expect(keys).not.toContain(name);
     expect(JSON.stringify(result)).not.toMatch(/quick|cost|supplier/i);
+  });
+});
+
+// Caracterización para el alta rápida de C-12 (tarea 0.3d): lo que el empleado
+// puede mandar en el alta y lo que recibe cuando el código ya estaba cargado.
+describe("createProduct: el empleado en el alta rápida (C-12)", () => {
+  const quick = (over: Partial<CreateProductFormValues> = {}) => ({
+    name: "Galletitas de limón 120 g",
+    brand: "Campo Verde",
+    unit: "unit" as const,
+    salePriceCents: 90000,
+    barcodes: [EAN_A],
+    ...over,
+  });
+
+  it.each([
+    ["por unidad", "unit", "900.00"],
+    ["por kilo (precio por kilo)", "kg", "900.00"],
+  ] as const)(
+    "alta %s con precio: unit y sale_price van en el INSERT y tracksStock/tracksExpiry quedan en true",
+    async (_label, unit, price) => {
+      vi.mocked(requireOrgContext).mockResolvedValue(
+        makeOrgContext({ role: "employee" }),
+      );
+      db.queue("product_barcodes", "select", { data: [] });
+      db.queue("products", "insert", {
+        data: adminRow({ unit, tracks_stock: true, tracks_expiry: true }),
+      });
+      db.queue("product_barcodes", "insert", { data: null });
+
+      const result = await createProduct(ORG_ID, quick({ unit }));
+
+      expect(result.ok).toBe(true);
+      const [insert] = db.callsOn("products", "insert");
+      expect(insert?.payload).toMatchObject({
+        unit,
+        sale_price: price,
+        tracks_stock: true,
+        tracks_expiry: true,
+      });
+      const [barcodes] = db.callsOn("product_barcodes", "insert");
+      expect(JSON.stringify(barcodes?.payload)).toContain(EAN_A);
+    },
+  );
+
+  it("un código ya cargado da CA-E02 con el nombre del dueño del código y sin escribir", async () => {
+    vi.mocked(requireOrgContext).mockResolvedValue(
+      makeOrgContext({ role: "employee" }),
+    );
+    db.queue("product_barcodes", "select", {
+      data: [
+        {
+          id: "00000000-0000-4000-8000-00000000d002",
+          product_id: OTHER_PRODUCT_ID,
+          barcode_norm: EAN_A,
+          barcode_key: EAN_A,
+        },
+      ],
+    });
+    db.queue("products", "select", {
+      data: [{ id: OTHER_PRODUCT_ID, name: "Coca-Cola 2,25 L" }],
+    });
+
+    const result = await createProduct(ORG_ID, quick());
+
+    expect(!result.ok && result.error.code).toBe("CA-E02");
+    expect(!result.ok && result.error.message).toContain("Coca-Cola 2,25 L");
+    expect(db.writeCount()).toBe(0);
   });
 });
 

@@ -18,7 +18,7 @@ function codeOf(
 }
 
 describe("authorizeCatalogAction: catálogo de acciones", () => {
-  it("son las nueve acciones del catálogo", () => {
+  it("son las diez acciones del catálogo", () => {
     expect([...CATALOG_ACTIONS].sort()).toEqual(
       [
         "addBarcode",
@@ -29,6 +29,7 @@ describe("authorizeCatalogAction: catálogo de acciones", () => {
         "deactivateProduct",
         "reactivateProduct",
         "renameCategory",
+        "setInitialSalePrice",
         "updateProduct",
       ].sort(),
     );
@@ -44,13 +45,19 @@ describe("authorizeCatalogAction: decisión por acción", () => {
     },
   );
 
-  it("solo createProduct admite al empleado", () => {
-    expect(codeOf("createProduct", "employee", true)).toBe("ok");
+  it("solo createProduct y setInitialSalePrice admiten al empleado", () => {
+    const EMPLOYEE_ACTIONS: readonly CatalogAction[] = [
+      "createProduct",
+      "setInitialSalePrice",
+    ];
+    for (const action of EMPLOYEE_ACTIONS) {
+      expect(codeOf(action, "employee", true), action).toBe("ok");
+    }
 
     const others = CATALOG_ACTIONS.filter(
-      (action) => action !== "createProduct",
+      (action) => !EMPLOYEE_ACTIONS.includes(action),
     );
-    expect(others).toHaveLength(CATALOG_ACTIONS.length - 1);
+    expect(others).toHaveLength(CATALOG_ACTIONS.length - 2);
     for (const action of others) {
       expect(codeOf(action, "employee", true), action).toBe("CA-E04");
     }

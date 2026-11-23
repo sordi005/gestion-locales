@@ -108,6 +108,11 @@ export type ChangeSalePriceResult = {
   readonly changed: boolean;
 };
 
+/** `setInitialSalePrice`: el producto con su primer precio, SIEMPRE en la vista básica. */
+export type SetInitialSalePriceResult = {
+  readonly product: ProductBasicView;
+};
+
 export type ProductStatusResult = {
   readonly productId: string;
   readonly status: ProductStatus;

@@ -78,7 +78,8 @@ Organizadas por **épica** e **historia de usuario** (US-NNN). Cada criterio de 
 ### US-012 — Alta rápida de un producto desconocido [D1]
 **Como** cajero **quiero** dar de alta un producto que no está, sin salir del flujo, **para** no frenar la venta, la recepción ni el conteo.
 - [ ] Un código desconocido abre una hoja con el código precargado; pide nombre y, desde la venta, precio.
-- [ ] Si el código está en la base de productos compartida (DD-34), el nombre aparece ya escrito y solo se pone el precio. Un código con dígito verificador inválido se rechaza (lectura o tipeo equivocado). *(La base compartida y su consulta las entrega C-64; la hoja de alta rápida la arma C-12.)*
+- [ ] Si el código está en la base de productos compartida (DD-34), el nombre aparece ya escrito (editable) y solo se pone el precio; no se guarda nada hasta "Guardar". Un código con dígito verificador inválido en el comercio es un aviso fuerte ("volvé a escanear") con un botón "Cargar igual"; el rechazo duro es solo de la base compartida (DD-34). Si el código no está en ningún lado, los campos van a mano con el aviso "Revisá que el número coincida con el de la caja", sin frenar el guardado. *(La base compartida y su consulta las entrega C-64; la hoja de alta rápida la arma C-12.)*
+- [ ] La hoja ofrece "Se vende por peso" (unidad `kg`, precio por kilo); sin marcarla, el producto es por unidad (RN-CA-10).
 - [ ] Desde la venta, también ofrece "vender como ítem manual" sin dar de alta.
 - [ ] Al guardar, vuelve al flujo con el producto agregado.
 **Reglas:** RN-CA-05, RN-CA-12 a RN-CA-18, RN-VT-05.

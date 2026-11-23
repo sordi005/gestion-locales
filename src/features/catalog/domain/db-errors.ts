@@ -79,7 +79,13 @@ export function mapCatalogDbError(error: unknown): CatalogError {
         ? catalogError("CA-E07")
         : catalogError("CA-E01");
     case "23503":
+    case "22003":
       return catalogError("CA-E01");
+    // `set_initial_sale_price` (C-12): el producto ya tenía precio / no existe.
+    case "55000":
+      return catalogError("CA-E08");
+    case "P0002":
+      return catalogError("CA-E06");
     default:
       return catalogError("CA-E10");
   }

@@ -15,3 +15,6 @@ export { ProductForm } from "./components/product-form";
 export type { ProductFormProduct } from "./components/product-form";
 export { ProductStatusControl } from "./components/product-status-control";
 export { UnitPrice, formatUnitPrice } from "./components/unit-price";
+export { QuickCreateProduct } from "./quick-create/quick-create-product";
+export type { QuickCreateProductProps } from "./quick-create/quick-create-product";
+export { ProductsScreen } from "./quick-create/products-screen";

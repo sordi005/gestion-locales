@@ -15,7 +15,7 @@
 --                 B: lo mismo; configuración por local: A en LA, B en L1 y en L2
 begin;
 
-select plan(179);
+select plan(182);
 
 select set_config('tests.org_a', tests.create_org('cr-org-a')::text, true);
 select set_config('tests.org_b', tests.create_org('cr-org-b')::text, true);
@@ -707,6 +707,28 @@ select is(
 select lives_ok(
   $$update public.products set name = name, sale_price = sale_price where id = '00000000-0000-4000-8000-00000000a001'$$,
   'guardia: un UPDATE del employee que no cambia ningún valor no es un cambio y no se rechaza'
+);
+
+-- Caracterización (C-12, "Se vende por peso"): el employee da de alta un producto por kilo con
+-- precio por kilo (la guardia del INSERT no mira `unit` ni `sale_price`) y después no le cambia
+-- la unidad (un UPDATE suyo solo puede poner el primer precio).
+select is(
+  pg_temp.affected(format(
+    'insert into public.products (organization_id, name, unit, sale_price)
+     values (%L, ''Queso por kilo'', ''kg'', 2500)',
+    current_setting('tests.org_a'))),
+  1::bigint,
+  'guardia: el employee da de alta un producto por kilo con precio por kilo'
+);
+select is(
+  (select unit || ':' || sale_price::text from public.products where name = 'Queso por kilo'),
+  'kg:2500.00',
+  'guardia: el producto por kilo del employee quedó con unit kg y su precio por kilo'
+);
+select throws_ok(
+  $$update public.products set unit = 'unit' where name = 'Queso por kilo'$$,
+  '42501', null,
+  'guardia: el employee no le cambia la unidad a un producto por kilo'
 );
 
 -- "El dueño no tiene la restricción" (y el manager tampoco)

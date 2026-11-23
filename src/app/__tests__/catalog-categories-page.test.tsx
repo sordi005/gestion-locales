@@ -16,6 +16,9 @@ import { requireOrgContext } from "@/features/tenancy/server";
 
 vi.mock("@/features/tenancy/server", () => ({ requireOrgContext: vi.fn() }));
 vi.mock("@/features/catalog/server", () => ({ listCategories: vi.fn() }));
+vi.mock("@/features/shared-products/server", () => ({
+  lookupSharedProduct: vi.fn(),
+}));
 vi.mock("@/features/catalog/actions", () => ({
   createCategory: vi.fn(),
   renameCategory: vi.fn(),
