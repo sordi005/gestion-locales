@@ -4,11 +4,11 @@
 Define el marco responsive de las pantallas de la app (menú lateral en PC, barra inferior en celular) con el nombre de la persona siempre visible, el local y la organización activos, el cambio de local y el cierre de sesión; el registro único de secciones del que sale el menú (solo secciones construidas y permitidas para el rol); el inicio provisorio del local; el aviso de organización suspendida; y un único contenido principal con su enlace de salto en cada marco.
 ## Requirements
 ### Requirement: Registro único de secciones
-Las secciones de la app SHALL declararse en un único registro puro (`features/tenancy/domain/navigation.ts`), cada una con su clave, su etiqueta en castellano, su alcance (`location`: `/l/[id]/<ruta>`; `org`: `/org/[orgId]/<ruta>`), los roles que la ven y una marca `built` que solo el change que construye la pantalla pone en verdadero. En C-06 la única sección construida era el inicio del local; C-09 marca construida `catalogo` (alcance `org`, roles `owner` y `manager`). Vender, caja, ventas, vencimientos, compras, mermas, conteos, stock, precios, proveedores, medios de pago, importaciones, configuración y estadísticas quedan declaradas sin construir con los roles de KB 03 §Rutas protegidas. El menú y la redirección de inicio MUST leer este registro: una sección sin construir o no permitida para el rol MUST NOT aparecer en ningún menú ni ser destino de una redirección.
+Las secciones de la app SHALL declararse en un único registro puro (`features/tenancy/domain/navigation.ts`), cada una con su clave, su etiqueta en castellano, su alcance (`location`: `/l/[id]/<ruta>`; `org`: `/org/[orgId]/<ruta>`), los roles que la ven y una marca `built` que solo el change que construye la pantalla pone en verdadero. En C-06 la única sección construida era el inicio del local; C-09 marca construida `catalogo` (alcance `org`, roles `owner` y `manager`); C-12 suma y marca construida `productos` ("Productos", alcance `location`, ruta `/l/[id]/productos`, roles `owner`, `manager` y `employee`), ubicada en el registro después de "Vender". Vender, caja, ventas, vencimientos, compras, mermas, conteos, stock, precios, proveedores, medios de pago, importaciones, configuración y estadísticas quedan declaradas sin construir con los roles de KB 03 §Rutas protegidas. El menú y la redirección de inicio MUST leer este registro: una sección sin construir o no permitida para el rol MUST NOT aparecer en ningún menú ni ser destino de una redirección.
 
 #### Scenario: Secciones no construidas fuera del menú
-- **WHEN** se piden las secciones visibles de un `owner` después de C-09
-- **THEN** aparecen solo el inicio del local y "Catálogo"
+- **WHEN** se piden las secciones visibles de un `owner` después de C-12
+- **THEN** aparecen solo el inicio del local, "Productos" y "Catálogo"
 
 #### Scenario: Una sección construida aparece para sus roles
 - **WHEN** en un test se marca construida una sección de alcance `org` permitida a `owner` y `manager`
@@ -17,6 +17,14 @@ Las secciones de la app SHALL declararse en un único registro puro (`features/t
 #### Scenario: Catálogo para cada rol
 - **WHEN** se piden las secciones visibles de `owner`, `manager` y `employee` con el registro real
 - **THEN** "Catálogo" (`/org/<orgId>/catalogo`) aparece para `owner` y `manager` y no para `employee`
+
+#### Scenario: Productos para cada rol
+- **WHEN** se piden las secciones visibles de `owner`, `manager` y `employee` con el registro real
+- **THEN** "Productos" (`/l/<locationId>/productos`) aparece para los tres
+
+#### Scenario: La redirección de inicio no cambia
+- **WHEN** un `employee` entra a `/` después de C-12
+- **THEN** la redirección de inicio es la misma que antes de C-12 ("Productos" no es destino de la redirección)
 
 ### Requirement: Marco responsive de la app
 Las pantallas bajo `/l/[locationId]` SHALL compartir un marco (`AppShell`, componentes shadcn/ui del proyecto) con un menú lateral en pantallas de PC y una barra de navegación inferior en celular, resueltos por CSS (punto de quiebre `md`) y no por el dispositivo detectado. El marco MUST mostrar siempre el nombre de la persona con sesión (`full_name` o, si es NULL, su email; RN-AU-03), el nombre del local y de la organización activos, la opción "Cambiar de local" (enlace a `/locales`) solo si tiene más de un local, y "Cerrar sesión" (el botón de C-05, que corre la limpieza local). La navegación MUST usar elementos `nav` con nombre accesible, marcar la sección actual con `aria-current="page"` y poder usarse solo con teclado en PC. El marco MUST recibir del servidor solo los datos que dibuja (ids, nombres, rol, `writable`), no el contexto completo.
