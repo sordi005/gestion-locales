@@ -338,7 +338,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-09 → C-12 → C-19 → C-20 →
                                     └─ C-64 ─┘
 ```
 
-C-64 (base de productos compartida) corre en paralelo con C-09: los dos dependen de C-06 + C-08 y los dos tienen que estar archivados antes de C-12. El largo del camino no cambia (12), pero con C-09 ya archivado, **C-64 es hoy lo único que frena a C-12**. Actualización 2026-11-18: C-64 archivado, **C-12 queda desbloqueado**.
+C-64 (base de productos compartida) corre en paralelo con C-09: los dos dependen de C-06 + C-08 y los dos tienen que estar archivados antes de C-12. El largo del camino no cambia (12), pero con C-09 ya archivado, **C-64 es hoy lo único que frena a C-12**. Actualización 2026-11-18: C-64 archivado, **C-12 queda desbloqueado**. Actualización 2026-11-24: **C-12 archivado**; de las dependencias de C-19 ya están listos C-06, C-10, C-11, C-12 y C-13, y **solo falta C-14** (`cash-sessions-schema`).
 
 Ramas terminales obligatorias que corren **en paralelo** y deben estar archivadas antes de C-37: la rama dinero (`C-04 → C-08 → C-14 → C-15 → C-16 → C-18 → C-25*`, `C-17 → C-22 → C-23`), `C-21`, `C-26`, `C-34`, `C-35`, `C-36`, y las diferibles `C-29` (importación) y `C-33` (compras). \*C-25 también cierra la cadena del dinero.
 
@@ -737,7 +737,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 ---
 
 ### [C-12] `product-quick-create`
-- **Estado**: `[ ]` en cierre (implementado en la rama `feat/C-12-product-quick-create`; falta la prueba a mano en celulares, el `judgment-day` y archivar) · Prioridad **D1**
+- **Estado**: `[x]` completado (archivado 2026-11-24, PR #44, en `openspec/changes/archive/2026-11-24-product-quick-create/`; specs: `product-quick-create` (nueva), `catalog-management` y `app-shell` (actualizadas)) · Prioridad **D1**. **Pendiente antes del Día 1:** la prueba a mano en los demás equipos (Android de gama baja, iPhone con Safari, PC con webcam y lector USB, y el encendedor `6902004095218`); en el celular del fundador anduvo bien (2026-11-23).
 - **Scope**: Alta rápida de un producto desconocido (US-012, F-03)
   - Hoja `<QuickCreateProduct/>`: un código desconocido la abre con el código precargado; pide nombre y, si viene de la venta, **precio**; alternativa "vender como ítem manual" (callback para C-19)
   - Reutiliza la Server Action `createProduct` (C-09); si dos usuarios crean el mismo código, la violación de `UNIQUE` devuelve el producto existente
