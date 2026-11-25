@@ -31,6 +31,7 @@
 2. **Infraestructura:** planes gratuitos mientras se desarrolla (Supabase Free de staging, Vercel Hobby solo para previews de desarrollo, sin datos reales); **planes pagos de Supabase (Pro, backups) y Vercel (Pro, uso comercial) desde el Día 1 del piloto**: el change de producción es C-36 y va antes de C-37. Esto responde PQ-19 (aún no reflejado en KB 09/10).
 3. **Skills instaladas** para los sub-agentes: `supabase`, `supabase-postgres-best-practices`, `shadcn`, `playwright-best-practices`, `vitest`.
 4. **Base de productos compartida desde el piloto (DD-34, 2026-11-04; resuelve PQ-21) y entrada principal por cámara del celular (DD-33):** change nuevo **C-64 `shared-product-base`** (ALTO), aprobado por el fundador el 2026-11-05. Va en la fase 2 **antes de C-12**, que pasa a depender de él. Lleva el id siguiente al último para no renumerar el roadmap.
+5. **Búsqueda por nombre tolerante (2026-11-24, tras probar C-12 en el celular contra staging):** change nuevo **C-65 `tolerant-name-search`** (MEDIO). Los nombres de la base compartida vienen abreviados por las cadenas ("Deo ...", marcas en mayúsculas) y los tipeados a mano tienen errores: la búsqueda del mostrador pasa a tolerar abreviaturas y sinónimos, errores de tipeo y unidades equivalentes (sin tocar los datos de ningún comercio), la base compartida se limpia solo donde es seguro, el alta a mano suma una pista en el nombre y se arregla la presentación repetida en la sugerencia. Va **después de C-12 y antes de C-19** (la venta, con el cliente esperando, necesita encontrar por nombre). Lleva el id siguiente al último.
 
 ---
 
@@ -68,6 +69,7 @@ C-01 foundation-setup
 C-08 catalog-schema-rls
   ├── C-09 catalog-crud-pricing-ui                        (+ C-06, C-03)
   │     ├── C-12 product-quick-create                     (+ C-10, C-11, C-64)
+  │     │     └── C-65 tolerant-name-search               (+ C-11, C-64)   → ver "Rama pantalla de venta"
   │     ├── C-22 cash-open-movements-ui                   (+ C-14, C-17)   → ver "Rama dinero"
   │     ├── C-26 pos-owner-config                         (+ C-19, C-15)
   │     ├── C-52 price-bulk-update                        (+ C-11)   [M1]
@@ -99,7 +101,8 @@ C-14 cash-sessions-schema                                 (+ C-08)
 
 ```
 C-12 product-quick-create
-  └── C-19 pos-sale-screen                                (+ C-10, C-11, C-13, C-14, C-06)
+  ├── C-65 tolerant-name-search                           (+ C-11, C-64)   ← antes de C-19
+  └── C-19 pos-sale-screen                                (+ C-10, C-11, C-13, C-14, C-06, C-65)
         ├── C-20 pos-checkout-payments-ui                 (+ C-16, C-13)
         │     ├── C-21 pos-mobile-layout
         │     ├── C-24 sale-receipt                       (+ C-16)
@@ -163,7 +166,7 @@ C-21 + C-23 + C-25 + C-26 + C-29 + C-33 + C-34 + C-35 + C-36   →   C-37 day1-e
 | Hito KB | Changes | Nota |
 |---|---|---|
 | H0 Fundación | C-01 a C-07 | CRITICO |
-| H1 Catálogo | C-08 a C-12, C-64 (base compartida), C-26 (botones), C-27 a C-29 (importación) | La importación es degradable si PQ-08 = ningún piloto tiene lista |
+| H1 Catálogo | C-08 a C-12, C-64 (base compartida), C-65 (búsqueda tolerante), C-26 (botones), C-27 a C-29 (importación) | La importación es degradable si PQ-08 = ningún piloto tiene lista |
 | H2 Venta y pagos | C-13, C-15, C-16, C-18 a C-21, C-24, C-25, C-26 (medios) | ALTO |
 | H3 Caja | C-14, C-17, C-22, C-23 | ALTO |
 | H4 Sin conexión | C-34 (+ invariantes en C-13, C-16, C-19) | DD-31: solo en línea; cola = Etapa 1 |
@@ -181,11 +184,11 @@ C-21 + C-23 + C-25 + C-26 + C-29 + C-33 + C-34 + C-35 + C-36   →   C-37 day1-e
 
 | Nivel | Changes | Cantidad |
 |---|---|---|
-| **Hito completo "Listo para el Día 1"** | C-01 a C-37 + C-64 | **38** |
-| **Núcleo irreducible** (se puede abrir la caja y cobrar) | C-01 a C-26 + C-34, C-35, C-36, C-37, C-64 | **31** |
+| **Hito completo "Listo para el Día 1"** | C-01 a C-37 + C-64 + C-65 | **39** |
+| **Núcleo irreducible** (se puede abrir la caja y cobrar) | C-01 a C-26 + C-34, C-35, C-36, C-37, C-64, C-65 | **32** |
 | Diferible bajo presión, en este orden de recorte | 1) C-27, C-28, C-29 (importación; solo si PQ-08 = ningún piloto tiene lista: el catálogo se arma escaneando con C-12 + ítem manual) · 2) C-30, C-31, C-32, C-33 (compras con vencimiento: pasan a la semana 1; lo no cargado se recupera con los remitos y el conteo inicial) | 3 + 4 |
 | **Movidos de D1 (KB) a S1** por decisión del lead técnico (consumen lo que C-33 captura) | C-38 (FEFO), C-39 (panel), C-40 + C-41 (mermas), C-42 (esquema de conteos), C-43 (acciones sobre alertas). C-44 (conteo inicial) y C-45 (stock) ya eran semana 1 / M1 en la KB | 6 |
-| Nunca recortar | C-01 a C-26, C-34, C-35, C-36, C-37, C-64: multi-tenant + RLS, catálogo, base de productos compartida (DD-33: sin lector ni Excel, es la carga inicial), venta PC y celular, pagos combinados, anulación, caja con arqueo, PWA, producción, E2E | — |
+| Nunca recortar | C-01 a C-26, C-34, C-35, C-36, C-37, C-64, C-65: multi-tenant + RLS, catálogo, base de productos compartida (DD-33: sin lector ni Excel, es la carga inicial), búsqueda por nombre tolerante, venta PC y celular, pagos combinados, anulación, caja con arqueo, PWA, producción, E2E | — |
 
 **Validar con el fundador:** mover panel, acciones y mermas a la semana 1 es una propuesta (la KB 06/12 los marca D1). La condición para que sea seguro: C-39 a C-43 tienen que estar listos **antes del primer vencimiento real** del comercio; C-33 (captura de lotes) se mantiene en el Día 1.
 
@@ -268,7 +271,10 @@ GATE 7b: C-06 + C-08 ✓ (+ C-03, C-04)
 GATE 10: C-09 + C-10 + C-11 + C-64 ✓
   → C-12 product-quick-create                      [Agente C]
 
-GATE 11: C-12 ✓ (+ C-13, C-14, C-10, C-11, C-06)
+GATE 10b: C-12 ✓ (+ C-11, C-64)
+  → C-65 tolerant-name-search                      [Agente C]
+
+GATE 11: C-12 + C-65 ✓ (+ C-13, C-14, C-10, C-11, C-06)
   → C-19 pos-sale-screen                           [Agente C]
 
 GATE 12: C-16 + C-17 ✓                             ← FORK
@@ -331,14 +337,14 @@ GATE 26 (cierre, D30): C-44 ✓
   → C-60 partial-final-counts → C-61 count-differences (+ C-40) → C-62 losses-report (+ C-46) → C-63 pilot-month-summary-print (+ C-47, C-48, C-50, C-54)   [cadena lineal, Agente A]
 ```
 
-### Camino crítico (12 changes — mínimo irreducible hasta "Listo para el Día 1")
+### Camino crítico (13 changes — mínimo irreducible hasta "Listo para el Día 1")
 
 ```
-C-01 → C-02 → C-04 → C-05 → C-06 → C-09 → C-12 → C-19 → C-20 → C-24 → C-25 → C-37
+C-01 → C-02 → C-04 → C-05 → C-06 → C-09 → C-12 → C-65 → C-19 → C-20 → C-24 → C-25 → C-37
                                     └─ C-64 ─┘
 ```
 
-C-64 (base de productos compartida) corre en paralelo con C-09: los dos dependen de C-06 + C-08 y los dos tienen que estar archivados antes de C-12. El largo del camino no cambia (12), pero con C-09 ya archivado, **C-64 es hoy lo único que frena a C-12**. Actualización 2026-11-18: C-64 archivado, **C-12 queda desbloqueado**. Actualización 2026-11-24: **C-12 archivado**; de las dependencias de C-19 ya están listos C-06, C-10, C-11, C-12 y C-13, y **solo falta C-14** (`cash-sessions-schema`).
+C-64 (base de productos compartida) corre en paralelo con C-09: los dos dependen de C-06 + C-08 y los dos tienen que estar archivados antes de C-12. El largo del camino no cambia (12), pero con C-09 ya archivado, **C-64 es hoy lo único que frena a C-12**. Actualización 2026-11-18: C-64 archivado, **C-12 queda desbloqueado**. Actualización 2026-11-24: **C-12 archivado**; C-65 (búsqueda tolerante) entra entre C-12 y C-19 y el camino pasa a **13**. De las dependencias de C-19 ya están listos C-06, C-10, C-11, C-12 y C-13; **faltan C-14** (`cash-sessions-schema`) **y C-65**.
 
 Ramas terminales obligatorias que corren **en paralelo** y deben estar archivadas antes de C-37: la rama dinero (`C-04 → C-08 → C-14 → C-15 → C-16 → C-18 → C-25*`, `C-17 → C-22 → C-23`), `C-21`, `C-26`, `C-34`, `C-35`, `C-36`, y las diferibles `C-29` (importación) y `C-33` (compras). \*C-25 también cierra la cadena del dinero.
 
@@ -355,7 +361,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   4  │ C-05 auth-session-flows            │ C-08 catalog-schema-rls               │ C-30 expiry-date-input
   5  │ C-14 cash-sessions-schema          │ C-27 catalog-import-engine            │ C-06 tenant-context-app-shell
   6  │ C-15 sales-payments-schema         │ C-11 cache · C-64 shared-product-base │ C-09 catalog-crud-pricing-ui
-  7  │ C-16 register-sale-rpc             │ C-17 cash-close-rpc                   │ C-12 product-quick-create
+  7  │ C-16 register-sale-rpc             │ C-17 cash-close-rpc                   │ C-12 product-quick-create · C-65 tolerant-name-search
   8  │ C-07 platform-admin-onboarding     │ C-31 purchases-lots-schema            │ C-19 pos-sale-screen
   9  │ C-18 void-sale-rpc                 │ C-32 register-purchase-rpc            │ C-20 pos-checkout-payments-ui
  10  │ C-22 cash-open-movements-ui        │ C-28 catalog-import-schema-commit     │ C-24 sale-receipt
@@ -376,7 +382,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
  P10 │ C-63 pilot-month-summary-print     │          —                            │          —
 ```
 
-> El plan maximiza el paralelismo por dependencias, no fija el calendario del piloto. Los pasos 1-14 son el **Día 1** (38 changes, con C-64); si el calendario aprieta, se recortan C-27/C-28/C-29 y luego C-30 a C-33 (ver "Mínimo para el Día 1"). Los pasos P1-P3 son la **semana 1** y tienen prioridad sobre P4+ (lotes, mermas y conteo inicial antes del primer vencimiento); P4+ se reordena según lo que pida el dueño. C-59 solo se ejecuta cuando PQ-11 esté respondida; no frena a ningún otro. Un solo desarrollador puede seguir la columna que quiera: las columnas indican qué changes se pueden correr en paralelo con worktrees.
+> El plan maximiza el paralelismo por dependencias, no fija el calendario del piloto. Los pasos 1-14 son el **Día 1** (39 changes, con C-64 y C-65); si el calendario aprieta, se recortan C-27/C-28/C-29 y luego C-30 a C-33 (ver "Mínimo para el Día 1"). Los pasos P1-P3 son la **semana 1** y tienen prioridad sobre P4+ (lotes, mermas y conteo inicial antes del primer vencimiento); P4+ se reordena según lo que pida el dueño. C-59 solo se ejecuta cuando PQ-11 esté respondida; no frena a ningún otro. Un solo desarrollador puede seguir la columna que quiera: las columnas indican qué changes se pueden correr en paralelo con worktrees.
 
 ---
 
@@ -772,6 +778,30 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - `knowledge-base/13_ventas_pagos_y_caja.md` §2.2
   - Skills a cargar: `shadcn`, `vitest`
 
+### [C-65] `tolerant-name-search`
+- **Estado**: `[~]` propuesto (2026-11-24, en `openspec/changes/tolerant-name-search/`) · Prioridad **D1**
+- **Scope**: Búsqueda por nombre tolerante, limpieza segura de la base compartida y pista en el alta a mano (US-011, US-012). Decisiones del fundador del 2026-11-24
+  - **Búsqueda tolerante** en la caché local (sin servidor), con un módulo puro compartido `src/shared/lib/product-text/`: diccionario de abreviaturas y sinónimos de dos sentidos ("desodorante" ⇄ "deo", "galletitas" ⇄ "gall", "shampoo" ⇄ "sha"...; las abreviaturas coinciden solo como palabra entera; el comienzo de 3+ letras de una palabra del diccionario trae sus abreviaturas), errores de tipeo (Damerau-Levenshtein: 1 en palabras de 4 a 7 letras, 2 en las de 8 o más, nada bajo 4 ni en números; en los dos sentidos) y unidades equivalentes ("700cc" = "700 ml"; cc/cm3 → ml, gr/grm → g, lt → l)
+  - **Orden por niveles**: exacto (la regla de hoy, con su orden) → con normalización y sinónimos → con errores de tipeo (siempre se muestran, después de los exactos); tope 50; el código manda. Todo precalculado al armar el índice: p95 < 200 ms con 3.000 productos (objetivo interno ≤ 50 ms). Arregla la búsqueda de todos los comercios **sin tocar sus datos**
+  - **Limpieza de la base compartida solo donde es seguro**: expandir una abreviatura segura **solo en la primera palabra** ("Deo ..." → "Desodorante ..."; las ambiguas como "Alf" no), unidades dentro del nombre después de un número ("700 cm3" → "700 ml") y marcas en mayúsculas a mayúscula inicial ("REXON" → "Rexon"; siglas como LG o 3M quedan), en la columna y dentro del nombre. Las mismas funciones corren al cargar (scripts) y al leer (`toQuickCreateSuggestion`), así la sugerencia sale limpia sin esperar una recarga. Límite: los nombres de línea cortados por la cadena ("activ emot") no se traducen; los cubre la búsqueda
+  - **Bug**: la sugerencia no repite la presentación si el nombre ya tiene la misma cantidad con una unidad equivalente ("Gin HEREDERO 700 cm3 700 ml" → "Gin Heredero 700 ml"; también 1 l = 1000 ml); 150 g ≠ 50 g
+  - **Alta a mano**: solo una pista en el campo "Nombre": "Ej: Crema corporal Nivea 400 ml". Cero toques de más; nunca partir el nombre en campos obligatorios. Ideas futuras (no ahora): "¿quisiste decir…?" y "¿ya tenés este producto?"
+  - **Recarga de la base compartida de staging** con la limpieza nueva: solo con el **OK explícito del fundador**, después de un ensayo y la revisión de 50 nombres al azar antes/después. Producción (C-36) usa la limpieza nueva directamente
+  - Fuera de alcance: búsqueda en el servidor, sinónimos por comercio, prefijos de cadenas de tiendas (HG, Lb, Sp), guía de nombres para el admin, límite de consultas a `lookup_shared_product` (pendiente de C-64), cambiar datos de los comercios
+  - Tests: Vitest (módulo puro, índice y niveles, rendimiento con abreviaturas y errores, mapper, limpieza de la carga), Testing Library (pista), Playwright en "Productos" (buscar "desodorante" y con un error de tipeo)
+  - **Archivo**: sin espera; C-12 ya está archivado (2026-11-24), así que el requisito nuevo se suma a `openspec/specs/product-quick-create/`
+- **Dependencias**: C-11, C-12, C-64
+- **Governance**: MEDIO (búsqueda y funciones puras de limpieza); la recarga de la base compartida de staging necesita el OK del fundador (la base compartida es ALTO)
+- **Leer antes**:
+  - `openspec/changes/tolerant-name-search/` (proposal, design, specs y tasks)
+  - `openspec/specs/catalog-local-cache/spec.md` (requisitos "Búsqueda local por código y por texto" y "Búsqueda en menos de 200 ms con 3.000 productos")
+  - `openspec/specs/shared-product-base/spec.md` (requisito "Contrato de sugerencia para el alta rápida")
+  - `openspec/specs/shared-product-ingestion/spec.md` (requisito "Script de carga inicial desde SEPA y Open Food Facts")
+  - `openspec/changes/product-quick-create/` (o su archivo, cuando exista)
+  - `knowledge-base/06_funcionalidades.md` US-011, US-012
+  - `knowledge-base/08_arquitectura_propuesta.md` §Patrones aplicados (caché local del catálogo)
+  - Skills a cargar: `vitest`, `playwright-best-practices`, `shadcn`
+
 ---
 
 ## FASE 3 — Núcleo de dinero: ventas, pagos y caja (DB y dominio)
@@ -922,7 +952,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
   - Tests: Vitest (reducer y persistencia con `fake-indexeddb`), Testing Library (atajos, foco), Playwright en viewport PC **solo teclado**; cronometraje informativo de 3 ítems + efectivo < 10 s (**Suposición**)
   - **Notas de C-05 (para este change)**: registrar la limpieza del carrito y del borrador de la venta en `src/app/logout-cleanups.tsx` (`registerLogoutCleanup`, ver la nota de C-11). Con cookies `httpOnly` no hay Supabase directo desde el navegador: el cobro y la sincronización pasan por Server Actions o Route Handlers. **Antes** de registrar una limpieza que toque ventas sin sincronizar (DD-31) hay que resolver el contrato de la nota de C-11: distinguir "no se pudo verificar la sesión" de "no hay sesión", no borrar por montar `/login` y dejar que la limpieza conserve lo pendiente.
   - **Notas de C-13 (decisión del fundador, 2026-11-18)**: un producto sin precio (`NULL` o $ 0) **no se rechaza**. `addProduct` devuelve `needs_price` y la pantalla ofrece dos caminos. (a) Ponerle el precio en el mostrador: **cualquier empleado** puede, el precio **se guarda en el catálogo** y la línea entra con `priceSource: "set_at_sale"`, así que el stock se mueve normal. (b) Venderlo como ítem manual (`F8`). Si guardar el precio falla, igual se vende con `set_at_sale` y un aviso: nunca dejar de vender. **Conflicto de permisos a resolver acá**: con precio `NULL` ya sirve `set_initial_sale_price`, pero con $ 0 chocan RN-PC-01, la matriz de KB 03 y la spec `catalog-price-editing` (el `employee` recibe CA-E04). Recomendado: tratar $ 0 igual que `NULL` y registrar el cambio en `price_changes` con origen `sale_counter`. Detalle en "Entregas a otros changes" del design de C-13.
-- **Dependencias**: C-10, C-11, C-12, C-13, C-14, C-06
+- **Dependencias**: C-10, C-11, C-12, C-13, C-14, C-06, C-65
 - **Governance**: MEDIO
 - **Leer antes**:
   - `knowledge-base/08_arquitectura_propuesta.md` §Pantalla de venta (POS)
@@ -1752,7 +1782,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 
 ## Resumen de changes
 
-**64 changes** en **12 fases** (FASE 0 a FASE 11) más la sección de futuro. **Antes del Día 1: 38 changes** (C-01 a C-37 + C-64; núcleo irreducible de 31, con 3 de importación y 4 de compras diferibles). **Camino crítico al Día 1: 12 changes** (`C-01 → C-02 → C-04 → C-05 → C-06 → C-09 → C-12 → C-19 → C-20 → C-24 → C-25 → C-37`, con C-64 en paralelo a C-09); al resumen del Día 30: 14 changes. Hito "Listo para el Día 1": **C-37**. **Gates de paralelismo: 28** (GATE 0 a GATE 26, más GATE 7b).
+**65 changes** en **12 fases** (FASE 0 a FASE 11) más la sección de futuro. **Antes del Día 1: 39 changes** (C-01 a C-37 + C-64 + C-65; núcleo irreducible de 32, con 3 de importación y 4 de compras diferibles). **Camino crítico al Día 1: 13 changes** (`C-01 → C-02 → C-04 → C-05 → C-06 → C-09 → C-12 → C-65 → C-19 → C-20 → C-24 → C-25 → C-37`, con C-64 en paralelo a C-09); al resumen del Día 30: 14 changes. Hito "Listo para el Día 1": **C-37**. **Gates de paralelismo: 29** (GATE 0 a GATE 26, más GATE 7b y GATE 10b).
 
 | ID | Change | Fase | Prioridad | Governance | Dependencias | Bloqueo |
 |---|---|---|---|---|---|---|
@@ -1774,7 +1804,7 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 | C-16 | `register-sale-rpc` | 3 | D1 | ALTO | C-15, C-13 | — |
 | C-17 | `cash-close-rpc` | 3 | D1 | ALTO | C-15 | — |
 | C-18 | `void-sale-rpc` | 3 | D1 | ALTO | C-16, C-17 | ⚠ PQ-06, PQ-07 |
-| C-19 | `pos-sale-screen` | 4 | D1 | MEDIO | C-10, C-11, C-12, C-13, C-14, C-06 | ⚠ PQ-03, PQ-12 |
+| C-19 | `pos-sale-screen` | 4 | D1 | MEDIO | C-10, C-11, C-12, C-13, C-14, C-06, C-65 | ⚠ PQ-03, PQ-12 |
 | C-20 | `pos-checkout-payments-ui` | 4 | D1 | MEDIO | C-19, C-16, C-13 | ⚠ PQ-04, PQ-06 |
 | C-21 | `pos-mobile-layout` | 4 | D1 | MEDIO | C-19, C-20 | ⚠ PQ-03 |
 | C-22 | `cash-open-movements-ui` | 4 | D1 | ALTO | C-14, C-17, C-09 | ⚠ PQ-05, PQ-15 |
@@ -1820,8 +1850,9 @@ Paso │ Agente A (Backend Core/DB)         │ Agente B (Backend Aux/Dominio)  
 | C-62 | `losses-report` | 11 | D30 | MEDIO | C-61, C-40, C-46 | — |
 | C-63 | `pilot-month-summary-print` | 11 | D30 | MEDIO | C-62, C-47, C-48, C-54, C-50 | — |
 | C-64 | `shared-product-base` | 2 | D1 | ALTO | C-03, C-04, C-06, C-08 | — |
+| C-65 | `tolerant-name-search` | 2 | D1 | MEDIO | C-11, C-12, C-64 | — |
 
-**Governance**: 3 CRITICO (C-04, C-05, C-07) · 19 ALTO · 33 MEDIO · 9 BAJO.
+**Governance**: 3 CRITICO (C-04, C-05, C-07) · 19 ALTO · 34 MEDIO · 9 BAJO.
 **Bloqueado (⛔)**: C-59 (PQ-11). **Condicionales (⚠)**: ver "Bloqueos y condicionales por preguntas abiertas" (fiado PQ-02 sobre C-15; dispositivos PQ-03 sobre C-19, C-21, C-24; PQ-08 sobre la importación C-27 a C-29). **PQ-01 y PQ-19: decididas** (DD-31 y decisión de infraestructura del fundador).
 
 **Primer change recomendado**: `C-01` (`foundation-setup`).
