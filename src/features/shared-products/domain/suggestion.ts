@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+import {
+  brandCase,
+  presentableName,
+  quantitiesIn,
+  rewriteUnits,
+  sameQuantity,
+} from "@/shared/lib/product-text";
+
 // Lo que la base compartida le sugiere a un comercio (C-64, D2) y cómo se vuelve un
 // precargado para el alta rápida (C-12). Módulo puro: nada de I/O. NUNCA lleva la
 // fuente, las fechas ni un id: la RPC no los devuelve y el esquema descarta cualquier
@@ -56,21 +64,31 @@ function containsWhole(text: string, part: string): boolean {
 }
 
 /**
- * Nombre de la base con la presentación agregada al final, salvo que ya esté dentro
- * del nombre (se compara sin acentos ni mayúsculas): "Alfajor X" + "50 g" →
- * "Alfajor X 50 g". Si con la presentación el nombre pasaría de 200 caracteres (el límite del
- * catálogo), se deja solo el nombre.
+ * Nombre de la base listo para el alta rápida: nombre presentable (unidades cortas,
+ * marca bien escrita, primera palabra expandida si es una abreviatura segura) con la
+ * presentación agregada al final, salvo que ya esté dentro del nombre: igual texto o
+ * misma cantidad con otra unidad ("700 cm3" = "700 ml"). "Alfajor X" + "50 g" →
+ * "Alfajor X 50 g". Si con la presentación el nombre pasaría de 200 caracteres (el
+ * límite del catálogo), se deja solo el nombre.
  */
 export function toQuickCreateSuggestion(
   s: SharedProductSuggestion,
 ): QuickCreateSuggestion {
-  const presentation = s.presentation?.trim() ?? "";
+  const name = presentableName(s.name, s.brand);
+  const brand = s.brand === null ? null : brandCase(s.brand);
+  const presentation = rewriteUnits(s.presentation?.trim() ?? "");
   const alreadyThere =
-    presentation === "" || containsWhole(fold(s.name), fold(presentation));
-  const withPresentation = `${s.name} ${presentation}`;
+    presentation === "" || presentationIncluded(name, presentation);
+  const withPresentation = `${name} ${presentation}`;
   const append = !alreadyThere && withPresentation.length <= MAX_PRODUCT_NAME;
-  return {
-    name: append ? withPresentation : s.name,
-    brand: s.brand,
-  };
+  return { name: append ? withPresentation : name, brand };
+}
+
+/** ¿El nombre ya trae la presentación? Una cantidad simple se compara por valor; el resto, como texto. */
+function presentationIncluded(name: string, presentation: string): boolean {
+  const isSimpleQuantity =
+    quantitiesIn(presentation).length === 1 &&
+    /^\d+(?:[.,]\d+)?\s*\p{L}+$/u.test(presentation);
+  if (isSimpleQuantity) return sameQuantity(name, presentation);
+  return containsWhole(fold(name), fold(presentation));
 }

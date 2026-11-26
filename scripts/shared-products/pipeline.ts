@@ -1,4 +1,8 @@
 import {
+  brandCase,
+  presentableNameSteps,
+} from "../../src/shared/lib/product-text";
+import {
   normalizeBarcode,
   sharedBaseEligibility,
 } from "../../src/shared/lib/barcode";
@@ -49,6 +53,15 @@ export type PipelineReport = {
    * `field_dropped_presentation`.
    */
   readonly droppedFields: Readonly<Record<string, number>>;
+  /** Filas aceptadas cuyo nombre (o marca) cambió por cada regla de `product-text`. */
+  readonly changedNames: ChangedNames;
+};
+
+/** Cuántos nombres cambió cada regla de limpieza (para el ensayo y la revisión del fundador). */
+export type ChangedNames = {
+  readonly units: number;
+  readonly brand: number;
+  readonly firstWord: number;
 };
 
 export type PipelineResult = {
@@ -71,6 +84,7 @@ export function buildLoad(products: Iterable<ParsedProduct>): PipelineResult {
   const rejected: Record<string, number> = {};
   const droppedFields: Record<string, number> = {};
   const seen = new Set<string>();
+  const changedNames = { units: 0, brand: 0, firstWord: 0 };
   let read = 0;
   let accepted = 0;
   let duplicates = 0;
@@ -97,11 +111,16 @@ export function buildLoad(products: Iterable<ParsedProduct>): PipelineResult {
       continue;
     }
 
-    const name = cleanName(squash(item.name));
-    if (name === "") {
+    const cleanedName = cleanName(squash(item.name));
+    if (cleanedName === "") {
       reject("blank_name");
       continue;
     }
+    const cleanedBrand = cleanBrand(optional(item.brand));
+    // Nombre presentable (C-65): unidades cortas, marca bien escrita y primera palabra
+    // expandida. Los chequeos de largo y de `$` corren sobre el nombre final.
+    const steps = presentableNameSteps(cleanedName, cleanedBrand.brand);
+    const name = steps.final;
     // Solo el nombre es obligatorio: una marca o presentación demasiado largas se descartan
     // (la fila entra sin ese dato) y se cuentan en el reporte.
     if (name.length > MAX_NAME) {
@@ -112,11 +131,11 @@ export function buildLoad(products: Iterable<ParsedProduct>): PipelineResult {
       reject("price_like_text");
       continue;
     }
-    const cleanedBrand = cleanBrand(optional(item.brand));
     if (cleanedBrand.placeholder)
       droppedFields.placeholder_brand =
         (droppedFields.placeholder_brand ?? 0) + 1;
-    let brand = cleanedBrand.brand;
+    let brand =
+      cleanedBrand.brand === null ? null : brandCase(cleanedBrand.brand);
     if (brand !== null && (brand.length > MAX_BRAND || isPriceLike(brand))) {
       brand = null;
       dropField("brand");
@@ -150,6 +169,10 @@ export function buildLoad(products: Iterable<ParsedProduct>): PipelineResult {
     const stored = PADDED_GTIN8.test(norm.padStart(13, "0"))
       ? norm.slice(-8)
       : norm;
+    if (steps.units !== cleanedName) changedNames.units += 1;
+    if (steps.brand !== steps.units || brand !== cleanedBrand.brand)
+      changedNames.brand += 1;
+    if (steps.final !== steps.brand) changedNames.firstWord += 1;
     const row: LoadRow = {
       barcode_norm: stored,
       name,
@@ -167,7 +190,14 @@ export function buildLoad(products: Iterable<ParsedProduct>): PipelineResult {
 
   return {
     batches,
-    report: { read, accepted, duplicates, rejected, droppedFields },
+    report: {
+      read,
+      accepted,
+      duplicates,
+      rejected,
+      droppedFields,
+      changedNames,
+    },
   };
 }
 
@@ -194,5 +224,12 @@ export function formatReport(report: PipelineReport): string {
     );
     for (const [field, count] of dropped) lines.push(`  ${field}: ${count}`);
   }
+  const { units, brand, firstWord } = report.changedNames;
+  lines.push(
+    "Nombres cambiados por regla (de las filas aceptadas):",
+    `  unidades: ${units}`,
+    `  marca: ${brand}`,
+    `  primera palabra: ${firstWord}`,
+  );
   return lines.join("\n");
 }

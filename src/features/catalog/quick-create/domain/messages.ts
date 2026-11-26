@@ -1,3 +1,4 @@
+import { PRODUCT_NAME_PLACEHOLDER } from "../../domain/name-placeholder";
 import {
   MAX_BRAND_CHARACTERS,
   MAX_NAME_CHARACTERS,
@@ -28,6 +29,7 @@ export const QUICK_CREATE_MESSAGES = {
   sheetTitleCreate: "Nuevo producto",
   sheetTitlePrice: "Poné el precio",
   nameLabel: "Nombre",
+  namePlaceholder: PRODUCT_NAME_PLACEHOLDER,
   brandLabel: "Marca",
   brandPlaceholder: "Opcional",
   codeLabel: "Código",

@@ -58,7 +58,7 @@ Cada grupo: `{ words: string[] (completas; la primera es la canónica para mostr
 - Las palabras completas coinciden como **parte** de una palabra (igual que hoy); las abreviaturas, solo como **palabra entera** del producto (para que "gas" no aparezca dentro de "Vegas").
 - Una abreviatura en varios grupos (ambigua) expande a todos; un resultado de más no molesta en la búsqueda, pero **nunca** se expande en un nombre guardado.
 
-**Tabla inicial (44 entradas; la revisa el fundador en el PR)**. "1ª palabra" = `expandFirstWord` (seguro reemplazar la primera palabra de un nombre de la base).
+**Tabla inicial (44 entradas de la propuesta + 27 de la tarea 1.10; la revisa el fundador en el PR)**. "1ª palabra" = `expandFirstWord` (seguro reemplazar la primera palabra de un nombre de la base).
 
 | # | Abreviatura | Palabras completas del grupo (canónica primero) | 1ª palabra | Nota |
 |---|---|---|---|---|
@@ -106,10 +106,39 @@ Cada grupo: `{ words: string[] (completas; la primera es la canónica para mostr
 | 42 | `caram` | caramelos, caramelo | sí | 44 nombres ("Caram frutal") |
 | 43 | `toall` | toallitas, toallas | **no** | femeninas o húmedas |
 | 44 | `deterg` | detergente | sí | 12 nombres ("Deterg ropa liq") |
+| 45 | `des` | desodorante (se suma al grupo 1) | **no** | 158 nombres empiezan con "Des" ("Des Nivea roll on"); puede ser otra cosa, solo al buscar |
+| 46 | `galle` | galletitas (se suma al grupo 3) | sí | 37 nombres empiezan con "Galle" |
+| 47 | `fid` | fideos, fideo | sí | 103 nombres ("Fid tallarin") |
+| 48 | `limp` | limpiador, limpiadores | **no** | 160 nombres; podría ser "limpieza" |
+| 49 | `alim` | alimento, alimentos | sí | 249 nombres ("Alim gatos") |
+| 50 | `suav` | suavizante | sí | 45 nombres |
+| 51 | `preserv` | preservativos, preservativo | sí | 54 nombres |
+| 52 | `sahu`, `sahum` | sahumerio, sahumerios | sí | 38 y 37 nombres |
+| 53 | `perf` | perfume, perfumes | **no** | 34 nombres; tienda |
+| 54 | `helad` | heladera / helado (dos grupos) | **no** | 41 nombres; ambigua |
+| 55 | `arom`, `aromat` | aromatizante, aromatizador | **no** | 58 y 53 nombres |
+| 56 | `lamp` | lámpara, lámparas | **no** | 53 nombres; tienda |
+| 57 | `vent` | ventilador | **no** | 84 nombres; tienda |
+| 58 | `herm` | hermético, hermética | **no** | 64 nombres; tienda |
+| 59 | `maq` | máquina | **no** | 65 nombres ("Maq Venus"); podría ser maquillaje |
+| 60 | `rep` | repuesto, repuestos | **no** | 56 nombres |
+| 61 | `sab` | sabor, sabores | **no** | 648 en el medio ("Postre sab chocolate") |
+| 62 | `rell` | relleno, rellena, rellenas | **no** | 262 en el medio |
+| 63 | `bco` | blanco, blanca | **no** | 250 en el medio ("Vino bco") |
+| 64 | `aer` | aerosol | **no** | 271 en el medio |
+| 65 | `ent` | entero, entera | **no** | 188 en el medio ("Leche ent") |
+| 66 | `surt` | surtido, surtidos, surtida | **no** | 153 en el medio |
+| 67 | `cong` | congelado, congelada | **no** | 108 en el medio |
+| 68 | `saq` | saquitos, saquito | **no** | 172 en el medio ("x 20 saq") |
+| 69 | `sob` | sobres, sobre | **no** | 437 en el medio |
+| 70 | `lat` | lata, latas | **no** | 455 en el medio |
+| 71 | `crem` | cremoso, cremosa | **no** | 80 en el medio |
+
+Las filas 45 a 71 se sumaron en la tarea 1.10 con un conteo de **solo lectura** sobre el archivo local del SEPA del 2026-11-16 (81.453 códigos únicos; la cifra es de nombres que empiezan con la abreviatura o, en las filas "en el medio", que la tienen después de la primera palabra). Se descartaron `acol` (sin significado claro), `aceit` (aceite o aceitunas: ambigua y sin valor al buscar), `esp` (esponja, espejo o espuma), `desc` (descartable o descremado), `ext`, `veg`, `frut` y `est`. Todas las que no son seguras en la primera palabra quedan con `expandFirstWord: false`; en la búsqueda se expanden igual.
 
 Descartadas: `est` (en los datos es estante, estampado o estuche: 6 nombres empiezan con "Est", sin un significado claro) y `pañ` (plegada sin acentos queda `pan`, que choca con pan). Sinónimos de lenguaje de kiosco, solo los obvios y pocos, como palabras del mismo grupo (sin abreviatura): galletitas ⇄ galletas, shampoo ⇄ champú, yogur ⇄ yogurt.
 
-La tabla es dato en el código (`VOCABULARY`), no hay sinónimos por comercio. Las filas que quedaban "a confirmar" se contrastaron el 2026-11-24 con una consulta de **solo lectura** a la base de staging (conteos en la columna Nota). En la implementación, la tarea 1.10 solo busca abreviaturas frecuentes que falten.
+La tabla es dato en el código (`VOCABULARY`), no hay sinónimos por comercio. Las filas que quedaban "a confirmar" se contrastaron el 2026-11-24 con una consulta de **solo lectura** a la base de staging (conteos en la columna Nota). La tarea 1.10 sumó las abreviaturas frecuentes que faltaban (filas 45 a 71).
 
 ### D4. Errores de tipeo: Damerau-Levenshtein acotado y vocabulario del local
 

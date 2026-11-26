@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  UNIT_ALIASES,
+  canonicalUnit,
+} from "../../../src/shared/lib/product-text";
+
+import {
   cleanBrand,
   cleanName,
   isMostlyUppercase,
@@ -56,6 +61,15 @@ describe("cleanBrand", () => {
   it("sin marca no cuenta como placeholder", () => {
     expect(cleanBrand(null)).toEqual({ brand: null, placeholder: false });
     expect(cleanBrand("   ")).toEqual({ brand: null, placeholder: false });
+  });
+});
+
+describe("normalizeUnit usa la tabla única de product-text", () => {
+  it("da lo mismo que canonicalUnit para todos los alias de la tabla", () => {
+    for (const alias of Object.keys(UNIT_ALIASES)) {
+      expect(normalizeUnit(alias)).toBe(canonicalUnit(alias));
+      expect(normalizeUnit(alias.toUpperCase())).toBe(UNIT_ALIASES[alias]);
+    }
   });
 });
 

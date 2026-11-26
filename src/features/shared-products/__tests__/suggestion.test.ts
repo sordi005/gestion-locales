@@ -23,7 +23,7 @@ describe("toQuickCreateSuggestion", () => {
 
   it("no repite la presentación si ya está en el nombre (sin mayúsculas)", () => {
     const s = { ...base, name: "Gaseosa cola 500 ML", presentation: "500 ml" };
-    expect(toQuickCreateSuggestion(s).name).toBe("Gaseosa cola 500 ML");
+    expect(toQuickCreateSuggestion(s).name).toBe("Gaseosa cola 500 ml");
   });
 
   it("no repite la presentación si ya está en el nombre (sin acentos)", () => {
@@ -32,18 +32,16 @@ describe("toQuickCreateSuggestion", () => {
       name: "Galletitas Sin Azúcar 1 Kilo",
       presentation: "1 KILO",
     };
-    expect(toQuickCreateSuggestion(s).name).toBe(
-      "Galletitas Sin Azúcar 1 Kilo",
-    );
+    expect(toQuickCreateSuggestion(s).name).toBe("Galletitas Sin Azúcar 1 kg");
     const t = { ...base, name: "Leche descremada", presentation: "1 lt" };
-    expect(toQuickCreateSuggestion(t).name).toBe("Leche descremada 1 lt");
+    expect(toQuickCreateSuggestion(t).name).toBe("Leche descremada 1 l");
     const u = {
       ...base,
       name: "Aceite de oliva extra virgen 500 cc",
       presentation: "500 CC",
     };
     expect(toQuickCreateSuggestion(u).name).toBe(
-      "Aceite de oliva extra virgen 500 cc",
+      "Aceite de oliva extra virgen 500 ml",
     );
   });
 
@@ -84,6 +82,89 @@ describe("toQuickCreateSuggestion", () => {
       toQuickCreateSuggestion({ ...base, name: full, presentation: "50 g" })
         .name,
     ).toHaveLength(200);
+  });
+
+  it("misma cantidad con otra unidad: no repite la presentación y limpia la marca", () => {
+    const s = {
+      ...base,
+      name: "Gin HEREDERO 700 cm3",
+      brand: "HEREDERO",
+      presentation: "700 ml",
+    };
+    expect(toQuickCreateSuggestion(s)).toEqual({
+      name: "Gin Heredero 700 ml",
+      brand: "Heredero",
+    });
+  });
+
+  it.each([
+    ["Agua mineral 1 l", "1000 ml", "Agua mineral 1 l"],
+    ["Agua mineral 1000 ml", "1 l", "Agua mineral 1000 ml"],
+    ["Yerba 1 kg", "1000 g", "Yerba 1 kg"],
+    ["Aceite 0.75 l", "750 ml", "Aceite 0.75 l"],
+  ])("equivalencia de cantidades: %s + %s", (name, presentation, expected) => {
+    expect(toQuickCreateSuggestion({ ...base, name, presentation }).name).toBe(
+      expected,
+    );
+  });
+
+  it("la primera palabra abreviada se expande y la marca se escribe bien", () => {
+    const s = {
+      ...base,
+      name: "Deo activ emot women",
+      brand: "REXON",
+      presentation: "150 ml",
+    };
+    expect(toQuickCreateSuggestion(s)).toEqual({
+      name: "Desodorante activ emot women 150 ml",
+      brand: "Rexon",
+    });
+  });
+
+  it("una presentación que no es una cantidad simple usa la regla de siempre", () => {
+    const s = { ...base, name: "Gaseosa cola", presentation: "6 x 330 ml" };
+    expect(toQuickCreateSuggestion(s).name).toBe("Gaseosa cola 6 x 330 ml");
+    const t = {
+      ...base,
+      name: "Gaseosa cola 6 x 330 ml",
+      presentation: "6 x 330 ml",
+    };
+    expect(toQuickCreateSuggestion(t).name).toBe("Gaseosa cola 6 x 330 ml");
+  });
+
+  it("un pack NxM en el nombre ya trae la cantidad por unidad: no se repite", () => {
+    const s = { ...base, name: "Cerveza 6x330 ml", presentation: "330 ml" };
+    expect(toQuickCreateSuggestion(s).name).toBe("Cerveza 6x330 ml");
+    const t = { ...base, name: "Cerveza 6x473cc", presentation: "473 ml" };
+    expect(toQuickCreateSuggestion(t).name).toBe("Cerveza 6x473 ml");
+  });
+
+  it("una fila ya limpia queda igual (idempotencia)", () => {
+    const rows = [
+      {
+        ...base,
+        name: "Gin HEREDERO 700 cm3",
+        brand: "HEREDERO",
+        presentation: "700 ml",
+      },
+      {
+        ...base,
+        name: "Deo activ emot women",
+        brand: "REXON",
+        presentation: "150 ml",
+      },
+      base,
+    ];
+    for (const row of rows) {
+      const once = toQuickCreateSuggestion(row);
+      const twice = toQuickCreateSuggestion({
+        ...row,
+        name: once.name,
+        brand: once.brand,
+        presentation: null,
+      });
+      expect(twice).toEqual(once);
+    }
   });
 
   it("devuelve solo name y brand", () => {

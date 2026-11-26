@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { sentenceCase } from "../clean";
 import { BATCH_SIZE, buildLoad, formatReport } from "../pipeline";
 import type { ParsedProduct } from "../types";
 
@@ -122,7 +123,7 @@ describe("buildLoad: normalizar y filtrar", () => {
       product("77901231", "Gaseosa 1500$"),
       product("9771234567898", "Gaseosa 1.5 L"),
     ]);
-    expect(batches.flat().map((row) => row.name)).toEqual(["Gaseosa 1.5 L"]);
+    expect(batches.flat().map((row) => row.name)).toEqual(["Gaseosa 1.5 l"]);
     expect(report.rejected).toEqual({ price_like_text: 2 });
     expect(report.accepted).toBe(1);
   });
@@ -290,7 +291,7 @@ describe("buildLoad: limpieza de marca y presentación", () => {
     ["317", null],
     ["0001", null],
     ["---", null],
-    ["*AEROCOR", "AEROCOR"],
+    ["*AEROCOR", "Aerocor"],
     ["Aerocor", "Aerocor"],
   ])("la marca %j queda %j", (brand, expected) => {
     const { batches } = buildLoad([
@@ -345,5 +346,103 @@ describe("buildLoad: limpieza de marca y presentación", () => {
     const text = formatReport(report);
     expect(text).toContain("placeholder_brand: 1");
     expect(text).toContain("placeholder_presentation: 1");
+  });
+});
+
+describe("buildLoad: nombre presentable (C-65)", () => {
+  function load(
+    name: string,
+    brand: string | null,
+  ): { name: string | undefined; brand: string | null | undefined } {
+    const { batches } = buildLoad([product("7791234567898", name, { brand })]);
+    return { name: batches[0]?.[0]?.name, brand: batches[0]?.[0]?.brand };
+  }
+
+  it("descripción casi toda en mayúsculas: tipo oración y unidad corta", () => {
+    const raw = "LIMPIADOR CIF GEL C/LAVAN.UL.BCO.500cc.";
+    expect(load(sentenceCase(raw, null), null).name).toBe(
+      "Limpiador cif gel c/lavan.ul.bco.500 ml",
+    );
+  });
+
+  it("descripción en mayúsculas con marca: la marca queda tal como viene", () => {
+    const text = sentenceCase("GASEOSA COLA BOT 500 ML", "Marca Ejemplo");
+    expect(load(text, "Marca Ejemplo")).toEqual({
+      name: "Gaseosa cola bot 500 ml",
+      brand: "Marca Ejemplo",
+    });
+  });
+
+  it("marca en mayúsculas dentro del nombre y en su columna", () => {
+    expect(
+      load(
+        "Espumante spritz FEDERICO DE ALVEAR bot x 750 cc",
+        "FEDERICO DE ALVEAR",
+      ),
+    ).toEqual({
+      name: "Espumante spritz Federico de Alvear bot x 750 ml",
+      brand: "Federico de Alvear",
+    });
+  });
+
+  it.each([
+    [
+      "Deo activ emot women 150 ml",
+      "REXON",
+      "Desodorante activ emot women 150 ml",
+      "Rexon",
+    ],
+    ["Alf shaggy 40x60", null, "Alf shaggy 40x60", null],
+    ["Leche liq descrem 1 lt", null, "Leche liq descrem 1 l", null],
+    ["Gin HEREDERO 700 cm3", "HEREDERO", "Gin Heredero 700 ml", "Heredero"],
+    ["Galletitas 500cc", null, "Galletitas 500 ml", null],
+    ["Yerba 350 grs", null, "Yerba 350 g", null],
+  ])("%s (marca %s) → %s", (name, brand, expectedName, expectedBrand) => {
+    expect(load(name, brand)).toEqual({
+      name: expectedName,
+      brand: expectedBrand,
+    });
+  });
+
+  it("cargar dos veces el mismo archivo da los mismos textos (idempotencia)", () => {
+    const rows = [
+      product("7791234567898", "Deo activ emot women 150 cc", {
+        brand: "REXON",
+      }),
+      product("77901231", "Gin HEREDERO 700 cm3", { brand: "HEREDERO" }),
+    ];
+    const first = buildLoad(rows).batches.flat();
+    const again = buildLoad(
+      first.map((r) => ({
+        barcode: r.barcode_norm,
+        name: r.name,
+        brand: r.brand,
+        presentation: r.presentation,
+      })),
+    ).batches.flat();
+    expect(again).toEqual(first);
+  });
+
+  it("el largo se mira sobre el nombre final (la unidad corta puede hacerlo entrar)", () => {
+    // 201 caracteres con "grs"; "g" lo deja en 199.
+    const { batches, report } = buildLoad([
+      product("7791234567898", `${"x".repeat(193)} 500 grs`),
+    ]);
+    expect(report.rejected).toEqual({});
+    expect(batches[0]?.[0]?.name).toHaveLength(199);
+  });
+
+  it("el reporte cuenta cuántos nombres cambiaron por regla", () => {
+    const { report } = buildLoad([
+      product("7791234567898", "Gin HEREDERO 700 cm3", { brand: "HEREDERO" }),
+      product("77901231", "Deo suave 150 ml", { brand: "Marca Uno" }),
+      product("9771234567898", "Alfajor 50 g"),
+    ]);
+    expect(report.changedNames).toEqual({ units: 1, brand: 1, firstWord: 1 });
+    const text = formatReport(report);
+    expect(text).toContain("Nombres cambiados por regla");
+    expect(text).toContain("unidades: 1");
+    expect(text).toContain("marca: 1");
+    expect(text).toContain("primera palabra: 1");
   });
 });

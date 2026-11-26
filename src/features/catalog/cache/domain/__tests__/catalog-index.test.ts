@@ -355,3 +355,231 @@ describe("searchCatalog", () => {
     });
   });
 });
+
+describe("searchCatalog tolerante (C-65)", () => {
+  const names = (found: readonly CachedProduct[]) =>
+    found.map((product) => product.name);
+  const indexOf = (products: readonly CachedProduct[]) =>
+    buildCatalogIndex(products, [], []);
+
+  describe("abreviaturas y diccionario", () => {
+    it("la palabra completa encuentra la abreviatura (con la marca en mayúsculas)", () => {
+      const catalog = indexOf([
+        makeProduct(1, {
+          name: "Deo activ emot women 150 ml",
+          brand: "REXON",
+        }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "desodorante rexon"))).toEqual([
+        "Deo activ emot women 150 ml",
+      ]);
+    });
+
+    it("la abreviatura encuentra la palabra completa", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Desodorante Rexona invisible 150 ml" }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "deo rexona"))).toEqual([
+        "Desodorante Rexona invisible 150 ml",
+      ]);
+    });
+
+    it("el comienzo de una palabra del diccionario encuentra la abreviatura", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Deo activ emot women 150 ml" }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "desod"))).toEqual([
+        "Deo activ emot women 150 ml",
+      ]);
+    });
+
+    it("la abreviatura vale solo como palabra entera: gaseosa no trae Vegas pizza", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Vegas pizza" }),
+        makeProduct(2, { name: "Gas Doble Cola pomelo" }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "gaseosa"))).toEqual([
+        "Gas Doble Cola pomelo",
+      ]);
+    });
+  });
+
+  describe("errores de tipeo", () => {
+    it("un error en lo buscado encuentra el producto", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Galletitas Oreo 118 g" }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "galletiats oreo"))).toEqual([
+        "Galletitas Oreo 118 g",
+      ]);
+    });
+
+    it("un error en el nombre guardado: primero el exacto (nivel 1), después el que tiene el error (nivel 3)", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Crema corpolal Nivea 400 ml" }),
+        makeProduct(2, { name: "Crema corporal Dove 400 ml" }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "crema corporal"))).toEqual([
+        "Crema corporal Dove 400 ml",
+        "Crema corpolal Nivea 400 ml",
+      ]);
+    });
+
+    it("las palabras cortas no se toleran: sal no trae Sol", () => {
+      const catalog = indexOf([makeProduct(1, { name: "Sol de maíz 500 g" })]);
+
+      expect(searchCatalog(catalog, "sal")).toEqual([]);
+    });
+
+    it("un texto de solo números no se tolera: 150 no trae 250", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Deo Axe 250 ml" }),
+        makeProduct(2, { name: "Deo Axe 150 ml" }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "150"))).toEqual(["Deo Axe 150 ml"]);
+    });
+
+    it("quien todavía escribe: un comienzo con error de 5 letras o más encuentra la palabra", () => {
+      const catalog = indexOf([makeProduct(1, { name: "Galletitas Oreo" })]);
+
+      expect(names(searchCatalog(catalog, "galletia"))).toEqual([
+        "Galletitas Oreo",
+      ]);
+    });
+
+    it("todas las palabras tienen que coincidir aunque una sea por error de tipeo", () => {
+      const catalog = indexOf([makeProduct(1, { name: "Galletitas Oreo" })]);
+
+      expect(searchCatalog(catalog, "galletiats frutilla")).toEqual([]);
+    });
+  });
+
+  describe("unidades", () => {
+    it.each([["gin 700 ml"], ["gin 700cc"], ["GIN 700 CC"], ["700cm3 gin"]])(
+      "%j encuentra Gin Heredero 700 cm3",
+      (query) => {
+        const catalog = indexOf([
+          makeProduct(1, { name: "Gin Heredero 700 cm3" }),
+          makeProduct(2, { name: "Gin Heredero 750 cm3" }),
+        ]);
+
+        expect(names(searchCatalog(catalog, query))).toEqual([
+          "Gin Heredero 700 cm3",
+        ]);
+      },
+    );
+  });
+
+  describe("números y unidades: palabra entera en los niveles 2 y 3", () => {
+    it("700cc encuentra Gin 700 ml pero no Gin 1700 ml", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Gin 700 ml" }),
+        makeProduct(2, { name: "Gin 1700 ml" }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "gin 700cc"))).toEqual([
+        "Gin 700 ml",
+      ]);
+    });
+
+    it("1,5 lt no trae 11.5 l por los niveles 2 y 3", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Gaseosa 1.5 l" }),
+        makeProduct(2, { name: "Gaseosa 11.5 l" }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "gaseosa 1,5 lt"))).toEqual([
+        "Gaseosa 1.5 l",
+      ]);
+    });
+
+    it("el nivel 1 sigue igual (50 g dentro de 150 g) pero 2 y 3 no lo agregan", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Alfajor 50 g" }),
+        makeProduct(2, { name: "Alfajor 150 g" }),
+      ]);
+
+      // Nivel 1: "150 g" contiene "50" y "g" como texto, igual que antes de C-65.
+      expect(names(searchCatalog(catalog, "alfajor 50 g"))).toEqual([
+        "Alfajor 150 g",
+        "Alfajor 50 g",
+      ]);
+      // "gr" solo lo entiende el nivel 2 (gr = g): ahí 150 g no puede entrar.
+      expect(names(searchCatalog(catalog, "alfajor 50 gr"))).toEqual([
+        "Alfajor 50 g",
+      ]);
+    });
+  });
+
+  describe("orden por niveles y tope", () => {
+    it("desodorante: exacto, después abreviatura, después error de tipeo", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Desodoranet ambiente lavanda" }),
+        makeProduct(2, { name: "Deo activ emot women 150 ml" }),
+        makeProduct(3, { name: "Desodorante Axe 150 ml" }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "desodorante"))).toEqual([
+        "Desodorante Axe 150 ml",
+        "Deo activ emot women 150 ml",
+        "Desodoranet ambiente lavanda",
+      ]);
+    });
+
+    it("dentro de un nivel van primero los que empiezan con la primera palabra", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Aaa deo suave" }),
+        makeProduct(2, { name: "Deo zzz" }),
+      ]);
+
+      expect(names(searchCatalog(catalog, "desodorante"))).toEqual([
+        "Deo zzz",
+        "Aaa deo suave",
+      ]);
+    });
+
+    it("un producto aparece una sola vez, en su mejor nivel", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Desodorante deo desodoranet" }),
+      ]);
+
+      expect(searchCatalog(catalog, "desodorante")).toHaveLength(1);
+    });
+
+    it("el tope de 50 cuenta todos los niveles juntos y el nivel 1 va primero", () => {
+      const exact = Array.from({ length: 30 }, (_, i) =>
+        makeProduct(i + 1, {
+          name: `Desodorante ${String(i).padStart(2, "0")}`,
+        }),
+      );
+      const abbreviated = Array.from({ length: 30 }, (_, i) =>
+        makeProduct(100 + i, { name: `Deo ${String(i).padStart(2, "0")}` }),
+      );
+      const found = searchCatalog(
+        indexOf([...abbreviated, ...exact]),
+        "desodorante",
+      );
+
+      expect(found).toHaveLength(50);
+      expect(
+        found.slice(0, 30).every((p) => p.name.startsWith("Desodorante")),
+      ).toBe(true);
+      expect(found.slice(30).every((p) => p.name.startsWith("Deo"))).toBe(true);
+    });
+
+    it("un producto inactivo no aparece por ningún nivel", () => {
+      const catalog = indexOf([
+        makeProduct(1, { name: "Deo Axe", status: "inactive" }),
+      ]);
+
+      expect(searchCatalog(catalog, "desodorante")).toEqual([]);
+    });
+  });
+});

@@ -15,6 +15,8 @@ import type { MoneyInputState } from "@/shared/ui/money-input";
 
 import { createProduct, updateProduct } from "../actions";
 import { CATALOG_ERROR_MESSAGES } from "../domain/errors";
+// La misma pista del nombre que el alta rápida (C-65): un solo texto para las dos altas.
+import { PRODUCT_NAME_PLACEHOLDER } from "../domain/name-placeholder";
 import type { CatalogError } from "../domain/errors";
 import { costBasisLabel, resolveProductCost } from "../domain/cost";
 import type { CostSource, ProductUnit } from "../domain/product-view";
@@ -398,6 +400,7 @@ export function ProductForm({
             id={id("name")}
             value={state.name}
             maxLength={200}
+            placeholder={PRODUCT_NAME_PLACEHOLDER}
             aria-required="true"
             onChange={(event) => patch({ name: event.target.value })}
             {...fieldInvalidProps(id("name-error"), errorOf("name"))}

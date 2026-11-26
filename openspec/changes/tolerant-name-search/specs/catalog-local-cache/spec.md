@@ -73,6 +73,10 @@ Todas las palabras del texto MUST coincidir (por la vía que sea) para que un pr
 - **WHEN** la caché tiene "Gin Heredero 700 cm3" y se busca `gin 700 ml` o `gin 700cc`
 - **THEN** aparece ese producto
 
+#### Scenario: Número o unidad como palabra entera
+- **WHEN** se busca `"gin 700cc"` y hay `"Gin 700 ml"` y `"Gin 1700 ml"`
+- **THEN** los niveles 2 y 3 solo traen el primero: un número o una unidad de la consulta tiene que ser una palabra entera del producto (el nivel 1 conserva su regla de texto, así que `"alfajor 50 g"` sigue trayendo `"Alfajor 150 g"` por ese nivel, pero `"alfajor 50 gr"` no)
+
 #### Scenario: Orden por niveles
 - **WHEN** la caché tiene "Desodorante Axe 150 ml", "Deo activ emot women 150 ml" y "Desodoranet ambiente lavanda", y se busca `desodorante`
 - **THEN** el orden es "Desodorante Axe 150 ml" (nivel 1), "Deo activ emot women 150 ml" (nivel 2) y "Desodoranet ambiente lavanda" (nivel 3)

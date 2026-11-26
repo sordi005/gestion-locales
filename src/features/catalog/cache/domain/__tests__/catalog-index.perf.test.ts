@@ -60,7 +60,19 @@ const FLAVORS = [
   "Intenso",
 ];
 const SIZES = ["500 ml", "1 L", "250 g", "1 kg", "x12", "x6", "2,25 L"];
+// Nombres como los guarda el SEPA: abreviaturas, unidades pegadas y marcas en mayúsculas.
+const ABBREVIATED = [
+  "Deo activ emot women",
+  "Gall surtidas",
+  "Choc con leche",
+  "Sham nutritivo",
+  "Gas Doble Cola pomelo",
+  "Merm durazno",
+];
+const GLUED_SIZES = ["700cc", "150ml", "500g", "1,5lt", "700 cm3", "250 gr"];
 const BRANDS = [
+  "ARCOR",
+  "REXONA",
   "Arcor",
   "Havanna",
   "Bagley",
@@ -81,7 +93,10 @@ function buildFixtures(): {
 
   const products = Array.from({ length: PRODUCT_COUNT }, (_, i) =>
     makeProduct(i + 1, {
-      name: `${pick(NOUNS)} ${pick(FLAVORS)} ${pick(SIZES)} #${i + 1}`,
+      name:
+        i % 4 === 0
+          ? `${pick(ABBREVIATED)} ${pick(GLUED_SIZES)} #${i + 1}`
+          : `${pick(NOUNS)} ${pick(FLAVORS)} ${pick(SIZES)} #${i + 1}`,
       brand: pick(BRANDS),
       status: random() < 0.1 ? "inactive" : "active",
       salePriceCents: random() < 0.05 ? null : 100_00 + i,
@@ -99,6 +114,15 @@ function buildFixtures(): {
     });
   });
   return { products, barcodes };
+}
+
+/** El mismo texto con dos letras vecinas cambiadas de lugar (error de tipeo típico). */
+function typo(word: string, at: number): string {
+  const letters = word.toLowerCase().split("");
+  const first = letters[at] as string;
+  letters[at] = letters[at + 1] as string;
+  letters[at + 1] = first;
+  return letters.join("");
 }
 
 /** Percentil `p` (0-100) por rango más cercano de una lista de milisegundos. */
@@ -144,9 +168,11 @@ describe("rendimiento de la búsqueda local (3.000 productos, 4.000 códigos)", 
       const noun = NOUNS[i % NOUNS.length] as string;
       const flavor = FLAVORS[(i * 3) % FLAVORS.length] as string;
       const size = SIZES[(i * 5) % SIZES.length] as string;
-      // Variadas: una palabra, dos en otro orden, parcial, sin acentos, mayúsculas,
-      // con un número, de una letra (matchea casi todo) y sin resultados.
-      switch (i % 8) {
+      // Variadas: exactas (una palabra, dos en otro orden, parcial, mayúsculas,
+      // con un número, de una letra, sin resultados) y las que usan los niveles 2 y 3:
+      // abreviaturas y palabras del diccionario, errores de 4-7 y de 8+ letras,
+      // unidades pegadas y comienzos de 1 a 3 letras.
+      switch (i % 16) {
         case 0:
           return noun;
         case 1:
@@ -161,8 +187,24 @@ describe("rendimiento de la búsqueda local (3.000 productos, 4.000 códigos)", 
           return "a";
         case 6:
           return `${noun} xyz${i}`;
-        default:
+        case 7:
           return `${(i * 37) % PRODUCT_COUNT}`;
+        case 8:
+          return "desodorante rexona";
+        case 9:
+          return "deo 150 ml";
+        case 10:
+          return typo(noun, 3); // 4-7 letras: un error
+        case 11:
+          return `${typo("Chocolate", 4)} ${flavor}`; // 8+ letras
+        case 12:
+          return "gaseosa pomelo";
+        case 13:
+          return `gall ${["700cc", "150ml", "500g"][i % 3]}`;
+        case 14:
+          return noun.slice(0, 1 + (i % 3));
+        default:
+          return "galletiats sham desod";
       }
     });
     expect(queries).toHaveLength(SAMPLES);
@@ -175,6 +217,14 @@ describe("rendimiento de la búsqueda local (3.000 productos, 4.000 códigos)", 
 
     report("100 búsquedas por texto", times);
     expect(percentile(times, 95)).toBeLessThan(LIMIT_MS);
+    // Y los niveles 2 y 3 trabajan de verdad (no es una medición en vacío).
+    for (const query of [
+      "desodorante rexona",
+      "gaseosa pomelo",
+      typo("Chocolate", 4),
+    ]) {
+      expect(searchCatalog(index, query).length).toBeGreaterThan(0);
+    }
   });
 
   it("100 búsquedas por código (con y sin ceros a la izquierda): percentil 95 por debajo de 200 ms", () => {
