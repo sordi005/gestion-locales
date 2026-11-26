@@ -38,7 +38,7 @@ Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_
 - **THEN** esos votos quedan `superseded` y sin organización
 
 ### Requirement: Script de carga inicial desde SEPA y Open Food Facts
-`scripts/shared-products/` SHALL leer archivos ya descargados a mano en una carpeta ignorada por git: los `productos.csv` del SEPA (solo filas marcadas como EAN, eligiendo por código la descripción más frecuente entre comercios, con marca y presentación) y el export CSV de Open Food Facts leído en streaming y filtrado a Argentina (nunca la API en vivo). Las descripciones del SEPA en las que al menos el 80% de las letras está en mayúscula MUST pasarse a "tipo oración" (primera letra en mayúscula, el resto en minúscula); la marca MUST quedar como viene en su columna. Normaliza con `normalizeBarcode`, filtra con `sharedBaseEligibility`, deduplica por `barcodeKey` y carga en lotes con `load_shared_products`. Las columnas de precio del SEPA MUST descartarse al parsear y MUST NOT aparecer en ninguna estructura ni archivo intermedio. Al terminar imprime cuántas filas leyó, cuántas filtró por motivo, cuántas duplicadas y los conteos de la carga.
+`scripts/shared-products/` SHALL leer archivos ya descargados a mano en una carpeta ignorada por git: los `productos.csv` del SEPA (solo filas marcadas como EAN, eligiendo por código la descripción más frecuente entre comercios, con marca y presentación) y el export CSV de Open Food Facts leído en streaming y filtrado a Argentina (nunca la API en vivo). Las descripciones del SEPA en las que al menos el 80% de las letras está en mayúscula MUST pasarse a "tipo oración" (primera letra en mayúscula, el resto en minúscula). Después de sacar el código de envase y los puntos sueltos, el nombre (de las dos fuentes) MUST pasar por `presentableName(name, brand)` y la marca por `brandCase(brand)` (`product-text-vocabulary`): unidades de masa y volumen dentro del nombre en su forma corta después de un número, marca escrita toda en mayúsculas con mayúscula inicial (en su columna y dentro del nombre; siglas como `LG` o `3M` quedan como vienen) y la primera palabra expandida solo si es una abreviatura segura. Las abreviaturas que no están en la primera palabra y las ambiguas MUST NOT reescribirse; los nombres de línea cortados por la cadena ("activ emot") quedan como vienen. La presentación MUST normalizarse con la misma tabla de unidades. Normaliza con `normalizeBarcode`, filtra con `sharedBaseEligibility`, deduplica por `barcodeKey` y carga en lotes con `load_shared_products`. Las columnas de precio del SEPA MUST descartarse al parsear y MUST NOT aparecer en ninguna estructura ni archivo intermedio. Al terminar imprime cuántas filas leyó, cuántas filtró por motivo, cuántas duplicadas y los conteos de la carga.
 
 #### Scenario: Fila del SEPA con precio
 - **WHEN** el parser lee una fila sintética del SEPA con precio de lista
@@ -54,7 +54,19 @@ Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_
 
 #### Scenario: Descripción casi toda en mayúsculas
 - **WHEN** el SEPA trae `"LIMPIADOR CIF GEL C/LAVAN.UL.BCO.500cc."` (más del 80% de las letras en mayúscula)
-- **THEN** el nombre cargado es `"Limpiador cif gel c/lavan.ul.bco.500cc."`; `"Espumante spritz FEDERICO DE ALVEAR bot x 750 cc"` (menos del 80%) queda como viene, y las unidades dentro del nombre no se reescriben
+- **THEN** el nombre cargado es `"Limpiador cif gel c/lavan.ul.bco.500 ml"` (tipo oración y la unidad en su forma corta; `c/` y `bco` no se tocan)
+
+#### Scenario: Descripción con la marca en mayúsculas
+- **WHEN** el SEPA trae `"Espumante spritz FEDERICO DE ALVEAR bot x 750 cc"` (menos del 80% en mayúscula) con la marca `"FEDERICO DE ALVEAR"`
+- **THEN** el nombre cargado es `"Espumante spritz Federico de Alvear bot x 750 ml"` y la marca `"Federico de Alvear"`; el resto del uso de mayúsculas queda como vino
+
+#### Scenario: Abreviatura en la primera palabra
+- **WHEN** el SEPA trae `"Deo activ emot women 150 ml"` con la marca `"REXON"`, `"Alf shaggy 40x60"` y `"Leche liq descrem 1 lt"`
+- **THEN** se cargan `"Desodorante activ emot women 150 ml"` con la marca `"Rexon"`, `"Alf shaggy 40x60"` (ambigua, sin cambios) y `"Leche liq descrem 1 l"` (las abreviaturas del medio no se tocan)
+
+#### Scenario: Unidad pegada al número dentro del nombre
+- **WHEN** el SEPA trae `"Gin HEREDERO 700 cm3"` con la marca `"HEREDERO"`, o un nombre con `"500cc"` o `"350 grs"`
+- **THEN** se cargan `"Gin Heredero 700 ml"`, `"500 ml"` y `"350 g"` dentro del nombre; una carga repetida del mismo archivo da exactamente los mismos textos
 
 #### Scenario: Producto de otro país en Open Food Facts
 - **WHEN** el export trae un producto sin Argentina en sus países
@@ -74,7 +86,7 @@ Al cargar, la precedencia SHALL ser `platform_admin` > `sepa` > `off` > `tenant_
 
 #### Scenario: Marca de relleno
 - **WHEN** una fila trae como marca `"S/D"`, `"SIN MARCA"`, `"GENERICO"`, `"-"` u otro relleno (sin distinguir mayúsculas ni acentos, ignorando `*`, `.` y `-` en los bordes), del SEPA o de Open Food Facts
-- **THEN** la fila se carga sin marca y el reporte lo cuenta (`placeholder_brand`); lo mismo vale para una marca sin letras (`"317"`, `"---"`); una marca como `"*AEROCOR"` se carga como `"AEROCOR"`
+- **THEN** la fila se carga sin marca y el reporte lo cuenta (`placeholder_brand`); lo mismo vale para una marca sin letras (`"317"`, `"---"`); una marca como `"*AEROCOR"` se carga como `"Aerocor"` (sin el `*` y, por venir toda en mayúsculas, con mayúscula inicial)
 
 #### Scenario: Presentación de relleno
 - **WHEN** una fila trae una presentación de cantidad 1 con una unidad "unidad" o un envase (`"1 UNI"`, `"1 EA"`, `"1 pck"`, `"1 caja"`), `"1 g"`, `"1 ml"`, o una cantidad menor a 1 en `g`, `ml` o `u` (`".40 g"`)
