@@ -214,6 +214,7 @@ export function CreateProductForm({
           <Input
             id={nameId}
             ref={nameRef}
+            placeholder={QUICK_CREATE_MESSAGES.namePlaceholder}
             autoComplete="off"
             value={form.values.name}
             aria-invalid={errors.name === undefined ? undefined : true}

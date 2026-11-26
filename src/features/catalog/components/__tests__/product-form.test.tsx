@@ -129,6 +129,26 @@ beforeEach(() => {
 });
 
 describe("ProductForm (alta)", () => {
+  it("muestra en el nombre la misma pista que el alta rápida (C-65)", () => {
+    renderCreate();
+
+    expect(screen.getByLabelText("Nombre")).toHaveAttribute(
+      "placeholder",
+      "Ej: Crema corporal Nivea 400 ml",
+    );
+  });
+
+  it("la pista no es un valor: el nombre arranca vacío y queda lo que se escribe", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+    const name = screen.getByLabelText("Nombre");
+
+    expect(name).toHaveValue("");
+    await user.type(name, "Alfajor");
+
+    expect(name).toHaveValue("Alfajor");
+  });
+
   it("dibuja los campos del alta, con sus etiquetas", () => {
     renderCreate();
 

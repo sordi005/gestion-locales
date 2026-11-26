@@ -163,6 +163,37 @@ describe("QuickCreateProduct: alta feliz", () => {
   });
 });
 
+describe("QuickCreateProduct: pista en el nombre", () => {
+  it("el campo Nombre trae la pista de nombre completo", () => {
+    renderSheet();
+    expect(screen.getByLabelText("Nombre")).toHaveAttribute(
+      "placeholder",
+      "Ej: Crema corporal Nivea 400 ml",
+    );
+  });
+
+  it("con una sugerencia de la base se muestra la sugerencia, no la pista", async () => {
+    vi.mocked(lookupSharedProduct).mockResolvedValue(ok(SUGGESTION));
+    renderSheet();
+    await waitFor(() =>
+      expect(screen.getByLabelText("Nombre")).toHaveValue(
+        "Galletitas de limón 120 g",
+      ),
+    );
+  });
+
+  it("guardar sin nombre sigue mostrando el error", async () => {
+    const user = userEvent.setup();
+    renderSheet();
+    await user.type(screen.getByLabelText("Precio"), "900");
+    await user.click(screen.getByRole("button", { name: "Guardar" }));
+    expect(
+      await screen.findByText("Escribí el nombre del producto."),
+    ).toBeInTheDocument();
+    expect(createProduct).not.toHaveBeenCalled();
+  });
+});
+
 describe("QuickCreateProduct: precio según el origen", () => {
   it("desde la venta sin precio no envía y marca el precio", async () => {
     const user = userEvent.setup();
