@@ -2,6 +2,8 @@
 // son relleno, unidades escritas de mil maneras y nombres en mayúsculas. Nunca inventa datos:
 // solo descarta lo que no dice nada o normaliza la forma de lo que sí dice.
 
+import { canonicalUnit } from "../../src/shared/lib/product-text";
+
 /** Marcas que son relleno (comparadas sin acentos ni mayúsculas, sin `*`, `.`, `-` ni espacios en los bordes). */
 const PLACEHOLDER_BRANDS: ReadonlySet<string> = new Set([
   "s/d",
@@ -45,58 +47,9 @@ export function cleanBrand(raw: string | null): {
   return { brand: raw.trim().replace(/^[\s*]+/, ""), placeholder: false };
 }
 
-const UNIT_WORDS = new Set([
-  "un",
-  "u",
-  "uni",
-  "unid",
-  "unidad",
-  "unidades",
-  "ea",
-  "pza",
-  "pieza",
-  "ud",
-  "und",
-  "cu",
-]);
-
-const UNIT_ALIASES: Readonly<Record<string, string>> = {
-  gr: "g",
-  grs: "g",
-  gramos: "g",
-  g: "g",
-  kg: "kg",
-  kgs: "kg",
-  kilo: "kg",
-  kilos: "kg",
-  ml: "ml",
-  cc: "ml",
-  cm3: "ml",
-  lt: "l",
-  lts: "l",
-  l: "l",
-  litro: "l",
-  litros: "l",
-  mg: "mg",
-  // Códigos de unidad de las cadenas (SEPA): "340 grm", "0.125 kgm", "900 cmq" (cm³).
-  grm: "g",
-  kgm: "kg",
-  kgr: "kg",
-  ltr: "l",
-  cmq: "ml",
-  dm3: "l",
-  mt: "m",
-  mts: "m",
-  mtr: "m",
-  cmt: "cm",
-  mt2: "m2",
-};
-
 /** Unidad en su forma corta; una desconocida queda en minúscula, sin el punto final. */
 export function normalizeUnit(raw: string): string {
-  const unit = raw.trim().replace(/\.+$/, "").toLowerCase();
-  if (UNIT_WORDS.has(unit)) return "u";
-  return UNIT_ALIASES[unit] ?? unit;
+  return canonicalUnit(raw);
 }
 
 /** `500.00` pasa a `500`, `1,50` a `1.5`; un texto que no es número queda como viene. */
